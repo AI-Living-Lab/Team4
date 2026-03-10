@@ -1,0 +1,92 @@
+[
+  {
+    "video": "/data0/aix23102/unav_100/videos/72f67ednp7w.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/72f67ednp7w.wav",
+    "timestamps": [
+      13.01,
+      15.78316
+    ],
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the start and end time of the following event.\n\nEvent: skateboarding\n\nAnswer with exactly one line using ONLY special time tokens from <t0> to <t299>:\nstart: <t_start> end: <t_end>"
+      },
+      {
+        "from": "gpt",
+        "value": "start: 13.0 end: 15.8"
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/72f67ednp7w.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/72f67ednp7w.wav",
+    "timestamps": [
+      21.01,
+      37.7377
+    ],
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the start and end time of the following event.\n\nEvent: skateboarding\n\nAnswer with exactly one line using ONLY special time tokens from <t0> to <t299>:\nstart: <t_start> end: <t_end>"
+      },
+      {
+        "from": "gpt",
+        "value": "start: 21.0 end: 37.7"
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/72f67ednp7w.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/72f67ednp7w.wav",
+    "timestamps": [
+      44.374,
+      46.05589
+    ],
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the start and end time of the following event.\n\nEvent: skateboarding\n\nAnswer with exactly one line using ONLY special time tokens from <t0> to <t299>:\nstart: <t_start> end: <t_end>"
+      },
+      {
+        "from": "gpt",
+        "value": "start: 44.4 end: 46.1"
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/-Rjmgv0O_p0.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/-Rjmgv0O_p0.wav",
+    "timestamps": [
+      0.0,
+      45.67432
+    ],
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the start and end time of the following event.\n\nEvent: playing base guitar\n\nAnswer with exactly one line using ONLY special time tokens from <t0> to <t299>:\nstart: <t_start> end: <t_end>"
+      },
+      {
+        "from": "gpt",
+        "value": "start: 0.0 end: 45.7"
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/-Rjmgv0O_p0.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/-Rjmgv0O_p0.wav",
+    "timestamps": [
+      32.715,
+      43.07432
+    ],
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the start and end time of the following event.\n\nEvent: female singing\n\nAnswer with exactly one line using ONLY special time tokens from <t0> to <t299>:\nstart: <t_start> end: <t_end>"
+      },
+      {
+        "from": "gpt",
+        "value": "start: 32.7 end: 43.1"
+      }
+    ]
+  }
+]
