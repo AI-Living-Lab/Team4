@@ -13,7 +13,7 @@
   - `av_features.tar.gz` — Video features  
   - `av_features_audio_al_retrieval.tar.gz` — Audio features
 
-## ⚙️ video-SALMONN-2 Setup
+## 🐟 video-SALMONN-2 Setup
 
 Repository reference:  
 - [video-SALMONN-2 GitHub](https://github.com/bytedance/video-SALMONN-2?tab=readme-ov-file)
