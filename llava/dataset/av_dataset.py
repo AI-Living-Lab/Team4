@@ -32,21 +32,31 @@ import soundfile as sf
 import random
 import math
 
-def _sec_to_time_token(sec: float, max_time: float, num_bins: int) -> str:
-    if sec is None:
-        return "<t0>"
-    sec = max(0.0, min(float(sec), float(max_time)))
-    if max_time <= 0:
-        bin_idx = 0
-    else:
-        bin_idx = min(int(round(sec / max_time * (num_bins - 1))), num_bins - 1)
-    return f"<t{bin_idx}>"
+def _sec_to_vtgllm_tokens(sec: float) -> str:
+    sec = max(0.0, sec)
+    # 소수 1자리로 반올림한 뒤 정수부/소수부 분리
+    # → 12.95 같은 경우 13.0으로 올바르게 처리
+    rounded = round(sec * 10)          # 129 (0.1초 단위 정수)
+    int_part = rounded // 10           # 12
+    frac_digit = rounded % 10          # 9
+    int_str = f"{int_part:04d}"
+    tokens = "".join(f"<t{d}>" for d in int_str)
+    tokens += f"<tdot><t{frac_digit}>"
+    return tokens
 
-def _build_time_token_answer(t0: float, t1: float, max_time: float, num_bins: int) -> str:
-    start_tok = _sec_to_time_token(t0, max_time=max_time, num_bins=num_bins)
-    end_tok = _sec_to_time_token(t1, max_time=max_time, num_bins=num_bins)
-    return f"start: {start_tok} end: {end_tok}"
+def _build_single_time_token_answer(t0: float, t1: float) -> str:
+    return f"start: {_sec_to_vtgllm_tokens(t0)} end: {_sec_to_vtgllm_tokens(t1)}"
 
+def _build_dense_time_token_answer(events: list) -> str:
+    """events: [{"label": ..., "timestamps": [start, end]}, ...]"""
+    result = []
+    for ev in sorted(events, key=lambda x: x["timestamps"][0]):
+        result.append({
+            "event": ev["label"],
+            "start": _sec_to_vtgllm_tokens(ev["timestamps"][0]),
+            "end":   _sec_to_vtgllm_tokens(ev["timestamps"][1]),
+        })
+    return json.dumps(result, ensure_ascii=False)
 
 class LazyAVSupervisedDataset(Dataset):
     """Dataset for supervised fine-tuning."""
@@ -65,8 +75,6 @@ class LazyAVSupervisedDataset(Dataset):
         self.wav_processor = WhisperFeatureExtractor.from_pretrained(whisper_path)
         self.max_time = data_args.max_time
         self.use_timestamps_crop = getattr(data_args, "use_timestamps_crop", False)
-        self.num_time_bins = getattr(data_args, "num_time_bins", 300)
-        self._time_token_debug_left = 3 # log-only budget (conversion itself should run for all samples)
 
         self.is_test = is_test
 
@@ -114,46 +122,29 @@ class LazyAVSupervisedDataset(Dataset):
             # - test(is_test=True)에서는 건드리지 않음
             # ----------------------------
             if not self.is_test:
-                t0_id = self.tokenizer.convert_tokens_to_ids("<t0>")
-                tlast_id = self.tokenizer.convert_tokens_to_ids(f"<t{self.num_time_bins - 1}>")
-                has_time_tokens = (
-                    t0_id is not None and t0_id != self.tokenizer.unk_token_id
-                    and tlast_id is not None and tlast_id != self.tokenizer.unk_token_id
-                )
+                mode = sources[0].get("mode", "single")
 
-                if has_time_tokens and ("timestamps" in sources[0]):
-                    t0_abs = float(sources[0]["timestamps"][0])
-                    t1_abs = float(sources[0]["timestamps"][1])
+                if mode == "dense":
+                    events = sources[0].get("events")
+                    if not events:
+                        raise ValueError(f"[TIME-TOKEN] dense mode requires 'events' field.")
+                    new = _build_dense_time_token_answer(events)
+
+                else:  # single
+                    if "timestamps" not in sources[0]:
+                        raise ValueError(f"[TIME-TOKEN] single mode requires 'timestamps' field.")
+                    t0 = float(sources[0]["timestamps"][0])
+                    t1 = float(sources[0]["timestamps"][1])
 
                     if self.use_timestamps_crop:
-                        # crop된 clip 내부에서는 event가 clip 전체를 차지하므로
-                        # 상대 시간 기준으로 0 ~ duration 이 정답
+                        # crop 모드는 single에서만 유효
+                        t1 = max(0.0, t1 - t0)
                         t0 = 0.0
-                        t1 = max(0.0, t1_abs - t0_abs)
-                        cur_max_time = max(t1, 1e-6)
-                    else:
-                        t0 = t0_abs
-                        t1 = t1_abs
-                        cur_max_time = self.max_time
 
-                    new = _build_time_token_answer(
-                        t0, t1,
-                        max_time=cur_max_time,
-                        num_bins=self.num_time_bins,
-                    )
+                    new = _build_single_time_token_answer(t0, t1)
 
-                    if not hasattr(self, "_dbg_once"):
-                        self._dbg_once = True
-                        print("[DBG] single-event time-token target:", new)
-                        print("[DBG] raw timestamps:", t0, t1)
-
-                    sources[0]["conversations"][-1]["value"] = new
-                    text = new
-                else:
-                    raise ValueError(
-                        f"[TIME-TOKEN] required time tokens are missing. "
-                        f"Expected <t0> ... <t{self.num_time_bins - 1}> in tokenizer."
-                    )
+                sources[0]["conversations"][-1]["value"] = new
+                text = new
             # ----------------------------
 
             if self.is_test:
@@ -164,6 +155,12 @@ class LazyAVSupervisedDataset(Dataset):
                     # ✅ 테스트는 "생성용 prompt"로 끝나야 합니다.
                     # assistant의 content를 비워두면 preprocess에서 <|im_start|>assistant\n 로 열린 상태로 끝낼 수 있습니다.
                     sources[0]["conversations"][-1]["value"] = ""
+
+            use_crop = (
+                self.use_timestamps_crop
+                and sources[0].get("mode", "single") != "dense"
+                and "timestamps" in sources[0]
+            )
 
             if 'video' in sources[0]:
                 video_file = sources[0]['video']
@@ -176,7 +173,7 @@ class LazyAVSupervisedDataset(Dataset):
                 
                 max_frames = self.max_frame_num
 
-                if ("timestamps" not in sources[0]) or (not self.use_timestamps_crop):
+                if not use_crop:
                     frame_idx = [k for k in range(0, total_frame_num, round(avg_fps))]
                     if len(frame_idx) > max_frames:
                         frame_idx = np.linspace(0, total_frame_num - 1, max_frames, dtype=int).tolist()
@@ -217,22 +214,15 @@ class LazyAVSupervisedDataset(Dataset):
                 if len(audio.shape) == 2: # stereo to mono
                     audio = audio[:, 0]
 
-                if ("timestamps" in sources[0]) and self.use_timestamps_crop:
+                if use_crop:   # 비디오 섹션에서 계산한 use_crop 재사용
                     t0 = float(sources[0]["timestamps"][0])
                     t1 = float(sources[0]["timestamps"][1])
-
-                    # seconds -> sample indices (int)
                     s0 = int(math.floor(t0 * sr))
                     s1 = int(math.ceil(t1 * sr))
-
-                    # clamp to valid range
                     s0 = max(0, min(s0, len(audio)))
                     s1 = max(0, min(s1, len(audio)))
-
-                    # ensure non-empty slice
                     if s1 <= s0:
-                        s1 = min(len(audio), s0 + sr)  # at least 1s if possible
-
+                        s1 = min(len(audio), s0 + sr)
                     audio = audio[s0:s1]
 
                 if len(audio) < sr: # pad audio to at least 1s
@@ -320,10 +310,16 @@ class LazyAVSupervisedDataset(Dataset):
             data_dict["ce_only"] = sources[0].get("ce_only", False)
             data_dict["text"] = text
 
-            if "timestamps" in sources[0]:
+            if sources[0].get("mode", "single") == "dense":
+                # dense는 단일 timestamps 대신 events 전체를 저장
+                data_dict["gt_timestamps"] = None
+                data_dict["gt_events"] = sources[0].get("events", [])
+            elif "timestamps" in sources[0]:
                 data_dict["gt_timestamps"] = [float(sources[0]["timestamps"][0]), float(sources[0]["timestamps"][1])]
+                data_dict["gt_events"] = None
             else:
                 data_dict["gt_timestamps"] = None
+                data_dict["gt_events"] = None
 
             return data_dict
         
@@ -468,10 +464,8 @@ class DataCollatorForAVSupervisedDataset(object):
         batch["ce_only"] = [s["ce_only"] for s in instances]
         batch["texts"] = [s["text"] for s in instances]
 
-        if "gt_timestamps" in instances[0]:
-            batch["gt_timestamps"] = [s.get("gt_timestamps", None) for s in instances]
-        else:
-            batch["gt_timestamps"] = None
+        batch["gt_timestamps"] = [s.get("gt_timestamps", None) for s in instances]
+        batch["gt_events"]     = [s.get("gt_events",     None) for s in instances]
 
         # ===== [DBG] label mask sanity check (COLLATOR) =====
         is_rank0 = (not dist.is_available()) or (not dist.is_initialized()) or (dist.get_rank() == 0)

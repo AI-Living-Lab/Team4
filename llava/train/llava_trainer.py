@@ -327,6 +327,48 @@ class LLaVATrainer(Trainer):
         super().__init__(**kwargs)
         self.__first_save = True
 
+    def _load_rng_state(self, checkpoint):
+        import random
+        import numpy as np
+        if checkpoint is None:
+            return
+
+        if self.args.world_size > 1:
+            process_index = self.args.process_index
+            rng_file = os.path.join(checkpoint, f"rng_state_{process_index}.pth")
+            if not os.path.isfile(rng_file):
+                logger.info(
+                    f"Didn't find an RNG file for process {process_index}, skipping RNG state restore."
+                )
+                return
+        else:
+            rng_file = os.path.join(checkpoint, "rng_state.pth")
+            if not os.path.isfile(rng_file):
+                logger.info("Didn't find an RNG file, skipping RNG state restore.")
+                return
+
+        checkpoint_rng_state = torch.load(rng_file, map_location="cpu")
+        random.setstate(checkpoint_rng_state["python"])
+        np.random.set_state(checkpoint_rng_state["numpy"])
+        torch.random.set_rng_state(checkpoint_rng_state["cpu"])
+        if torch.cuda.is_available():
+            if self.args.parallel_mode == ParallelMode.DISTRIBUTED:
+                try:
+                    torch.cuda.random.set_rng_state_all(checkpoint_rng_state["cuda"])
+                except Exception as e:
+                    logger.info(
+                        f"Couldn't restore distributed CUDA RNG states: {e}\n"
+                        "Reproducibility is not guaranteed but training will continue."
+                    )
+            else:
+                try:
+                    torch.cuda.random.set_rng_state(checkpoint_rng_state["cuda"])
+                except Exception as e:
+                    logger.info(
+                        f"Couldn't restore CUDA RNG state: {e}\n"
+                        "Reproducibility is not guaranteed but training will continue."
+                    )
+
     def training_step(self, model, inputs):
         import torch
         import torch.distributed as dist

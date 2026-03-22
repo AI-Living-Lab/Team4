@@ -107,6 +107,7 @@ def preprocess_qwen(
                 (IGNORE_INDEX if tid == IMAGE_TOKEN_INDEX else tid)
                 for tid in content_ids
             ]
+            _target[end] = im_end
 
         return _input_id, _target
 

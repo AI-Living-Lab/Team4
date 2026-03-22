@@ -42,6 +42,13 @@ from transformers import AutoConfig
 from llava.dataset import make_supervised_data_module, make_test_data_module
 from transformers import TrainerCallback
 
+# ==============================================================================
+# VTG-LLM 방식 time token 상수 (전역)
+# <t0>~<t9>: digit 0~9, <tdot>: 소수점 → 총 11개 고정
+# ==============================================================================
+VTG_TIME_TOKENS = [f"<t{i}>" for i in range(10)] + ["<tdot>"]
+
+
 def _prompt_to_text(prompt):
     """
     prompt can be:
@@ -69,22 +76,21 @@ def _prompt_to_text(prompt):
                 parts.append(v)
         elif isinstance(item, str):
             parts.append(item)
-        # 그 외 타입은 무시 (e.g., None, numbers)
     return " ".join(parts)
+
 
 def _unwrap_model(m):
     return m.module if hasattr(m, "module") else m
 
+
 def unfreeze_embeddings_and_lm_head(model):
     m = _unwrap_model(model)
 
-    # input embeddings
     in_emb = m.get_input_embeddings()
     if in_emb is not None:
         for p in in_emb.parameters():
             p.requires_grad_(True)
 
-    # output embeddings (tied) or lm_head
     out_emb = m.get_output_embeddings()
     if out_emb is not None:
         for p in out_emb.parameters():
@@ -94,6 +100,7 @@ def unfreeze_embeddings_and_lm_head(model):
             p.requires_grad_(True)
 
     return model
+
 
 def ensure_image_token(tokenizer, model):
     vocab = tokenizer.get_vocab()
@@ -112,14 +119,11 @@ def ensure_image_token(tokenizer, model):
 
     return image_id
 
+
 def _resolve_tokenizer_path(training_args, model_args=None):
-    # time token을 추가해야 하는 실험이면:
-    #  - 기존 ckpt tokenizer를 쓰면 ID 충돌이 이미 포함돼 있을 수 있음
-    #  - 반드시 model_base tokenizer에서 시작해야 안전
     if model_args is not None and getattr(model_args, "add_time_token", False):
         return training_args.model_base
 
-    # (기존 로직 유지)
     outdir = getattr(training_args, "output_dir", None)
     if outdir and os.path.isdir(outdir):
         ckpts = sorted(
@@ -133,6 +137,7 @@ def _resolve_tokenizer_path(training_args, model_args=None):
             return outdir
     return training_args.ckpt
 
+
 def simple_predict_generate(
     model,
     tokenizer,
@@ -141,7 +146,6 @@ def simple_predict_generate(
     do_sample: bool = False,
     max_new_tokens: int = 512,
     max_time: float = 30.0,
-    num_time_bins: int = 300,
 ):
     """
     Fallback inference when LLaVATrainer.predict() returns None.
@@ -161,18 +165,14 @@ def simple_predict_generate(
     with torch.no_grad():
 
         def _safe_decode(tokenizer, ids, skip_special_tokens=False):
-            # ids: Tensor or list[int]
             if torch.is_tensor(ids):
                 ids = ids.tolist()
-            # fast tokenizer는 음수 토큰 decode 시 OverflowError
             ids = [x for x in ids if isinstance(x, int) and x >= 0]
             return tokenizer.decode(ids, skip_special_tokens=skip_special_tokens)
 
-        # ---- tqdm: rank0에서만 출력 (멀티 GPU 로그 난장판 방지) ----
         rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
         is_rank0 = (rank == 0)
 
-        # total 추정 (가능하면 dataloader 길이 사용)
         try:
             total = len(dl)
         except Exception:
@@ -192,7 +192,7 @@ def simple_predict_generate(
         for step, batch in enumerate(pbar):
 
             # ===== DEBUG START =====
-            if step == 0:  # 첫 배치만 찍기
+            if step == 0:
                 print("\n================ DEBUG INPUT ================")
                 print("[DBG] modalities:", batch.get("modalities"))
                 print("[DBG] has images:", batch.get("images") is not None)
@@ -201,22 +201,19 @@ def simple_predict_generate(
                     batch["input_ids"][0][-50:].tolist())
                 print("[DBG] decoded prompt tail:\n",
                     _safe_decode(
-                        tokenizer, batch["input_ids"][0][-400:], 
+                        tokenizer, batch["input_ids"][0][-400:],
                         skip_special_tokens=False)
                     )
                 print("=============================================\n")
             # ===== DEBUG END =====
 
-            # ---- metadata keys can vary depending on collator ----
             ids = batch.get("ids", batch.get("id", None))
             prompts = batch.get("prompts", batch.get("prompt", None))
 
-            # ---- move to cuda only if needed ----
             for k in ["input_ids", "attention_mask"]:
                 if k in batch:
                     batch[k] = _to_cuda_if_tensor(batch[k])
 
-            # multimodal inputs (may already be on device)
             if "images" in batch and batch["images"] is not None:
                 if isinstance(batch["images"], (list, tuple)):
                     batch["images"] = [it.to(torch.bfloat16).cuda(non_blocking=True) if torch.is_tensor(it) else it
@@ -228,17 +225,8 @@ def simple_predict_generate(
                 if torch.is_tensor(batch["spectrogram"]):
                     batch["spectrogram"] = batch["spectrogram"].to(torch.bfloat16).cuda(non_blocking=True)
 
-
-            # ---- IMPORTANT: normalize keys for VideoSALMONN2ForCausalLM.generate ----
-            # This repo's collator/dataset often uses:
-            #   image (Tensor) + modality (str) + real_time (float)
-            # but model.generate expects:
-            #   images (List[Tensor]) + modalities (List[str]) + real_time (Tensor/float)
-            #
-            # 1) image -> images
             if "images" not in batch and "image" in batch and batch["image"] is not None:
                 img = batch["image"]
-                # move to cuda + bf16
                 if torch.is_tensor(img):
                     img = img.to(torch.bfloat16).cuda(non_blocking=True)
                 batch["images"] = [img]
@@ -251,20 +239,13 @@ def simple_predict_generate(
                 elif torch.is_tensor(batch["images"]):
                     batch["images"] = [batch["images"].to(torch.bfloat16).cuda(non_blocking=True)]
 
-            # 2) modality -> modalities
             if "modalities" not in batch and "modality" in batch and batch["modality"] is not None:
                 m = batch["modality"]
-                # batch_size=1이면 보통 str, 혹은 list[str]
                 if isinstance(m, str):
                     batch["modalities"] = [m]
                 else:
                     batch["modalities"] = m
 
-            # 3) real_time 그대로 넘기기 (있으면)
-            #    (prepare_inputs_labels_for_multimodal에서 사용)
-            # 4) org_groups (있으면)도 넘기기
-
-            # ---- keep only keys generate() accepts in this repo ----
             allowed = {
                 "input_ids",
                 "attention_mask",
@@ -283,112 +264,6 @@ def simple_predict_generate(
                 print(gen_batch["input_ids"][0][-40:].tolist())
                 print("[TEST][COUNT_-200]", int((gen_batch["input_ids"] == -200).sum().item()))
 
-            # # =========================================================
-            # # 🔥 SAFE GENERATION PROMPT FIX (string-normalize; Qwen-safe)
-            # # Goal: force prompt to end with "<|im_start|>assistant\n"
-            # # Also remove any trailing CLOSED assistant blocks:
-            # #   "<|im_start|>assistant ... <|im_end|>"
-            # # =========================================================
-
-            # IM_START_ID = tokenizer.convert_tokens_to_ids("<|im_start|>")
-            # IM_END_ID   = tokenizer.convert_tokens_to_ids("<|im_end|>")
-
-            # # ids for "assistant\n" (Qwen tokenizer may encode as multiple tokens)
-            # ASSIST_HDR_IDS = tokenizer.encode("assistant\n", add_special_tokens=False)
-
-            # def _ensure_generation_prompt_ids_only(ids_1d: torch.Tensor) -> torch.Tensor:
-            #     ids = ids_1d.tolist()
-
-            #     IMAGE_PLACEHOLDER = -200  # LLaVA IMAGE_TOKEN_INDEX
-            #     ids = [x for x in ids if isinstance(x, int) and (x >= 0 or x == IMAGE_PLACEHOLDER)]
-
-            #     # ids for "assistant\n" (Qwen tokenizer may encode as multiple tokens)
-            #     patA = ([IM_START_ID] if IM_START_ID is not None else []) + ASSIST_HDR_IDS
-            #     patB = ([IM_START_ID, IM_END_ID] if (IM_START_ID is not None and IM_END_ID is not None) else []) + ASSIST_HDR_IDS
-
-            #     # helper: reverse find pattern (no _rfind_pattern dependency)
-            #     def _rfind(seq, pat):
-            #         if len(pat) == 0 or len(seq) < len(pat):
-            #             return None
-            #         for j in range(len(seq) - len(pat), -1, -1):
-            #             if seq[j:j+len(pat)] == pat:
-            #                 return j
-            #         return None
-
-            #     # 0) strip trailing IM_ENDs
-            #     while len(ids) > 0 and IM_END_ID is not None and ids[-1] == IM_END_ID:
-            #         ids.pop()
-
-            #     # 1) find last assistant header (A or B)
-            #     posA = _rfind(ids, patA)
-            #     posB = _rfind(ids, patB)
-
-            #     pos = None
-            #     if posA is not None:
-            #         pos = posA
-            #     if posB is not None and (pos is None or posB > pos):
-            #         pos = posB
-
-            #     # 2) define junk tokens to remove right before the header
-            #     lbr = tokenizer.encode("[", add_special_tokens=False)
-            #     LBRACK_ID = lbr[0] if len(lbr) > 0 else None
-
-            #     def _strip_tail_junk(prefix):
-            #         junk = set()
-            #         if IM_END_ID is not None:
-            #             junk.add(IM_END_ID)
-            #         if LBRACK_ID is not None:
-            #             junk.add(LBRACK_ID)
-            #         # common whitespace tokens (Qwen often uses these)
-            #         junk |= {198, 220}  # '\n', ' '
-
-            #         while len(prefix) > 0 and prefix[-1] in junk:
-            #             prefix.pop()
-            #         return prefix
-
-            #     if pos is not None:
-            #         # keep everything BEFORE the last header, drop anything AFTER it
-            #         prefix = ids[:pos]
-            #         prefix = _strip_tail_junk(prefix)
-
-            #         # enforce clean header (always use patA, not patB)
-            #         new_ids = prefix + patA
-            #         return ids_1d.new_tensor(new_ids, dtype=ids_1d.dtype)
-
-            #     # 3) if no header exists, append clean header
-            #     ids = _strip_tail_junk(ids)
-            #     ids = ids + patA
-            #     return ids_1d.new_tensor(ids, dtype=ids_1d.dtype)
-                
-            # if "input_ids" in gen_batch and gen_batch["input_ids"] is not None:
-            #     ids0 = gen_batch["input_ids"][0]
-            #     fixed0 = _ensure_generation_prompt_ids_only(ids0)
-            #     gen_batch["input_ids"] = fixed0.unsqueeze(0)
-
-            #     # ✅ 원칙: attention_mask는 "원본"을 최대한 유지
-            #     # 다만 길이가 달라졌으면 그때만 tail만 1로 붙이기
-            #     if "attention_mask" in gen_batch and torch.is_tensor(gen_batch["attention_mask"]):
-            #         old_mask = gen_batch["attention_mask"][0]
-            #         old_len = old_mask.numel()
-            #         new_len = gen_batch["input_ids"].shape[1]
-            #         if new_len == old_len:
-            #             pass  # 그대로 둠
-            #         elif new_len > old_len:
-            #             pad = torch.ones(new_len - old_len, device=old_mask.device, dtype=old_mask.dtype)
-            #             gen_batch["attention_mask"] = torch.cat([old_mask, pad], dim=0).unsqueeze(0)
-            #         else:
-            #             gen_batch["attention_mask"] = old_mask[:new_len].unsqueeze(0)
-            #     else:
-            #         # 없으면 pad 기반으로 생성(최후의 fallback)
-            #         pad_id = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.convert_tokens_to_ids("<|im_end|>")
-            #         gen_batch["attention_mask"] = (gen_batch["input_ids"] != pad_id).to(torch.long)
-
-            #     if step == 0 and is_rank0:
-            #         tail200 = _safe_decode(tokenizer, gen_batch["input_ids"][0][-200:], skip_special_tokens=False)
-            #         print("\n[TEST][CHK5] prompt tail:\n", repr(tail200))
-            #         print("[TEST][CHK5] endswith 'assistant\\n'? ", tail200.endswith("assistant\n"))
-
-            # # =========================================================
             if step == 0 and is_rank0:
                 print("[CHK][AFTER_FIX_TAIL_TEXT]",
                     _safe_decode(tokenizer, gen_batch["input_ids"][0][-80:], skip_special_tokens=False))
@@ -402,7 +277,6 @@ def simple_predict_generate(
             if step < 1 and is_rank0:
                 print("[CHK][FIX_TAIL_LAST_ID]", int(gen_batch["input_ids"][0, -1].item()))
 
-            # --- MIN DEBUG (only first 3 steps, rank0) ---
             if step < 3 and is_rank0:
                 print("[DBG][GEN_BATCH_KEYS]", sorted(list(gen_batch.keys())))
 
@@ -418,48 +292,38 @@ def simple_predict_generate(
                 else:
                     print("[DBG][SPEC] None")
 
-                # ===== 추가 디버그 (여기부터) =====
-                # (A) <image> 토큰이 input_ids에 실제로 들어있는지
                 if "input_ids" in gen_batch and torch.is_tensor(gen_batch["input_ids"]):
                     ids_t = gen_batch["input_ids"]
-                    IMAGE_ID = tokenizer.convert_tokens_to_ids("<image>")  # 보통 151646
+                    IMAGE_ID = tokenizer.convert_tokens_to_ids("<image>")
                     n_img_tok = int((ids_t == IMAGE_ID).sum().item())
-                    n_img_idx = int((ids_t == -200).sum().item())          # LLaVA placeholder (IMAGE_TOKEN_INDEX)
-
+                    n_img_idx = int((ids_t == -200).sum().item())
                     print(f"[CHK][IMG_TOK] <image>_id={IMAGE_ID} count(id)={n_img_tok} count(-200)={n_img_idx}")
                     print(f"[CHK][IMG_TOK] input_ids min/max = {int(ids_t.min())}/{int(ids_t.max())}")
-                else:
-                    print("[CHK][IMG_TOK] gen_batch has no tensor input_ids")
 
-                # (B) images/spectrogram shape/dtype/device (실제 텐서인지)
+                # VTG-LLM 토큰 체크
+                t0_id   = tokenizer.convert_tokens_to_ids("<t0>")
+                t9_id   = tokenizer.convert_tokens_to_ids("<t9>")
+                tdot_id = tokenizer.convert_tokens_to_ids("<tdot>")
+                print(f"[CHK][TIME_ANCHOR] <t0>={t0_id} <t9>={t9_id} <tdot>={tdot_id}")
+
                 imgs = gen_batch.get("images", None)
                 print(f"[CHK][BATCH] images is None? {imgs is None}")
                 if imgs is not None:
-                    # VS2 계열에서 images가 list/tuple일 수도, tensor일 수도 있어 둘 다 대응
                     if torch.is_tensor(imgs):
                         print(f"[CHK][BATCH] images tensor shape={tuple(imgs.shape)} dtype={imgs.dtype} device={imgs.device}")
                     elif isinstance(imgs, (list, tuple)) and len(imgs) > 0 and torch.is_tensor(imgs[0]):
-                        print(f"[CHK][BATCH] images[0] shape={tuple(imgs[0].shape)} dtype={imgs[0].dtype} device={imgs[0].device} (list/tuple)")
-                    else:
-                        print(f"[CHK][BATCH] images type={type(imgs)} (not tensor / not tensor-list)")
+                        print(f"[CHK][BATCH] images[0] shape={tuple(imgs[0].shape)} dtype={imgs[0].dtype} device={imgs[0].device}")
 
                 sp = gen_batch.get("spectrogram", None)
                 print(f"[CHK][BATCH] spectrogram is None? {sp is None}")
-                if sp is not None:
-                    if torch.is_tensor(sp):
-                        print(f"[CHK][BATCH] spectrogram shape={tuple(sp.shape)} dtype={sp.dtype} device={sp.device}")
-                    else:
-                        print(f"[CHK][BATCH] spectrogram type={type(sp)} (not tensor)")
-                # ===== 추가 디버그 (여기까지) =====
-            # --- end debug ---
+                if sp is not None and torch.is_tensor(sp):
+                    print(f"[CHK][BATCH] spectrogram shape={tuple(sp.shape)} dtype={sp.dtype} device={sp.device}")
 
-            # --- DIAG: does MM affect the FIRST generated token? (rank0, step<1 only) ---
             if step < 1 and is_rank0:
                 ids_t = gen_batch["input_ids"]
                 n_img_idx = int((ids_t == -200).sum().item())
                 print(f"[DIAG][MM_EFFECT] count(-200)={n_img_idx}")
 
-                # 1) normal run (only 1 token)
                 out1 = model.generate(
                     **gen_batch,
                     do_sample=do_sample,
@@ -471,20 +335,13 @@ def simple_predict_generate(
                     output_scores=True,
                 )
                 tok1 = int(out1.sequences[0, -1].item())
-                print(f"[DIAG][MM_EFFECT] first_tok(normal) id={tok1} str={tokenizer.decode([tok1], skip_special_tokens=False)!r}")
-                start_ids = tokenizer.encode("start", add_special_tokens=False)
-                start_id = start_ids[0] if len(start_ids) > 0 else None
+                print(f"[DIAG][MM_EFFECT] first_tok id={tok1} str={tokenizer.decode([tok1], skip_special_tokens=False)!r}")
 
-                t0_id = tokenizer.convert_tokens_to_ids("<t0>")
-                tmid_id = tokenizer.convert_tokens_to_ids(f"<t{num_time_bins // 2}>")
-                tlast_id = tokenizer.convert_tokens_to_ids(f"<t{num_time_bins - 1}>")
+                t0_id   = tokenizer.convert_tokens_to_ids("<t0>")
+                t9_id   = tokenizer.convert_tokens_to_ids("<t9>")
+                tdot_id = tokenizer.convert_tokens_to_ids("<tdot>")
+                print(f"[CHK][TIME_ANCHOR] <t0>={t0_id} <t9>={t9_id} <tdot>={tdot_id}")
 
-                print(f"[CHK][TIME_ANCHOR] 'start' token_id={start_id} first_tok_is_start? {tok1 == start_id}")
-                print(f"[CHK][TIME_ANCHOR] <t0> token_id={t0_id}")
-                print(f"[CHK][TIME_ANCHOR] <tmid> token_id={tmid_id}")
-                print(f"[CHK][TIME_ANCHOR] <tlast> token_id={tlast_id}")
-
-                # 2) zero-image run (keep input_ids identical, only zero images/spectrogram)
                 gen_batch2 = copy.deepcopy(gen_batch)
                 if "images" in gen_batch2 and gen_batch2["images"] is not None:
                     imgs = gen_batch2["images"]
@@ -492,7 +349,6 @@ def simple_predict_generate(
                         gen_batch2["images"] = [x * 0 if torch.is_tensor(x) else x for x in imgs]
                     elif torch.is_tensor(imgs):
                         gen_batch2["images"] = imgs * 0
-
                 if "spectrogram" in gen_batch2 and torch.is_tensor(gen_batch2["spectrogram"]):
                     gen_batch2["spectrogram"] = gen_batch2["spectrogram"] * 0
 
@@ -509,14 +365,11 @@ def simple_predict_generate(
                 tok2 = int(out2.sequences[0, -1].item())
                 print(f"[DIAG][MM_EFFECT] first_tok(zeroMM) id={tok2} str={tokenizer.decode([tok2], skip_special_tokens=False)!r}")
 
-                # 3) score delta (L1 mean) for the 1st token distribution
-                s1 = out1.scores[0]  # (bs, vocab)
+                s1 = out1.scores[0]
                 s2 = out2.scores[0]
                 delta = float((s1 - s2).abs().mean().item())
                 print(f"[DIAG][MM_EFFECT] mean|score_delta|={delta:.6f}")
-            # --- end DIAG ---
 
-            # --- DIAG3: compare full generated sequences (rank0, step<1 only) ---
             if step < 1 and is_rank0:
                 def _zero_mm(gb):
                     gb2 = copy.deepcopy(gb)
@@ -548,19 +401,10 @@ def simple_predict_generate(
 
                 seq_n = out_n.sequences[0].tolist()
                 seq_z = out_z.sequences[0].tolist()
-
                 prompt_len = gen_batch["input_ids"].shape[1]
 
-                # HF generate가 "prompt+gen"을 줄 수도 있고 "gen_only"만 줄 수도 있음
-                if len(seq_n) >= prompt_len:
-                    gen_n = seq_n[prompt_len:]
-                else:
-                    gen_n = seq_n
-
-                if len(seq_z) >= prompt_len:
-                    gen_z = seq_z[prompt_len:]
-                else:
-                    gen_z = seq_z
+                gen_n = seq_n[prompt_len:] if len(seq_n) >= prompt_len else seq_n
+                gen_z = seq_z[prompt_len:] if len(seq_z) >= prompt_len else seq_z
 
                 txt_n = tokenizer.decode(gen_n, skip_special_tokens=False)
                 txt_z = tokenizer.decode(gen_z, skip_special_tokens=False)
@@ -568,7 +412,6 @@ def simple_predict_generate(
                 print("\n[DIAG3][MM_SEQ] normal gen (head):", repr(txt_n[:200]))
                 print("[DIAG3][MM_SEQ] zeroMM gen (head):", repr(txt_z[:200]))
 
-                # find first differing token
                 first_diff = None
                 for i, (a, b) in enumerate(zip(gen_n, gen_z)):
                     if a != b:
@@ -584,36 +427,14 @@ def simple_predict_generate(
                     print("  normal tok:", a, repr(tokenizer.decode([a], skip_special_tokens=False)))
                     print("  zeroMM tok:", b, repr(tokenizer.decode([b], skip_special_tokens=False)))
 
-                    # score delta at that generation step (scores indexed by generated step)
-                    sdn = out_n.scores[first_diff]  # (bs, vocab)
-                    sdz = out_z.scores[first_diff]
-                    delta = float((sdn - sdz).abs().mean().item())
-                    topn = torch.topk(sdn[0], k=5).indices.tolist()
-                    topz = torch.topk(sdz[0], k=5).indices.tolist()
-                    print(f"[DIAG3][MM_SEQ] mean|score_delta|@diff_step={delta:.6f}")
-                    print("[DIAG3][MM_SEQ] top5(normal):", [(t, tokenizer.decode([t], skip_special_tokens=False)) for t in topn])
-                    print("[DIAG3][MM_SEQ] top5(zeroMM):", [(t, tokenizer.decode([t], skip_special_tokens=False)) for t in topz])
-            if step < 1 and is_rank0:
-                prompt_len = gen_batch["input_ids"].shape[1]
-                eos_id = tokenizer.convert_tokens_to_ids("<|im_end|>")
-                print("[CHK][DIAG3] eos_id:", eos_id)
-                first_gen_id = gen_n[0] if len(gen_n) > 0 else None
-                print("[CHK][DIAG3] out_n first gen id:", first_gen_id)
-                if first_gen_id is not None:
-                    print("[CHK][DIAG3] first gen tok str:", repr(tokenizer.decode([first_gen_id], skip_special_tokens=False)))
-                if out_n.sequences.shape[1] > prompt_len:
-                    tid = out_n.sequences[0][prompt_len].item()
-                    print("[CHK][DIAG3] first gen tok str:", repr(tokenizer.decode([tid], skip_special_tokens=False)))
-            if step < 1 and is_rank0:
                 print("[CHK][DIAG3] gen_n first 10 ids:", gen_n[:10])
                 decoded_first = [tokenizer.decode([t], skip_special_tokens=False) for t in gen_n[:20]]
                 print("[CHK][TIME_TRACE] first 20 decoded tokens:", decoded_first)
                 decoded_join = "".join(decoded_first)
-                print("[CHK][TIME_TRACE] has_any_time_token? ",
-                    any(f"<t{i}>" in decoded_join for i in [0, num_time_bins // 2, num_time_bins - 1]))
-            # --- end DIAG3 ---
+                # VTG-LLM 토큰 기준 체크
+                print("[CHK][TIME_TRACE] has_any_time_token?",
+                    any(tok in decoded_join for tok in ["<t0>", "<t9>", "<tdot>"]))
 
-            # ================== DIAG-A: generation args (rank0, step0 only) ==================
             if step == 0 and is_rank0:
                 eos_id = tokenizer.convert_tokens_to_ids("<|im_end|>")
                 print("[CHK][GEN_ARGS] do_sample =", do_sample)
@@ -630,13 +451,12 @@ def simple_predict_generate(
                         getattr(gc, "top_p", None),
                         getattr(gc, "top_k", None),
                         getattr(gc, "max_new_tokens", None))
-            # ============================================================================== 
 
             # Generate
             out = model.generate(
                 **gen_batch,
-                do_sample=False,        # ✅ 강제
-                temperature=None,       # ✅ sampling 파라미터 비활성화
+                do_sample=False,
+                temperature=None,
                 top_p=None,
                 top_k=None,
                 num_beams=1,
@@ -647,19 +467,14 @@ def simple_predict_generate(
                 output_scores=True,
             )
             gen = out.sequences
-            gen_scores = out.scores  # list length == #generated tokens, each (bs, vocab)
 
-            # ✅ [DIAG2] step0에서만: 멀티모달 키를 아예 제거하고 generate 비교
             if step == 0 and is_rank0:
                 import copy as _copy
                 ab_drop = _copy.deepcopy(gen_batch)
-
-                # 멀티모달 키 제거
                 ab_drop.pop("images", None)
                 ab_drop.pop("spectrogram", None)
                 ab_drop.pop("modalities", None)
 
-                # ✅✅✅ 여기: -200(<image> placeholder)이 남아있으면 DROP_MM generate를 하면 안 됨
                 if torch.is_tensor(ab_drop.get("input_ids", None)) and (ab_drop["input_ids"] == -200).any():
                     print("[DIAG][DROP_MM] skip: input_ids contains -200 but MM keys were dropped.", flush=True)
                 else:
@@ -679,18 +494,14 @@ def simple_predict_generate(
                     except Exception as e:
                         print("\n[DIAG][DROP_MM] raised:", repr(e), flush=True)
 
-            # ===== (PATCH #1) Robust: gen이 prompt 포함인지/생성-only인지 자동 판별 =====
             inp_len = gen_batch["input_ids"].shape[1] if gen_batch.get("input_ids") is not None else 0
             gen_len = gen.shape[1]
 
-            # Case A) gen이 prompt+생성을 함께 반환 (gen_len >= inp_len)
-            # Case B) gen이 생성 토큰만 반환 (gen_len < inp_len)
             if gen_len >= inp_len:
                 gen_only = gen[0, inp_len:]
             else:
                 gen_only = gen[0]
 
-            # ================== 여기부터 디버그 ==================
             if step < 3:
                 print("\n================ GEN DEBUG ================")
                 print("[DBG] step:", step)
@@ -704,21 +515,15 @@ def simple_predict_generate(
                 print("[DBG] decoded (keep special) head:", repr(dbg_keep[:200]))
                 print("[DBG] decoded (skip special) head:", repr(dbg_skip[:200]))
 
-                has_time = any(
-                    tok in dbg_keep
-                    for tok in ["<t0>", f"<t{num_time_bins // 2}>", f"<t{num_time_bins - 1}>"]
-                )
-                print("[DBG] contains time tokens?:", has_time)
+                # VTG-LLM 토큰 기준 체크
+                has_time = any(tok in dbg_keep for tok in ["<t0>", "<t9>", "<tdot>"])
+                print("[DBG] contains VTG-LLM time tokens?:", has_time)
                 print("[DBG] gen decoded full head:", repr(tokenizer.decode(gen[0], skip_special_tokens=False)[:200]))
                 print("[DBG] gen decoded full tail:", repr(tokenizer.decode(gen[0], skip_special_tokens=False)[-200:]))
                 print("==========================================\n")
-            # ================== 디버그 끝 ==================
 
             txt = _safe_decode(tokenizer, gen_only, skip_special_tokens=False)
-
             txt = txt.replace("<|im_start|>", "").replace("<|im_end|>", "").strip()
-
-            # ✅ (NEW) raw 저장용
             raw_txt = txt.strip()
 
             results.append({
@@ -729,55 +534,75 @@ def simple_predict_generate(
 
     return results
 
+
 def _get_single_token_id(tokenizer, text: str):
-    """Return a single token id for `text`. If it splits into multiple tokens, fall back to the first."""
     ids = tokenizer.encode(text, add_special_tokens=False)
     if len(ids) == 0:
         raise ValueError(f"Tokenizer cannot encode '{text}' (empty).")
     if len(ids) > 1:
-        # Qwen tokenizer sometimes splits; we fall back to the first for initialization.
-        # You may change to averaging if you want, but keep it simple first.
         print(f"[WARN] '{text}' is encoded into multiple tokens {ids}. Using the first one for init.")
     return ids[0]
 
-def add_time_tokens_and_init(tokenizer, model, num_bins: int):
-    """
-    Bin-token 방식:
-      <t0> ... <t{num_bins-1}>
-    새로 추가된 토큰은 평균 임베딩으로 초기화.
-    """
-    time_tokens = [f"<t{i}>" for i in range(num_bins)]
 
+def add_time_tokens_and_init(tokenizer, model):
+    """
+    VTG-LLM 방식: <t0>~<t9> (digit 0~9) + <tdot> (소수점) 총 11개 추가.
+
+    초기화 전략 (VTG-LLM 논문 권장):
+      - <t0>~<t9>: 기존 숫자 문자 '0'~'9' 토큰 임베딩으로 초기화
+      - <tdot>:    기존 '.' 토큰 임베딩으로 초기화
+    → 랜덤 초기화 대비 학습 안정성 대폭 향상
+    """
     num_added = tokenizer.add_special_tokens(
-        {"additional_special_tokens": time_tokens}
+        {"additional_special_tokens": VTG_TIME_TOKENS}
     )
-
     model.resize_token_embeddings(len(tokenizer))
 
     if num_added == 0:
-        print("[INFO] Time tokens already exist in tokenizer. Keep existing rows.")
+        print("[INFO] VTG-LLM time tokens already exist in tokenizer. Keep existing rows.")
         return 0
 
-    print(f"[INFO] Added {num_added} time special tokens.")
+    print(f"[INFO] Added {num_added} VTG-LLM time tokens: {VTG_TIME_TOKENS}")
 
-    in_embed = model.get_input_embeddings().weight.data
-    out_embed = model.get_output_embeddings().weight.data if model.get_output_embeddings() is not None else None
+    in_embed  = model.get_input_embeddings().weight.data
+    out_embed = (model.get_output_embeddings().weight.data
+                 if model.get_output_embeddings() is not None else None)
+
+    # digit 토큰 → 대응하는 숫자 문자 임베딩으로 초기화
+    # <tdot> → '.' 문자 임베딩으로 초기화
+    init_map = {f"<t{i}>": str(i) for i in range(10)}
+    init_map["<tdot>"] = "."
 
     with torch.no_grad():
-        in_avg = in_embed[:-num_added].mean(dim=0, keepdim=True)
-        in_embed[-num_added:] = in_avg
-        if out_embed is not None:
-            out_avg = out_embed[:-num_added].mean(dim=0, keepdim=True)
-            out_embed[-num_added:] = out_avg
+        # fallback으로 사용할 mean embedding (새로 추가된 행 제외)
+        in_mean  = in_embed[:-num_added].float().mean(dim=0).to(in_embed.dtype)
+        out_mean = (out_embed[:-num_added].float().mean(dim=0).to(out_embed.dtype)
+                    if out_embed is not None else None)
 
-    print("[INFO] Initialized time token embeddings from mean embedding.")
+        for new_tok, orig_char in init_map.items():
+            new_id   = tokenizer.convert_tokens_to_ids(new_tok)
+            orig_ids = tokenizer.encode(orig_char, add_special_tokens=False)
+
+            if len(orig_ids) == 0:
+                # fallback: mean embedding
+                in_embed[new_id] = in_mean
+                if out_embed is not None:
+                    out_embed[new_id] = out_mean
+                print(f"[WARN] '{orig_char}' not found in tokenizer vocab. Used mean for {new_tok}.")
+            else:
+                orig_id = orig_ids[0]
+                in_embed[new_id] = in_embed[orig_id].clone()
+                if out_embed is not None:
+                    out_embed[new_id] = out_embed[orig_id].clone()
+                print(f"[INFO] {new_tok} (id={new_id}) ← '{orig_char}' (id={orig_id})")
+
+    print("[INFO] VTG-LLM time token embeddings initialized from digit/dot character embeddings.")
     return num_added
 
+
 def _unwrap_core_for_emb(m):
-    # DDP
     if hasattr(m, "module"):
         m = m.module
-    # PEFT (PeftModel)
     if hasattr(m, "get_base_model"):
         try:
             m = m.get_base_model()
@@ -785,7 +610,12 @@ def _unwrap_core_for_emb(m):
             pass
     return m
 
-def apply_time_token_grad_mask(model, tokenizer, num_bins: int, *, only_time_tokens: bool = True):
+
+def apply_time_token_grad_mask(model, tokenizer, *, only_time_tokens: bool = True):
+    """
+    VTG-LLM 방식: VTG_TIME_TOKENS(11개)에 해당하는 임베딩 행만 gradient를 통과시키는 hook.
+    only_time_tokens=False이면 mask 없이 전체 임베딩 학습 (SFT 후반부 권장).
+    """
     if getattr(model, "_time_token_grad_mask_installed", False):
         rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
         if rank == 0:
@@ -794,8 +624,7 @@ def apply_time_token_grad_mask(model, tokenizer, num_bins: int, *, only_time_tok
 
     m = _unwrap_core_for_emb(model)
 
-    time_tokens = [f"<t{i}>" for i in range(num_bins)]
-    time_ids = [tokenizer.convert_tokens_to_ids(t) for t in time_tokens]
+    time_ids = [tokenizer.convert_tokens_to_ids(t) for t in VTG_TIME_TOKENS]
     time_ids = [i for i in time_ids if i is not None and i >= 0 and i != tokenizer.unk_token_id]
     time_id_set = set(time_ids)
 
@@ -829,9 +658,12 @@ def apply_time_token_grad_mask(model, tokenizer, num_bins: int, *, only_time_tok
 
     rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
     if rank == 0:
-        print("[PATCH][TIME_MASK] num time ids =", len(time_id_set), " e.g. <t0> id =", tokenizer.convert_tokens_to_ids("<t0>"), flush=True)
+        print("[PATCH][TIME_MASK] VTG_TIME_TOKENS count =", len(time_id_set),
+              " e.g. <t0>=", tokenizer.convert_tokens_to_ids("<t0>"),
+              "<tdot>=", tokenizer.convert_tokens_to_ids("<tdot>"), flush=True)
 
     model._time_token_grad_mask_installed = True
+
 
 def _load_time_rows_if_exist(model, ckpt_dir):
     path = os.path.join(ckpt_dir, "time_token_rows.pt")
@@ -849,10 +681,10 @@ def _load_time_rows_if_exist(model, ckpt_dir):
         except Exception:
             pass
 
-    in_emb = m.get_input_embeddings()
+    in_emb  = m.get_input_embeddings()
     out_emb = m.get_output_embeddings()
 
-    idx = torch.tensor(time_ids, dtype=torch.long, device=in_emb.weight.device)
+    idx     = torch.tensor(time_ids, dtype=torch.long, device=in_emb.weight.device)
     in_rows = payload["input_emb_rows"].to(in_emb.weight.device)
     in_emb.weight.data.index_copy_(0, idx, in_rows)
 
@@ -862,6 +694,7 @@ def _load_time_rows_if_exist(model, ckpt_dir):
 
     print(f"[RESUME][TIME_ROWS] loaded from {path}", flush=True)
 
+
 @dataclass
 class ModelArguments:
     version: Optional[str] = field(default="v0")
@@ -869,7 +702,7 @@ class ModelArguments:
     vision_tower: Optional[str] = field(default=None)
     image_processor: Optional[str] = field(default=None)
     unfreeze_mm_vision_tower: bool = field(default=False)
-    mm_vision_select_layer: Optional[int] = field(default=-1)   # default to the last layer
+    mm_vision_select_layer: Optional[int] = field(default=-1)
     pretrain_mm_mlp_adapter: Optional[str] = field(default=None)
     mm_projector_type: Optional[str] = field(default='linear')
     mm_use_im_start_end: bool = field(default=False)
@@ -892,9 +725,12 @@ class ModelArguments:
     use_final_linear: bool = False
     freeze_final_linear: bool = False
     add_time_token: bool = False
+    freeze_mm_projector: bool = True        # visual aligner freeze 여부 (default: freeze)
+    freeze_speech_qformer: bool = True      # audio aligner freeze 여부 (default: freeze)
     temporal_supervised: bool = False
-    temporal_num_bins: int = 300
+    # temporal_num_bins 제거: VTG-LLM 방식은 11개 고정 (VTG_TIME_TOKENS)
     temporal_loss_weight: float = 1.0
+
 
 @dataclass
 class DataArguments:
@@ -909,7 +745,8 @@ class DataArguments:
     audio_processor: str = "openai/whisper-large-v3"
     max_time: int = 30
     use_timestamps_crop: bool = field(default=False)
-    num_time_bins: int = field(default=300)
+    # num_time_bins 제거: VTG-LLM 방식은 고정 11개
+
 
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
@@ -920,10 +757,7 @@ class TrainingArguments(transformers.TrainingArguments):
     mpt_attn_impl: Optional[str] = field(default="triton")
     model_max_length: int = field(
         default=32768,
-        metadata={
-            "help":
-            "Maximum sequence length. Sequences will be right padded (and possibly truncated)."
-        },
+        metadata={"help": "Maximum sequence length. Sequences will be right padded (and possibly truncated)."},
     )
     double_quant: bool = field(
         default=True,
@@ -933,10 +767,7 @@ class TrainingArguments(transformers.TrainingArguments):
         default="nf4",
         metadata={"help": "Quantization data type to use. Should be one of `fp4` or `nf4`."}
     )
-    bits: int = field(
-        default=16,
-        metadata={"help": "How many bits to use."}
-    )
+    bits: int = field(default=16, metadata={"help": "How many bits to use."})
     lora_enable: bool = False
     lora_r: int = 64
     lora_alpha: int = 16
@@ -969,10 +800,12 @@ class TrainingArguments(transformers.TrainingArguments):
     with_ce_loss: bool = False
     beta: float = 0.1
 
+
 class EvaluateFirstStepCallback(TrainerCallback):
     def on_step_begin(self, args, state, control, **kwargs):
         if state.global_step == 0:
             control.should_evaluate = True
+
 
 class TrainGenProbeCallback(TrainerCallback):
     def __init__(self, tokenizer, every_steps=50, max_new_tokens=256):
@@ -980,13 +813,12 @@ class TrainGenProbeCallback(TrainerCallback):
         self.every_steps = every_steps
         self.max_new_tokens = max_new_tokens
         self._cached_batch = None
-        self.trainer = None  # ✅ trainer를 밖에서 주입받을 자리
+        self.trainer = None
 
     def _rank0_only(self):
         return (not dist.is_available()) or (not dist.is_initialized()) or (dist.get_rank() == 0)
 
     def _get_trainer(self, kwargs):
-        # ✅ 우선 self.trainer 사용, 없으면 kwargs에서 fallback
         t = getattr(self, "trainer", None)
         if t is not None:
             return t
@@ -1022,12 +854,9 @@ class TrainGenProbeCallback(TrainerCallback):
 
         with torch.no_grad():
             b = self._cached_batch
-
-            # ✅ generate에 넣을 키만 추려서 가져오기
             keys = ["input_ids", "attention_mask", "images", "modalities", "spectrogram", "org_groups", "real_time"]
             gen_batch = {k: b.get(k, None) for k in keys if k in b and b.get(k, None) is not None}
 
-            # cuda 이동
             for k in ["input_ids", "attention_mask"]:
                 if torch.is_tensor(gen_batch.get(k, None)):
                     gen_batch[k] = gen_batch[k].cuda(non_blocking=True)
@@ -1054,8 +883,6 @@ class TrainGenProbeCallback(TrainerCallback):
             )
             inp_len = gen_batch["input_ids"].shape[1]
             seq = out[0]
-
-            # generate가 prompt+gen을 같이 내는 경우가 대부분이라 slice
             gen_only = seq[inp_len:] if seq.numel() >= inp_len else seq
 
             txt_keep = self.tokenizer.decode(gen_only, skip_special_tokens=False)
@@ -1068,17 +895,18 @@ class TrainGenProbeCallback(TrainerCallback):
 
         model.train()
 
+
 class SaveTimeTokenRowsCallback(TrainerCallback):
-    def __init__(self, tokenizer, num_bins: int):
+    """VTG-LLM 방식: 11개 time token 임베딩 행을 체크포인트마다 저장."""
+
+    def __init__(self, tokenizer):
         self.tokenizer = tokenizer
-        self.num_bins = num_bins
 
     def _rank0_only(self):
         return (not dist.is_available()) or (not dist.is_initialized()) or (dist.get_rank() == 0)
 
     def _get_time_ids(self):
-        toks = [f"<t{i}>" for i in range(self.num_bins)]
-        ids = [self.tokenizer.convert_tokens_to_ids(t) for t in toks]
+        ids = [self.tokenizer.convert_tokens_to_ids(t) for t in VTG_TIME_TOKENS]
         ids = [i for i in ids if i is not None and i >= 0 and i != self.tokenizer.unk_token_id]
         return sorted(set(ids))
 
@@ -1089,7 +917,6 @@ class SaveTimeTokenRowsCallback(TrainerCallback):
         if model is None:
             return
 
-        # 이번 save에서 생성된 체크포인트 경로
         ckpt_dir = os.path.join(args.output_dir, f"checkpoint-{state.global_step}")
         os.makedirs(ckpt_dir, exist_ok=True)
 
@@ -1098,7 +925,6 @@ class SaveTimeTokenRowsCallback(TrainerCallback):
             print("[SAVE][TIME_ROWS] time_ids empty. skip.", flush=True)
             return
 
-        # unwrap
         m = model.module if hasattr(model, "module") else model
         if hasattr(m, "get_base_model"):
             try:
@@ -1106,7 +932,7 @@ class SaveTimeTokenRowsCallback(TrainerCallback):
             except Exception:
                 pass
 
-        in_emb = m.get_input_embeddings()
+        in_emb  = m.get_input_embeddings()
         out_emb = m.get_output_embeddings()
 
         idx = torch.tensor(time_ids, dtype=torch.long, device=in_emb.weight.device)
@@ -1119,7 +945,8 @@ class SaveTimeTokenRowsCallback(TrainerCallback):
             payload["output_emb_rows"] = out_emb.weight.index_select(0, idx).detach().cpu()
 
         torch.save(payload, os.path.join(ckpt_dir, "time_token_rows.pt"))
-        print(f"[SAVE][TIME_ROWS] saved -> {ckpt_dir}/time_token_rows.pt", flush=True)
+        print(f"[SAVE][TIME_ROWS] saved {len(time_ids)} VTG-LLM token rows -> {ckpt_dir}/time_token_rows.pt", flush=True)
+
 
 class SaveTrainerStatePerCheckpointCallback(TrainerCallback):
     def _rank(self):
@@ -1138,25 +965,16 @@ class SaveTrainerStatePerCheckpointCallback(TrainerCallback):
         rank = self._rank()
         world_size = self._world_size()
 
-        # -------------------------------------------------
-        # 1) trainer_state.json (rank0 only)
-        # -------------------------------------------------
         if self._rank0_only():
             state_dict = asdict(state)
-
             ckpt_state_path = os.path.join(ckpt_dir, "trainer_state.json")
             with open(ckpt_state_path, "w", encoding="utf-8") as f:
                 json.dump(state_dict, f, indent=2, ensure_ascii=False)
-
             root_state_path = os.path.join(args.output_dir, "trainer_state.json")
             with open(root_state_path, "w", encoding="utf-8") as f:
                 json.dump(state_dict, f, indent=2, ensure_ascii=False)
-
             print(f"[SAVE][TRAINER_STATE] saved -> {ckpt_state_path}", flush=True)
 
-        # -------------------------------------------------
-        # 2) optimizer.pt / scheduler.pt (rank0 only)
-        # -------------------------------------------------
         if self._rank0_only():
             optimizer = kwargs.get("optimizer", None)
             if optimizer is not None:
@@ -1169,7 +987,6 @@ class SaveTrainerStatePerCheckpointCallback(TrainerCallback):
             lr_scheduler = kwargs.get("lr_scheduler", None)
             if lr_scheduler is None:
                 lr_scheduler = kwargs.get("scheduler", None)
-
             if lr_scheduler is not None:
                 sch_path = os.path.join(ckpt_dir, "scheduler.pt")
                 torch.save(lr_scheduler.state_dict(), sch_path)
@@ -1177,43 +994,40 @@ class SaveTrainerStatePerCheckpointCallback(TrainerCallback):
             else:
                 print("[SAVE][SCHEDULER] scheduler not found in kwargs; skip.", flush=True)
 
-        # -------------------------------------------------
-        # 3) RNG state (all ranks)
-        #    exact reproducibility를 위해 rank별로 저장
-        # -------------------------------------------------
         rng_state = {
             "python": random.getstate(),
             "numpy": np.random.get_state(),
             "cpu": torch.random.get_rng_state(),
         }
-
         if torch.cuda.is_available():
             try:
-                rng_state["cuda"] = torch.cuda.get_rng_state()
+                rng_state["cuda"] = torch.cuda.get_rng_state_all()
             except Exception:
                 pass
 
-        if world_size == 1:
-            rng_path = os.path.join(ckpt_dir, "rng_state.pth")
-        else:
-            rng_path = os.path.join(ckpt_dir, f"rng_state_{rank}.pth")
-
+        rng_path = (os.path.join(ckpt_dir, "rng_state.pth")
+                    if world_size == 1
+                    else os.path.join(ckpt_dir, f"rng_state_{rank}.pth"))
         torch.save(rng_state, rng_path)
-
         if self._rank0_only():
-            print(f"[SAVE][RNG] saved -> {rng_path} (and per-rank if DDP)", flush=True)
+            print(f"[SAVE][RNG] saved -> {rng_path}", flush=True)
+
 
 def train():
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
-    data_args.num_time_bins = model_args.temporal_num_bins
+    # VTG-LLM 방식에서는 num_time_bins 개념이 없으므로 data_args 동기화 불필요
+    # (기존: data_args.num_time_bins = model_args.temporal_num_bins → 제거)
 
     rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
     if rank == 0:
         print("[DEBUG argv]", " ".join(sys.argv))
-        print("[DEBUG parsed] ckpt=", training_args.ckpt, " output_dir=", training_args.output_dir, " do_test=", training_args.do_test, " load_from_lora=", training_args.load_from_lora)
-
+        print("[DEBUG parsed] ckpt=", training_args.ckpt,
+              " output_dir=", training_args.output_dir,
+              " do_test=", training_args.do_test,
+              " load_from_lora=", training_args.load_from_lora)
+        print(f"[INFO] VTG_TIME_TOKENS ({len(VTG_TIME_TOKENS)}): {VTG_TIME_TOKENS}")
 
     if getattr(training_args, "gradient_checkpointing", False):
         training_args.gradient_checkpointing_kwargs = {"use_reentrant": False}
@@ -1236,25 +1050,27 @@ def train():
         audio_visual=model_args.audio_visual,
         video_fps=data_args.video_fps,
         whisper_path=model_args.whisper_path,
-        num_speech_query_token = model_args.num_speech_query_token,
-        window_level_Qformer = model_args.window_level_Qformer,
-        second_per_window = model_args.second_per_window,
-        second_stride = model_args.second_stride,
+        num_speech_query_token=model_args.num_speech_query_token,
+        window_level_Qformer=model_args.window_level_Qformer,
+        second_per_window=model_args.second_per_window,
+        second_stride=model_args.second_stride,
         use_final_linear=model_args.use_final_linear,
     )
 
     if not training_args.load_from_lora:
         cfg_pretrained = AutoConfig.from_pretrained(training_args.model_base)
-        overwrite_config = {"model_args": vars(model_args), "add_time_token": model_args.add_time_token}
-
+        overwrite_config = {
+            "model_args": vars(model_args),
+            "add_time_token": model_args.add_time_token,
+        }
         print(f"Overwriting config with {overwrite_config}")
         for k, v in overwrite_config.items():
             setattr(cfg_pretrained, k, v)
+
         model = VideoSALMONN2ForCausalLM.from_pretrained(
             training_args.ckpt,
             config=cfg_pretrained,
             cache_dir=training_args.cache_dir,
-            # attn_implementation="flash_attention_2",
             attn_implementation="sdpa",
             torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
             **audio_config
@@ -1267,7 +1083,6 @@ def train():
                 def make_inputs_require_grad(module, input, output):
                     output.requires_grad_(True)
                 model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
-
 
         if training_args.lora_enable:
             from peft import LoraConfig, get_peft_model
@@ -1289,40 +1104,31 @@ def train():
             if model_args.audio_visual:
                 speech_encoder = model.speech_encoder
                 model.speech_encoder = None
-                
                 v_flag = False
                 if hasattr(model, "vision_tower"):
                     vision_tower = model.vision_tower
                     model.vision_tower = None
                     v_flag = True
-
                 model = get_peft_model(model, lora_config)
                 model.model.speech_encoder = speech_encoder
-                
                 if v_flag:
                     model.model.model.vision_tower = vision_tower
-                    
             else:
                 v_flag = False
                 if hasattr(model.model, "vision_tower"):
                     vision_tower = model.model.vision_tower
                     del model.model.vision_tower
                     v_flag = True
-
                 model = get_peft_model(model, lora_config)
-                
                 if v_flag:
                     model.model.model.vision_tower = vision_tower
 
             if training_args.bf16:
                 model.to(torch.bfloat16)
 
-            # ====== [HERE] 임베딩(+출력 임베딩) 확실히 푸는 패치 ======
             def _unwrap(m):
-                # DDP / DataParallel
                 if hasattr(m, "module"):
                     m = m.module
-                # PEFT wrapper (PeftModel)
                 if hasattr(m, "get_base_model"):
                     try:
                         m = m.get_base_model()
@@ -1332,25 +1138,17 @@ def train():
 
             def _unfreeze_token_embeddings_and_lm_head(model):
                 m = _unwrap(model)
-
-                # 1) input embeddings
                 in_emb = m.get_input_embeddings() if hasattr(m, "get_input_embeddings") else None
                 if in_emb is not None:
                     for p in in_emb.parameters():
                         p.requires_grad_(True)
-
-                # 2) output embeddings (권장: 이게 lm_head 역할인 경우 많음)
                 out_emb = m.get_output_embeddings() if hasattr(m, "get_output_embeddings") else None
                 if out_emb is not None:
                     for p in out_emb.parameters():
                         p.requires_grad_(True)
-
-                # 3) lm_head가 따로 존재하는 모델도 커버
                 if hasattr(m, "lm_head") and m.lm_head is not None:
                     for p in m.lm_head.parameters():
                         p.requires_grad_(True)
-
-                # 4) tie_weights는 보통 안전하지만, 실패해도 무시
                 if hasattr(m, "tie_weights"):
                     try:
                         m.tie_weights()
@@ -1367,7 +1165,6 @@ def train():
                 print("[PATCH] output_emb grad =", (oe.weight.requires_grad if oe is not None else None))
                 if hasattr(mm, "lm_head") and mm.lm_head is not None and hasattr(mm.lm_head, "weight"):
                     print("[PATCH] lm_head grad =", mm.lm_head.weight.requires_grad)
-            # ===========================================================
 
         tok_path = _resolve_tokenizer_path(training_args, model_args=model_args)
         if rank == 0:
@@ -1381,7 +1178,6 @@ def train():
         )
 
         # ============ CHK1: TOKENIZER BASIC ============
-        rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
         if rank == 0:
             def _atom(tok: str):
                 ids = tokenizer.encode(tok, add_special_tokens=False)
@@ -1395,91 +1191,74 @@ def train():
             print("[CHK1] im_start_id =", tokenizer.convert_tokens_to_ids("<|im_start|>"))
             print("[CHK1] im_end_id   =", tokenizer.convert_tokens_to_ids("<|im_end|>"))
             img_id = tokenizer.convert_tokens_to_ids("<image>")
-            print("[CHK1] <image> id =", img_id, " (is_unk? ", img_id == tokenizer.unk_token_id, ")")
+            print("[CHK1] <image> id =", img_id, " (is_unk?", img_id == tokenizer.unk_token_id, ")")
             _atom("<image>")
-            for t in ["<t0>", f"<t{model_args.temporal_num_bins // 2}>", f"<t{model_args.temporal_num_bins - 1}>"]:
+            # VTG-LLM 토큰 체크
+            for t in ["<t0>", "<t5>", "<t9>", "<tdot>"]:
                 print(f"[CHK1] {t} id =", tokenizer.convert_tokens_to_ids(t))
                 _atom(t)
             print("[CHK1] additional_special_tokens(head) =", (tokenizer.additional_special_tokens or [])[:30])
             print("================================\n")
         # ==============================================
-        
+
         ensure_image_token(tokenizer, model)
 
         if model_args.add_time_token:
-            add_time_tokens_and_init(
-                tokenizer,
-                model,
-                num_bins=model_args.temporal_num_bins,
-            )
+            # VTG-LLM 방식: num_bins 인자 없음
+            add_time_tokens_and_init(tokenizer, model)
             model.config.add_time_token = True
 
             # ============ CHK2: EMB INIT CHECK ============
-            rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
             if rank == 0:
                 m = model.module if hasattr(model, "module") else model
                 if hasattr(m, "get_base_model"):
                     try:
                         m = m.get_base_model()
-                    except:
+                    except Exception:
                         pass
 
                 emb = m.get_input_embeddings().weight.detach()
-                t0 = tokenizer.convert_tokens_to_ids("<t0>")
-                tmid = tokenizer.convert_tokens_to_ids(f"<t{model_args.temporal_num_bins // 2}>")
-                tlast = tokenizer.convert_tokens_to_ids(f"<t{model_args.temporal_num_bins - 1}>")
-
-                print("\n==== [CHK2] EMB INIT CHECK ====")
+                print("\n==== [CHK2] EMB INIT CHECK (VTG-LLM) ====")
                 print("[CHK2] emb.shape =", tuple(emb.shape))
-                print("[CHK2] <t0>, <tmid>, <tlast> ids =", t0, tmid, tlast)
-                print("================================\n")
+                for t in VTG_TIME_TOKENS:
+                    tid = tokenizer.convert_tokens_to_ids(t)
+                    print(f"[CHK2] {t} id={tid}")
+                print("==========================================\n")
             # ==============================================
 
-            # ==============================
-            # 🔥 CRITICAL TOKEN CONSISTENCY CHECK
-            # ==============================
-            img_id = tokenizer.convert_tokens_to_ids("<image>")
-            t0_id = tokenizer.convert_tokens_to_ids("<t0>")
-            tlast_id = tokenizer.convert_tokens_to_ids(f"<t{model_args.temporal_num_bins - 1}>")
+            img_id   = tokenizer.convert_tokens_to_ids("<image>")
+            t0_id    = tokenizer.convert_tokens_to_ids("<t0>")
+            tdot_id  = tokenizer.convert_tokens_to_ids("<tdot>")
 
             print("[CHK] <image> id:", img_id)
             print("[CHK] <t0> id:", t0_id)
-            print(f"[CHK] <t{model_args.temporal_num_bins - 1}> id:", tlast_id)
+            print("[CHK] <tdot> id:", tdot_id)
 
-            assert img_id != t0_id, "FATAL: <image> id == <t0> id (collision)"
-            assert img_id != tlast_id, f"FATAL: <image> id == <t{model_args.temporal_num_bins - 1}> id (collision)"
+            assert img_id != t0_id,   "FATAL: <image> id == <t0> id (collision)"
+            assert img_id != tdot_id, "FATAL: <image> id == <tdot> id (collision)"
 
             if hasattr(model.config, "image_token_id"):
                 print("[CHK] model.config.image_token_id:", model.config.image_token_id)
                 assert int(model.config.image_token_id) == int(img_id), \
                     "FATAL: model.config.image_token_id != tokenizer('<image>')"
-            # ==============================
 
-            # ---- DEBUG PRINTS ----
-            rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
             if rank == 0:
                 print("Tokenizer vocab size:", len(tokenizer))
-                print("Time token id <t0>:", tokenizer.convert_tokens_to_ids("<t0>"))
-                print(f"Time token id <t{model_args.temporal_num_bins - 1}>:",
-                    tokenizer.convert_tokens_to_ids(f"<t{model_args.temporal_num_bins - 1}>"))
+                for t in VTG_TIME_TOKENS:
+                    print(f"Time token {t} id:", tokenizer.convert_tokens_to_ids(t))
                 print("Embedding size:", model.get_input_embeddings().weight.shape)
-                print("Time token exists?:", "<t0>" in tokenizer.get_vocab())
-                print("Embedding rows == tokenizer size?:", model.get_input_embeddings().weight.shape[0] == len(tokenizer))
+                print("Embedding rows == tokenizer size?:",
+                      model.get_input_embeddings().weight.shape[0] == len(tokenizer))
                 print("[TOK] additional_special_tokens:", tokenizer.additional_special_tokens)
-                print("[TOK] special_tokens_map:", tokenizer.special_tokens_map)
-                print("[TOK] <t0> id:", tokenizer.convert_tokens_to_ids("<t0>"))
-                print("[TOK] is <t0> in added vocab?:", "<t0>" in tokenizer.get_vocab())
-            # ----------------------------------
-                    
+
     else:
-        # load_from_lora=True 인 경우:
-        #   ckpt = base model dir
-        #   lora_path = adapter checkpoint dir
-        assert training_args.lora_path is not None, "ERROR: --lora_path must be set when --load_from_lora True"
+        # load_from_lora=True
+        assert training_args.lora_path is not None, \
+            "ERROR: --lora_path must be set when --load_from_lora True"
 
         model, tokenizer = load_qwen_lora_model(
-            training_args.lora_path,                 # ✅ adapter dir로 사용
-            model_base=training_args.ckpt,           # ✅ base dir로 사용
+            training_args.lora_path,
+            model_base=training_args.ckpt,
             lora_enable=training_args.lora_enable,
             pretrain_weight=training_args.pretrain_weight,
             load_full=training_args.load_full,
@@ -1491,7 +1270,6 @@ def train():
             **audio_config
         )
 
-        # --- [PATCH] Prefer tokenizer from lora_path if present (critical for time tokens) ---
         tok_from = None
         tok_ckpt = training_args.lora_path
         tok_base = training_args.ckpt
@@ -1505,7 +1283,6 @@ def train():
         else:
             tok_from = tok_base
 
-        rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
         if rank == 0:
             print(f"[TOK][LOAD_FROM_LORA] reload tokenizer from: {tok_from}")
 
@@ -1516,72 +1293,39 @@ def train():
             padding_side="right"
         )
 
-        # tokenizer가 바뀌었으니, 모델 임베딩 크기도 항상 일치시킴
         model.resize_token_embeddings(len(tokenizer))
-        # -------------------------------------------------------------------------------
-
         ensure_image_token(tokenizer, model)
 
         if model_args.add_time_token:
-            add_time_tokens_and_init(
-                tokenizer,
-                model,
-                num_bins=model_args.temporal_num_bins,
-            )
+            # VTG-LLM 방식: num_bins 인자 없음
+            add_time_tokens_and_init(tokenizer, model)
             model.config.add_time_token = True
 
             _load_time_rows_if_exist(model, training_args.lora_path)
 
-            # ==============================
-            # 🔥 CRITICAL TOKEN CONSISTENCY CHECK
-            # ==============================
-            img_id = tokenizer.convert_tokens_to_ids("<image>")
-            t0_id = tokenizer.convert_tokens_to_ids("<t0>")
-            tlast_id = tokenizer.convert_tokens_to_ids(f"<t{model_args.temporal_num_bins - 1}>")
+            img_id  = tokenizer.convert_tokens_to_ids("<image>")
+            t0_id   = tokenizer.convert_tokens_to_ids("<t0>")
+            tdot_id = tokenizer.convert_tokens_to_ids("<tdot>")
 
             print("[CHK] <image> id:", img_id)
             print("[CHK] <t0> id:", t0_id)
-            print(f"[CHK] <t{model_args.temporal_num_bins - 1}> id:", tlast_id)
+            print("[CHK] <tdot> id:", tdot_id)
 
-            assert img_id != t0_id, "FATAL: <image> id == <t0> id (collision)"
-            assert img_id != tlast_id, f"FATAL: <image> id == <t{model_args.temporal_num_bins - 1}> id (collision)"
+            assert img_id != t0_id,   "FATAL: <image> id == <t0> id (collision)"
+            assert img_id != tdot_id, "FATAL: <image> id == <tdot> id (collision)"
 
             if hasattr(model.config, "image_token_id"):
                 print("[CHK] model.config.image_token_id:", model.config.image_token_id)
                 assert int(model.config.image_token_id) == int(img_id), \
                     "FATAL: model.config.image_token_id != tokenizer('<image>')"
-            # ==============================
 
-            # ---- DEBUG PRINTS ----
-            rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
             if rank == 0:
                 print("Tokenizer vocab size:", len(tokenizer))
-                print("Time token id <t0>:", tokenizer.convert_tokens_to_ids("<t0>"))
-                print(f"Time token id <t{model_args.temporal_num_bins - 1}>:",
-                    tokenizer.convert_tokens_to_ids(f"<t{model_args.temporal_num_bins - 1}>"))
+                for t in VTG_TIME_TOKENS:
+                    print(f"Time token {t} id:", tokenizer.convert_tokens_to_ids(t))
                 print("Embedding size:", model.get_input_embeddings().weight.shape)
-                print("Time token exists?:", "<t0>" in tokenizer.get_vocab())
-                print("Embedding rows == tokenizer size?:", model.get_input_embeddings().weight.shape[0] == len(tokenizer))
-                print("[TOK] additional_special_tokens:", tokenizer.additional_special_tokens)
-                print("[TOK] special_tokens_map:", tokenizer.special_tokens_map)
-                print("[TOK] <t0> id:", tokenizer.convert_tokens_to_ids("<t0>"))
-                print("[TOK] is <t0> in added vocab?:", "<t0>" in tokenizer.get_vocab())            
-            # ----------------------------------
-
-        # if True:
-        #     tmp_dir = "/mnt/bn/tiktok-mm-4/aiic/users/tangchangli/video-SALMONN2/output/video_SALMONN_2"
-        #     if dist.get_rank() == 0:
-        #         import shutil
-        #         if os.path.exists(tmp_dir):
-        #             shutil.rmtree(tmp_dir)
-        #         breakpoint()
-        #         model = model.merge_and_unload()
-        #         model.to(torch.bfloat16)
-        #         model.save_pretrained(tmp_dir)
-        #         exit()
-        #     dist.barrier()
-        #     model = VideoSALMONN2ForCausalLM.from_pretrained(tmp_dir, low_cpu_mem_usage=True, device_map="cuda", attn_implementation="flash_attention_2", **audio_config)
-        #     model.to(torch.bfloat16)
+                print("Embedding rows == tokenizer size?:",
+                      model.get_input_embeddings().weight.shape[0] == len(tokenizer))
 
         if training_args.merge_and_new_lora:
             print("Merging LoRA")
@@ -1597,29 +1341,24 @@ def train():
                     task_type="CAUSAL_LM",
                 )
                 if model_args.audio_visual:
-                    if True:
-                        speech_encoder = model.speech_encoder
-                        model.speech_encoder = None
-                        v_flag = False
-                        if hasattr(model.model, "vision_tower"):
-                            vision_tower = model.model.vision_tower
-                            del model.model.vision_tower
-                            v_flag = True
-
-                        model = get_peft_model(model, lora_config)
-
-                        model.model.speech_encoder = speech_encoder
-                        if v_flag:
-                            model.model.model.vision_tower = vision_tower
+                    speech_encoder = model.speech_encoder
+                    model.speech_encoder = None
+                    v_flag = False
+                    if hasattr(model.model, "vision_tower"):
+                        vision_tower = model.model.vision_tower
+                        del model.model.vision_tower
+                        v_flag = True
+                    model = get_peft_model(model, lora_config)
+                    model.model.speech_encoder = speech_encoder
+                    if v_flag:
+                        model.model.model.vision_tower = vision_tower
                 else:
                     v_flag = False
                     if hasattr(model.model, "vision_tower"):
                         vision_tower = model.model.vision_tower
                         del model.model.vision_tower
                         v_flag = True
-
                     model = get_peft_model(model, lora_config)
-                    
                     if v_flag:
                         model.model.model.vision_tower = vision_tower
         else:
@@ -1642,101 +1381,76 @@ def train():
                 model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
 
     if model_args.version == "qwen_1_5":
-        # ✅ FORCE pad_token to be consistent across TRAIN/TEST
-        # Qwen tokenizer usually has "<|endoftext|>" as a valid token.
         PAD = "<|endoftext|>"
-
         pad_id = tokenizer.convert_tokens_to_ids(PAD)
         if pad_id is None or pad_id < 0:
-            # If somehow missing, add it explicitly (rare)
             tokenizer.add_special_tokens({"pad_token": PAD})
             pad_id = tokenizer.convert_tokens_to_ids(PAD)
-
-            # ensure embeddings resized if vocab changed
             model.resize_token_embeddings(len(tokenizer))
 
-        tokenizer.pad_token = PAD
+        tokenizer.pad_token    = PAD
         tokenizer.pad_token_id = pad_id
         tokenizer.padding_side = "right"
-
-        # keep eos as <|im_end|> (do NOT overwrite eos)
-        # tokenizer.eos_token should already be "<|im_end|>" in this repo
 
         if model_args.version in conversation_lib.conv_templates:
             conversation_lib.default_conversation = conversation_lib.conv_templates[model_args.version]
 
-        rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
         if rank == 0:
             print("[TOK][FORCE] pad_token:", tokenizer.pad_token, "pad_token_id:", tokenizer.pad_token_id)
     else:
         raise NotImplementedError
-    
-    # ================== DIAG-B: time token atom check (rank0 only) ==================
-    rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
+
+    # ================== DIAG-B: VTG-LLM time token atom check ==================
     if rank == 0:
         def _atom(tok: str):
             ids = tokenizer.encode(tok, add_special_tokens=False)
             back = tokenizer.decode(ids, skip_special_tokens=False)
             print(f"[CHK][TOK_ATOM] {tok} -> ids={ids} (len={len(ids)}) -> back={repr(back)}")
 
-        for t in ["<t0>", f"<t{model_args.temporal_num_bins // 2}>", f"<t{model_args.temporal_num_bins - 1}>"]:
+        print("\n==== [DIAG-B] VTG-LLM TIME TOKEN ATOM CHECK ====")
+        for t in VTG_TIME_TOKENS:
             _atom(t)
-
         ats = getattr(tokenizer, "additional_special_tokens", None)
-        print("[CHK][TOK_ATOM] key time tokens exist?",
-            ats is not None and all(x in ats for x in
-                ["<t0>", f"<t{model_args.temporal_num_bins // 2}>", f"<t{model_args.temporal_num_bins - 1}>"]))
+        all_present = ats is not None and all(x in ats for x in VTG_TIME_TOKENS)
+        print("[CHK][TOK_ATOM] all VTG_TIME_TOKENS present?", all_present)
         print("[CHK][TOK_ATOM] additional_special_tokens sample:", ats[:30] if ats else None)
-    # ============================================================================== 
+        print("=================================================\n")
+    # ===========================================================================
 
     if model_args.vision_tower is not None:
         model.get_model().initialize_vision_modules(model_args=model_args, fsdp=training_args.fsdp)
-    
+
     vision_tower = model.get_vision_tower()
     vision_tower.to(dtype=torch.bfloat16 if training_args.bf16 else torch.float16, device=training_args.device)
 
     data_args.image_processor = copy.deepcopy(vision_tower.image_processor)
     data_args.is_multimodal = True
 
-    model.config.image_aspect_ratio = data_args.image_aspect_ratio
+    model.config.image_aspect_ratio        = data_args.image_aspect_ratio
     if data_args.image_grid_pinpoints is not None:
         data_args.image_grid_pinpoints = ast.literal_eval(data_args.image_grid_pinpoints)
-    model.config.image_grid_pinpoints = data_args.image_grid_pinpoints
-    model.config.image_crop_resolution = data_args.image_crop_resolution
-    model.config.image_split_resolution = data_args.image_split_resolution
-    model.config.tokenizer_padding_side = tokenizer.padding_side
+    model.config.image_grid_pinpoints      = data_args.image_grid_pinpoints
+    model.config.image_crop_resolution     = data_args.image_crop_resolution
+    model.config.image_split_resolution    = data_args.image_split_resolution
+    model.config.tokenizer_padding_side    = tokenizer.padding_side
     model.config.tokenizer_model_max_length = tokenizer.model_max_length
-    model.config.mm_newline_position = model_args.mm_newline_position
-    assert model_args.mm_pooling_position in ["before", "after", "no"] # "mm_pooling_position must be either 'before' or 'after' or 'no'"
-    model.config.mm_spatial_pool_stride = model_args.mm_spatial_pool_stride
-    model.config.mm_pooling_position = model_args.mm_pooling_position
-    model.config.mm_spatial_pool_mode = model_args.mm_spatial_pool_mode
-    model.config.modality_max_length = model_args.modality_max_length
+    model.config.mm_newline_position       = model_args.mm_newline_position
+    assert model_args.mm_pooling_position in ["before", "after", "no"]
+    model.config.mm_spatial_pool_stride   = model_args.mm_spatial_pool_stride
+    model.config.mm_pooling_position      = model_args.mm_pooling_position
+    model.config.mm_spatial_pool_mode     = model_args.mm_spatial_pool_mode
+    model.config.modality_max_length      = model_args.modality_max_length
 
-    # ===== Freeze policy (single source of truth) =====
+    # ===== Freeze policy =====
     if training_args.lora_enable:
-        # 1) freeze all
         model.requires_grad_(False)
-
-        # 2) enable LoRA params
         for n, p in model.named_parameters():
             if "lora" in n.lower():
                 p.requires_grad_(True)
-
-        # 3) if time-token training: enable emb/lm_head (but we'll mask grads to time rows)
         if model_args.add_time_token:
-            unfreeze_embeddings_and_lm_head(model)  # <- 위에 정의된 함수 사용
-            # 주의: grad mask는 trainer 생성 직전에 다시 걸어도 되지만,
-            # 여기서 한 번 걸어두면 "실수로 다시 freeze"되는 위험을 줄입니다.
-            apply_time_token_grad_mask(
-                model,
-                tokenizer,
-                num_bins=model_args.temporal_num_bins,
-                only_time_tokens=True,
-            )
-
+            unfreeze_embeddings_and_lm_head(model)
+            apply_time_token_grad_mask(model, tokenizer, only_time_tokens=False)
     else:
-        # non-LoRA: follow freeze_backbone
         if model_args.freeze_backbone:
             model.model.requires_grad_(False)
             if hasattr(model, "lm_head") and model.lm_head is not None:
@@ -1745,21 +1459,10 @@ def train():
             model.model.requires_grad_(True)
             if hasattr(model, "lm_head") and model.lm_head is not None:
                 model.lm_head.requires_grad_(True)
-    # =========================================
-
-    # ============ CHK6: TRAINABLE PARAMS SUMMARY ============
-    rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
-    if rank == 0:
-        total = sum(p.numel() for p in model.parameters())
-        trainable = [(n, p.numel()) for n, p in model.named_parameters() if p.requires_grad]
-        print("\n==== [CHK6] TRAINABLE PARAMS ====")
-        print("[CHK6] total params     =", total)
-        print("[CHK6] trainable params =", sum(sz for _, sz in trainable))
-        for n, sz in trainable[:30]:
-            print("[CHK6] trainable:", n, sz)
-        print("[CHK6] ... (#trainable tensors =", len(trainable), ")")
-        print("=================================\n")
-    # ========================================================
+        if model_args.add_time_token:
+            unfreeze_embeddings_and_lm_head(model)
+            apply_time_token_grad_mask(model, tokenizer, only_time_tokens=False)
+    # =========================
 
     if model_args.audio_visual:
         if not model_args.freeze_whisper:
@@ -1774,11 +1477,17 @@ def train():
                 p.requires_grad = False
             model.speech_encoder.eval()
 
-        # ✅ 이번 실험에서는 speech_Qformer는 항상 freeze
-        for name, param in model.speech_Qformer.named_parameters():
-            param.requires_grad = False
-        model.speech_Qformer.eval()
-        model.speech_query_tokens.requires_grad = False
+        if model_args.freeze_speech_qformer:
+            for name, param in model.speech_Qformer.named_parameters():
+                param.requires_grad = False
+            model.speech_Qformer.eval()
+            model.speech_query_tokens.requires_grad = False
+            print("[INFO] speech_Qformer FROZEN.")
+        else:
+            for name, param in model.speech_Qformer.named_parameters():
+                param.requires_grad = True
+            model.speech_query_tokens.requires_grad = True
+            print("[INFO] speech_Qformer UNFROZEN for training.")
 
         if model_args.use_final_linear:
             for p in model.final_linear.parameters():
@@ -1787,12 +1496,20 @@ def train():
             for p in model.final_linear.parameters():
                 p.requires_grad = False
 
-    # ✅ 이번 실험에서는 mm_projector도 항상 freeze
-    model.config.freeze_mm_mlp_adapter = True
-    for p in model.get_model().mm_projector.parameters():
-        p.requires_grad = False
-    if hasattr(model.get_model(), "image_newline"):
-        model.get_model().image_newline.requires_grad = False
+    if model_args.freeze_mm_projector:
+        model.config.freeze_mm_mlp_adapter = True
+        for p in model.get_model().mm_projector.parameters():
+            p.requires_grad = False
+        if hasattr(model.get_model(), "image_newline"):
+            model.get_model().image_newline.requires_grad = False
+        print("[INFO] mm_projector FROZEN.")
+    else:
+        model.config.freeze_mm_mlp_adapter = False
+        for p in model.get_model().mm_projector.parameters():
+            p.requires_grad = True
+        if hasattr(model.get_model(), "image_newline"):
+            model.get_model().image_newline.requires_grad = True
+        print("[INFO] mm_projector UNFROZEN for training.")
 
     model.config.unfreeze_mm_vision_tower = model_args.unfreeze_mm_vision_tower
     if model_args.unfreeze_mm_vision_tower:
@@ -1800,41 +1517,45 @@ def train():
     else:
         vision_tower.requires_grad_(False)
 
-    model.config.mm_use_im_start_end = data_args.mm_use_im_start_end = model_args.mm_use_im_start_end
-    model.config.mm_projector_lr = training_args.mm_projector_lr
-    model.config.mm_vision_tower_lr = training_args.mm_vision_tower_lr
-    training_args.use_im_start_end = model_args.mm_use_im_start_end
+    # ============ CHK6: TRAINABLE PARAMS SUMMARY ============
+    if rank == 0:
+        total     = sum(p.numel() for p in model.parameters())
+        trainable = [(n, p.numel()) for n, p in model.named_parameters() if p.requires_grad]
+        print("\n==== [CHK6] TRAINABLE PARAMS ====")
+        print("[CHK6] total params     =", total)
+        print("[CHK6] trainable params =", sum(sz for _, sz in trainable))
+        for n, sz in trainable[:30]:
+            print("[CHK6] trainable:", n, sz)
+        print("[CHK6] ... (#trainable tensors =", len(trainable), ")")
+        print("=================================\n")
+    # ========================================================
+
+    model.config.mm_use_im_start_end   = data_args.mm_use_im_start_end = model_args.mm_use_im_start_end
+    model.config.mm_projector_lr       = training_args.mm_projector_lr
+    model.config.mm_vision_tower_lr    = training_args.mm_vision_tower_lr
+    training_args.use_im_start_end     = model_args.mm_use_im_start_end
     model.config.mm_use_im_patch_token = model_args.mm_use_im_patch_token
 
     if training_args.do_test or training_args.do_demo:
-        data_module = make_test_data_module(tokenizer=tokenizer, data_args=data_args)
+        data_module  = make_test_data_module(tokenizer=tokenizer, data_args=data_args)
         test_dataset = data_module["eval_dataset"]
         print("[TEST] test_data_path =", data_args.test_data_path)
         print("[TEST] len(test_dataset) =", len(test_dataset))
-        
+
         model.to(torch.bfloat16).cuda()
         model.eval()
 
-        # ===== [PATCH] FORCE deterministic generation config (TEST) =====
-        # generate() 인자로 do_sample=False를 주더라도,
-        # model.generation_config가 do_sample=True로 남아 있으면 내부에서 혼선/경고가 발생할 수 있어
-        # TEST에서는 아예 config 자체를 deterministic으로 고정합니다.
         if hasattr(model, "generation_config") and model.generation_config is not None:
-            model.generation_config.do_sample = False
+            model.generation_config.do_sample   = False
             model.generation_config.temperature = None
-            model.generation_config.top_p = None
-            model.generation_config.top_k = None
-            model.generation_config.num_beams = 1
-        # ===============================================================
+            model.generation_config.top_p       = None
+            model.generation_config.top_k       = None
+            model.generation_config.num_beams   = 1
 
-        # ✅ CHECKPOINT/LoRA 로드 여부 확인 (TEST에서만)
-        rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
         if rank == 0:
             trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-            total = sum(p.numel() for p in model.parameters())
+            total     = sum(p.numel() for p in model.parameters())
             print(f"[CHECK] trainable params: {trainable} / {total}")
-
-            # LoRA가 붙어있으면 보통 lora 관련 파라미터 이름이 존재합니다.
             lora_names = [n for n, _ in model.named_parameters() if "lora" in n.lower()]
             print(f"[CHECK] #lora params (by name): {len(lora_names)}")
             if len(lora_names) > 0:
@@ -1849,7 +1570,7 @@ def train():
             from llava.conversation import conv_templates, SeparatorStyle
             from llava.mm_utils import KeywordsStoppingCriteria
             from transformers import set_seed
-            test_dataset = data_module["eval_dataset"]
+            test_dataset  = data_module["eval_dataset"]
             data_collator = data_module["data_collator"]
             while True:
                 try:
@@ -1859,66 +1580,47 @@ def train():
                     if model_args.audio_visual:
                         audio_path = yaml_data.get('audio_path', None)
                     text_only = yaml_data.get("text_only", False)
-                    if text_only:
-                        video_path = ""
-                    else:
-                        video_path = yaml_data['video_path']
+                    video_path = "" if text_only else yaml_data['video_path']
                     if not text_only:
                         assert os.path.exists(video_path)
 
-                    qs = yaml_data['question']
-                    max_time = yaml_data.get("max_time", 30)
-                    fps = yaml_data.get("fps", 1)
+                    qs             = yaml_data['question']
+                    max_time       = yaml_data.get("max_time", 30)
+                    fps            = yaml_data.get("fps", 1)
                     max_new_tokens = yaml_data.get("max_new_tokens", 1024)
-                    do_sample = yaml_data.get("do_sample", False)
-                    top_p = yaml_data.get("top_p", 0.9)
-                    seed = yaml_data.get("seed", 2024)
-                    prefix = yaml_data.get("prefix", "")
+                    do_sample      = yaml_data.get("do_sample", False)
+                    top_p          = yaml_data.get("top_p", 0.9)
+                    seed           = yaml_data.get("seed", 2024)
+                    prefix         = yaml_data.get("prefix", "")
 
-                    test_dataset.max_time = max_time
-                    test_dataset.data_args.video_fps = fps
-                    test_dataset.max_frame_num = round(test_dataset.max_time * test_dataset.data_args.video_fps)
+                    test_dataset.max_time              = max_time
+                    test_dataset.data_args.video_fps   = fps
+                    test_dataset.max_frame_num         = round(test_dataset.max_time * test_dataset.data_args.video_fps)
+                    test_dataset.list_data_dict        = [{}]
 
-                    test_dataset.list_data_dict = [{}]
                     if not text_only:
                         if video_path != "":
                             test_dataset.list_data_dict[0]["video"] = video_path
-
-                        if model_args.audio_visual and not text_only:
+                        if model_args.audio_visual:
                             test_dataset.list_data_dict[0]["audio"] = audio_path
-
                         test_dataset.list_data_dict[0]["conversations"] = [
-                            {
-                                "from": "human",
-                                "value": "<image>\n" + qs.strip(),
-                            },
-                            {
-                                "from": "gpt",
-                                "value": "",
-                                "prefix": prefix,
-                            }
+                            {"from": "human", "value": "<image>\n" + qs.strip()},
+                            {"from": "gpt",   "value": "", "prefix": prefix},
                         ]
                     else:
                         test_dataset.list_data_dict[0]["conversations"] = [
-                            {
-                                "from": "human",
-                                "value": qs.strip(),
-                                "prefix": prefix,
-                            },
-                            {
-                                "from": "gpt",
-                                "value": ""
-                            }
+                            {"from": "human", "value": qs.strip(), "prefix": prefix},
+                            {"from": "gpt",   "value": ""},
                         ]
-                    item = test_dataset._get_item(0)
 
+                    item  = test_dataset._get_item(0)
                     batch = data_collator([item])
-                    
-                    batch["input_ids"] = batch["input_ids"].cuda()
-                    batch["labels"] = batch["labels"].cuda()
+
+                    batch["input_ids"]     = batch["input_ids"].cuda()
+                    batch["labels"]        = batch["labels"].cuda()
                     batch["attention_mask"] = batch["attention_mask"].cuda()
                     if not text_only:
-                        batch["images"] = [it.to(torch.bfloat16).cuda() for it in batch["images"]]
+                        batch["images"]      = [it.to(torch.bfloat16).cuda() for it in batch["images"]]
                         batch["spectrogram"] = batch["spectrogram"].to(torch.bfloat16).cuda()
 
                     batch.pop("ids")
@@ -1926,9 +1628,9 @@ def train():
                     batch.pop("ce_only")
                     batch.pop("texts")
 
-                    conv = conv_templates['qwen_1_5'].copy()
-                    stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
-                    keywords = [stop_str]
+                    conv          = conv_templates['qwen_1_5'].copy()
+                    stop_str      = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
+                    keywords      = [stop_str]
                     stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, batch["input_ids"])
 
                     set_seed(seed)
@@ -1941,24 +1643,21 @@ def train():
                         top_p=top_p,
                         **batch
                     )
-                    res_ids = result.tolist()
+                    res_ids  = result.tolist()
                     res_text = [tokenizer.decode(it) for it in res_ids]
                     print("======================")
                     print(res_text[0])
-                    print("======================")                        
+                    print("======================")
 
                 except Exception as e:
-                    # raise e
                     print(e, e.__traceback__.tb_lineno)
                     breakpoint()
 
         else:
             test_output_dir = training_args.test_output_dir
-            rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
             if rank == 0:
                 os.makedirs(test_output_dir, exist_ok=True)
 
-            # --- DEBUG: dataset sanity check ---
             test_ds = data_module.get("eval_dataset", None)
             print("[TEST][DEBUG] eval_dataset type:", type(test_ds))
             try:
@@ -1967,28 +1666,16 @@ def train():
                     ex0 = test_ds[0]
                     if isinstance(ex0, dict):
                         print("[TEST][DEBUG] first item keys:", list(ex0.keys()))
-                    else:
-                        print("[TEST][DEBUG] first item type:", type(ex0))
             except Exception as e:
                 print("[TEST][DEBUG] cannot inspect eval_dataset:", repr(e))
-            # ----------------------------------
 
-            # ===== [TIME TOKEN GRAD MASK] apply RIGHT BEFORE trainer creation (works for DPO too) =====
             if model_args.add_time_token:
-                apply_time_token_grad_mask(
-                    model,
-                    tokenizer,
-                    num_bins=model_args.temporal_num_bins,
-                    only_time_tokens=True,
-                )
-            # ================================================================================
+                apply_time_token_grad_mask(model, tokenizer, only_time_tokens=True)
 
             if training_args.dpo_train:
                 training_args.gradient_checkpointing_kwargs = {"use_reentrant": False}
                 trainer = LLaVADPOTrainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
-
-                # ✅ DPO여도 생성 결과를 JSON으로 저장하려면 generate 기반으로 통일하는 게 안전
-                print("[TEST][INFO] DPO test: using simple_generate loop for JSON-serializable outputs.")
+                print("[TEST][INFO] DPO test: using simple_generate loop.")
                 results = simple_predict_generate(
                     model=model,
                     tokenizer=tokenizer,
@@ -1997,12 +1684,11 @@ def train():
                     do_sample=training_args.do_sample,
                     max_new_tokens=training_args.max_new_tokens,
                     max_time=float(getattr(data_args, "max_time", 30)),
-                    num_time_bins=model_args.temporal_num_bins,
+                    # num_time_bins 제거
                 )
             else:
                 trainer = LLaVATrainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
-
-                print("[TEST][INFO] Using simple_generate loop for deterministic generation prompt handling.")
+                print("[TEST][INFO] Using simple_generate loop.")
                 results = simple_predict_generate(
                     model=model,
                     tokenizer=tokenizer,
@@ -2011,11 +1697,10 @@ def train():
                     do_sample=training_args.do_sample,
                     max_new_tokens=training_args.max_new_tokens,
                     max_time=float(getattr(data_args, "max_time", 30)),
-                    num_time_bins=model_args.temporal_num_bins,
+                    # num_time_bins 제거
                 )
                 print("[TEST][INFO] results len =", len(results))
 
-            rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
             print(f"rank {rank} finish predict")
 
             output_path = os.path.join(test_output_dir, f"test_results_rank{rank}.json")
@@ -2025,9 +1710,7 @@ def train():
             if dist.is_available() and dist.is_initialized():
                 dist.barrier()
 
-            # ---- single-process shortcut: no merge needed ----
             if (not dist.is_available()) or (not dist.is_initialized()) or (dist.get_world_size() == 1):
-                rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
                 if rank == 0:
                     with open(output_path, "r") as fp:
                         res0 = json.load(fp) or []
@@ -2036,9 +1719,7 @@ def train():
                         json.dump(res0, fp, indent=4, ensure_ascii=False)
                     print(os.path.abspath(tp_path))
                 return
-            # --------------------------------------------------
 
-            rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
             if rank == 0:
                 res = []
                 print("start merging")
@@ -2051,7 +1732,7 @@ def train():
                     res += res_i
 
                 temp_dict = {}
-                new_res = []
+                new_res   = []
                 for it in res:
                     key_id = str(it.get("id")) + _prompt_to_text(it.get("prompt"))
                     if key_id not in temp_dict:
@@ -2059,7 +1740,7 @@ def train():
                         new_res.append(it)
 
                 res = new_res
-                with open(tp_path := os.path.join(test_output_dir, f"test_results.json"), 'w') as fp:
+                with open(tp_path := os.path.join(test_output_dir, "test_results.json"), 'w') as fp:
                     json.dump(res, fp, indent=4, ensure_ascii=False)
                 print(os.path.abspath(tp_path))
 
@@ -2070,34 +1751,20 @@ def train():
         else:
             model.tokenizer = tokenizer
 
-        # ===== [TIME TOKEN GRAD MASK] apply RIGHT BEFORE trainer creation (works for DPO too) =====
         if model_args.add_time_token:
-            apply_time_token_grad_mask(
-                model,
-                tokenizer,
-                num_bins=model_args.temporal_num_bins,
-                only_time_tokens=True,
-            )
-        # ================================================================================
+            apply_time_token_grad_mask(model, tokenizer, only_time_tokens=False)
 
         if training_args.dpo_train:
             training_args.gradient_checkpointing_kwargs = {"use_reentrant": False}
             trainer = LLaVADPOTrainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
-
-            # ✅ checkpoint 저장 시마다 trainer_state.json 저장
             trainer.add_callback(SaveTrainerStatePerCheckpointCallback())
-
         else:
             trainer = LLaVATrainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
-
-            # ✅ checkpoint 저장 시마다 trainer_state.json 저장
             trainer.add_callback(SaveTrainerStatePerCheckpointCallback())
 
-            # ✅ time token row 저장 콜백
             if model_args.add_time_token:
-                trainer.add_callback(
-                    SaveTimeTokenRowsCallback(tokenizer, num_bins=model_args.temporal_num_bins)
-                )
+                # VTG-LLM 방식: num_bins 인자 없음
+                trainer.add_callback(SaveTimeTokenRowsCallback(tokenizer))
 
             cb = TrainGenProbeCallback(tokenizer, every_steps=50, max_new_tokens=256)
             cb.trainer = trainer
@@ -2107,18 +1774,15 @@ def train():
             trainer.add_callback(EvaluateFirstStepCallback())
 
         temp_cnt, temp_total = 0, 0
-        rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
         if rank == 0:
             for k, p in model.named_parameters():
                 temp_total += 1
                 if p.requires_grad:
                     print(k)
                     temp_cnt += 1
-
             print(temp_cnt, temp_total)
 
         # ============ CHK3: FIRST TRAIN BATCH QUICK CHECK ============
-        rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
         if rank == 0:
             def _safe_decode_local(ids_like, skip_special_tokens=False):
                 if torch.is_tensor(ids_like):
@@ -2128,7 +1792,7 @@ def train():
 
             print("\n==== [CHK3] FIRST TRAIN BATCH ====")
             dl = trainer.get_train_dataloader()
-            b = next(iter(dl))
+            b  = next(iter(dl))
 
             ids = b["input_ids"][0]
             lab = b["labels"][0]
@@ -2141,25 +1805,48 @@ def train():
             print("[CHK3] tail decode:\n", repr(tail))
 
             valid_ids = lab[lab != -100]
-            tail_lab = _safe_decode_local(valid_ids[-200:], skip_special_tokens=False) if valid_ids.numel() > 0 else ""
+            tail_lab  = (_safe_decode_local(valid_ids[-200:], skip_special_tokens=False)
+                         if valid_ids.numel() > 0 else "")
             print("[CHK3] label(valid) tail decode:\n", repr(tail_lab))
+
+            # VTG-LLM 토큰 존재 여부 확인
+            has_time = any(tok in tail_lab for tok in ["<t0>", "<t9>", "<tdot>"])
+            print("[CHK3] label contains VTG-LLM time tokens?:", has_time)
             print("=================================\n")
         # ============================================================
 
-        # ================== DEBUG: direct forward on 1 batch (TRAIN PATH) ==================
-        rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
         if rank == 0:
-            dl = trainer.get_train_dataloader()
-            first_batch = next(iter(dl))
+            dl_check    = trainer.get_train_dataloader()
+            total_valid = 0
+            total_tokens = 0
+            for i, b_check in enumerate(dl_check):
+                if i >= 5:
+                    break
+                lab_check = b_check.get("labels", None)
+                if lab_check is not None:
+                    total_valid  += int((lab_check != -100).sum().item())
+                    total_tokens += lab_check.numel()
 
-            # batch를 model forward에 필요한 키만 남기고 cuda로 이동
-            keys = ["input_ids", "labels", "attention_mask", "images", "modalities", "spectrogram", "org_groups", "real_time"]
-            b = {k: first_batch.get(k, None) for k in keys if k in first_batch}
+            print(f"\n==== [LABEL SANITY] first 5 batches ====")
+            print(f"[LABEL SANITY] valid labels: {total_valid} / {total_tokens}")
+            if total_valid == 0:
+                raise RuntimeError(
+                    "[FATAL] 학습 데이터의 labels가 전부 -100입니다!\n"
+                    "VTG-LLM time token(<t0>~<t9>, <tdot>)이 tokenizer에 올바르게 등록됐는지, "
+                    "conversation preprocess에서 response 구간 계산이 올바른지 확인하세요."
+                )
+            else:
+                print(f"[LABEL SANITY] valid ratio: {total_valid / total_tokens:.3f} ✅")
+            print("=========================================\n")
+
+        if rank == 0:
+            dl          = trainer.get_train_dataloader()
+            first_batch = next(iter(dl))
+            keys        = ["input_ids", "labels", "attention_mask", "images", "modalities", "spectrogram", "org_groups", "real_time"]
+            b           = {k: first_batch.get(k, None) for k in keys if k in first_batch}
 
             def _to_cuda(x):
-                if torch.is_tensor(x):
-                    return x.cuda(non_blocking=True)
-                return x
+                return x.cuda(non_blocking=True) if torch.is_tensor(x) else x
 
             for k in ["input_ids", "labels", "attention_mask"]:
                 if k in b and b[k] is not None:
@@ -2176,24 +1863,21 @@ def train():
 
             model.train()
             with torch.no_grad():
-                lab = b["labels"]
+                lab   = b["labels"]
                 print("[DBG][LABEL] dtype:", lab.dtype, "min/max:", int(lab.min()), int(lab.max()), flush=True)
                 valid = (lab != -100).sum().item()
                 print("[DBG][LABEL] #valid(!=-100):", valid, " / total:", lab.numel(), flush=True)
                 print("[DBG][LABEL] tail raw:", lab[0, -60:].tolist(), flush=True)
-                out = model(**{k: v for k, v in b.items() if v is not None})
+
+                out        = model(**{k: v for k, v in b.items() if v is not None})
                 logits_len = out.logits.shape[1]
-                lab = b["labels"]
                 valid_total = (lab != -100).sum().item()
                 valid_used  = (lab[:, :logits_len] != -100).sum().item()
-
                 print("[DBG][LEN] labels_len =", lab.shape[1], "logits_len =", logits_len, flush=True)
-                print("[DBG][VALID] total =", valid_total, " used(first logits_len) =", valid_used, flush=True)
-                
+                print("[DBG][VALID] total =", valid_total, " used =", valid_used, flush=True)
                 print("[DBG][TRAIN-DIRECT] out.loss =", getattr(out, "loss", None), flush=True)
                 if getattr(out, "loss", None) is not None:
                     print(f"[DBG][TRAIN-DIRECT] out.loss.item = {out.loss.item():.8e}", flush=True)
-        # ================================================================================"
 
         ckpts = sorted(
             glob.glob(os.path.join(training_args.output_dir, "checkpoint-*")),
@@ -2208,29 +1892,24 @@ def train():
             ]
             return all(os.path.exists(p) for p in required_files)
 
-
         if len(ckpts) > 0:
             last_ckpt = ckpts[-1]
             _load_time_rows_if_exist(model, last_ckpt)
-
             if _is_real_resume_checkpoint(last_ckpt):
                 print(f"[RESUME] real resume from {last_ckpt}", flush=True)
                 trainer.train(resume_from_checkpoint=last_ckpt)
             else:
-                print(f"[RESUME] optimizer/scheduler state missing in {last_ckpt}", flush=True)
-                print(f"[RESUME] warm-start only from model weights; optimizer/scheduler will restart.", flush=True)
+                print(f"[RESUME] optimizer/scheduler state missing in {last_ckpt}; warm-start only.", flush=True)
                 trainer.train()
         else:
             trainer.train()
 
         trainer.save_state()
-        
-        rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
+
         if rank == 0:
             tokenizer.save_pretrained(training_args.output_dir)
-            # 모델은 trainer가 저장할 수도 있지만, 안전하게 같이 저장하고 싶으면:
-            # trainer.save_model(training_args.output_dir)
             print("[SAVE] tokenizer saved to", training_args.output_dir)
+
 
 if __name__ == "__main__":
     train()
