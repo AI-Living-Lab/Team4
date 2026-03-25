@@ -7,9 +7,9 @@
 set -euo pipefail
 
 export PYTHONPATH=/home/aix23102/audiolm/vS2_eunji:$PYTHONPATH
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=6
 
-CKPT=20000
+CKPT=64890
 
 BASE=/home/aix23102/audiolm/vS2_eunji
 MODEL_BASE=/home/aix23102/audiolm/video-SALMONN-2/checkpoints/llava_onevision_qwen2_7b_ov
@@ -19,12 +19,12 @@ BASE_CKPT=/home/aix23102/audiolm/video-SALMONN-2/checkpoints/video_salmonn2_hf
 LORA_PATH=$BASE/checkpoints_open_aligner/checkpoint-$CKPT
 
 TEST_JSON=$BASE/data/unav100_test_dense.json
-TEST_OUT=$BASE/eval/results/unav100_test_$CKPT
+TEST_OUT=$BASE/eval/results/unav100_test_uf_$CKPT
 
 
 mkdir -p "$TEST_OUT"
  
-torchrun --nproc_per_node=1 --master_port=29520 \
+torchrun --nproc_per_node=1 --master_port=29521 \
   $BASE/llava/train/train.py \
   --version qwen_1_5 \
   --audio_visual True \
@@ -52,7 +52,7 @@ torchrun --nproc_per_node=1 --master_port=29520 \
   --do_test True \
   --test_data_path "$TEST_JSON" \
   --test_output_dir "$TEST_OUT" \
-  --max_new_tokens 512 \
+  --max_new_tokens 1024 \
   --output_dir "$TEST_OUT" \
   --bf16 True \
   --per_device_eval_batch_size 1 \

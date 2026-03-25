@@ -164,3 +164,41 @@ cython_debug/
 
 wandb
 output
+
+# TensorBoard logs
+tensor_logs*/
+**/tensor_logs*/
+events.out.tfevents.*
+*.tfevents.*
+
+# Eval results
+eval/results/
+
+# cookies / private files
+cookies.txt
+youtube_cookies.txt
+www.youtube.com_cookies*
+*.cookies
+
+# random local files
+-4.38.0
+=4.38.0
+
+# large local dirs
+CLAP/
+
+# output dirs
+output/
+
+eval/results/
+output/
+cookies.txt
+youtube_cookies.txt
+www.youtube.com_cookies*
+*.cookies
+tensor_logs*/
+**/tensor_logs*/
+events.out.tfevents.*
+*.tfevents.*
+# large local data
+data/stage3.json

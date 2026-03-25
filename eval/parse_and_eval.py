@@ -13,6 +13,9 @@ Usage:
     --max_time  60.0 \
     --out_dir   eval/results/unav100_test
 """
+import sys
+sys.path.insert(0, '/home/aix23102/audiolm/vS2_eunji/CLAP/src')
+import laion_clap
 
 import argparse
 import ast
@@ -22,7 +25,12 @@ import re
 import difflib
 import numpy as np
 from collections import defaultdict
+import numpy as np
 
+# 전역 캐시
+_clap_model = None
+_cached_valid_labels = None
+_cached_label_embeddings = None
 
 # ──────────────────────────────────────────────────────────────
 # 1. video_id 추출
@@ -99,37 +107,74 @@ def normalize_label(s: str) -> str:
     return re.sub(r"[\s_\-]+", " ", s.strip().lower())
 
 
+def _get_clap_model():
+    global _clap_model
+    if _clap_model is None:
+        print("[INFO] Loading CLAP model...")
+        _clap_model = laion_clap.CLAP_Module(enable_fusion=True)  # False → True로 변경
+        _clap_model.load_ckpt('/home/aix23102/audiolm/vS2_eunji/CLAP/630k-audioset-fusion-best.pt')
+        _clap_model.eval()
+        print("[INFO] CLAP model loaded.")
+    return _clap_model
+
+def _get_label_embeddings(valid_labels: list[str]):
+    global _cached_valid_labels, _cached_label_embeddings
+    if _cached_valid_labels != valid_labels:
+        model = _get_clap_model()
+        _cached_label_embeddings = model.get_text_embedding(
+            valid_labels, use_tensor=False
+        )  # shape: (N, D), numpy array
+        _cached_valid_labels = valid_labels
+    return _cached_label_embeddings
+
+
 def fuzzy_match_label(pred_label: str, valid_labels: list[str],
                       cutoff: float = 0.6) -> str:
-    """
-    pred_label → valid_labels 중 가장 유사한 것으로 매핑.
-    매핑 실패 시 정규화된 pred_label 그대로 반환 (mAP 계산 시 miss 처리됨).
-    """
     pred_norm = normalize_label(pred_label)
     norm_map  = {normalize_label(v): v for v in valid_labels}
 
+    # 1. exact match
     if pred_norm in norm_map:
         return norm_map[pred_norm]
 
-    matches = difflib.get_close_matches(
-        pred_norm, list(norm_map.keys()), n=1, cutoff=cutoff
-    )
-    if matches:
-        return norm_map[matches[0]]
+    # 2. CLAP text embedding cosine similarity NN
+    model = _get_clap_model()
+    pred_emb = model.get_text_embedding([pred_label], use_tensor=False)  # (1, D)
+    label_embs = _get_label_embeddings(valid_labels)                      # (N, D)
 
-    return pred_label   # 매핑 실패 → 원래 값 유지 (GT miss)
+    # L2 normalize
+    pred_emb  = pred_emb  / (np.linalg.norm(pred_emb,  axis=1, keepdims=True) + 1e-8)
+    label_embs_norm = label_embs / (np.linalg.norm(label_embs, axis=1, keepdims=True) + 1e-8)
+
+    sims = (label_embs_norm @ pred_emb.T).squeeze()  # (N,)
+    best_idx = int(np.argmax(sims))
+    return valid_labels[best_idx]
 
 
 def _extract_event_dicts(raw: str) -> list[dict]:
-    """
-    raw 텍스트에서 event dict 리스트 추출. 여러 fallback 전략을 순서대로 시도.
-    """
-    # ── 전처리: 불필요한 감싸기 제거 ─────────────────────────
-    # "longleftrightarrow{...}longleftrightarrow" 같은 래퍼 제거
+    # ── 전처리 ───────────────────────────────────────────────
     raw = re.sub(r"[a-zA-Z가-힣]{4,}(\{)", r"\1", raw)
     raw = re.sub(r"(\})[a-zA-Z가-힣]{4,}", r"\1", raw)
 
-    # ── 전략 1: 정상 JSON 배열 [{ ... }] ─────────────────────
+    # ── 작은따옴표 → 큰따옴표 변환 ───────────────────────────
+    def to_double_quote(s: str) -> str:
+        s = re.sub(r"'([^']*)'(\s*:)", r'"\1"\2', s)  # key
+        s = re.sub(r":\s*'([^']*)'",   r': "\1"',  s)  # value
+        return s
+
+    raw_dq = to_double_quote(raw)
+
+    # ── 전략 1: 정상 JSON 배열 (큰따옴표 변환 후) ────────────
+    m = re.search(r"(\[.*?\])", raw_dq, re.DOTALL)
+    if m:
+        try:
+            items = json.loads(m.group(1))
+            if isinstance(items, list):
+                return [x for x in items if isinstance(x, dict)]
+        except json.JSONDecodeError:
+            pass
+
+    # ── 전략 1b: 원본으로 한 번 더 시도 ─────────────────────
     m = re.search(r"(\[.*?\])", raw, re.DOTALL)
     if m:
         try:
@@ -140,7 +185,7 @@ def _extract_event_dicts(raw: str) -> list[dict]:
             pass
 
     # ── 전략 2: 단일 객체 { ... } ────────────────────────────
-    m = re.search(r"(\{[^{}]*\})", raw, re.DOTALL)
+    m = re.search(r"(\{[^{}]*\})", raw_dq, re.DOTALL)
     if m:
         try:
             item = json.loads(m.group(1))
@@ -149,15 +194,13 @@ def _extract_event_dicts(raw: str) -> list[dict]:
         except json.JSONDecodeError:
             pass
 
-    # ── 전략 3: JSON 파싱 실패 시 정규식으로 개별 필드 추출 ──
-    # 깨진 JSON도 event/start/end 패턴이 있으면 최대한 복구
+    # ── 전략 3: 정규식으로 개별 필드 추출 ────────────────────
     items = []
-    # 각 event 블록 단위로 추출
-    blocks = re.split(r"(?=\{[^{}]*\"event\")", raw)
+    blocks = re.split(r"(?=\{[^{}]*['\"]event['\"])", raw)
     for block in blocks:
-        event_m = re.search(r'"event"\s*"?\s*:\s*"([^"]+)"', block)
-        start_m = re.search(r'"start"\s*:\s*"([^"]*)"', block)
-        end_m   = re.search(r'"end"\s*:\s*"([^"]*)"', block)
+        event_m = re.search(r'["\']event["\']\s*["\']?\s*:\s*["\']([^"\']+)["\']', block)
+        start_m = re.search(r'["\']start["\']\s*:\s*["\']([^"\']*)["\']', block)
+        end_m   = re.search(r'["\']end["\']\s*:\s*["\']([^"\']*)["\']',   block)
         if event_m and (start_m or end_m):
             items.append({
                 "event": event_m.group(1),
@@ -167,8 +210,6 @@ def _extract_event_dicts(raw: str) -> list[dict]:
     if items:
         return items
 
-    # ── 전략 4: time token 패턴 직접 검색 (최후 수단) ─────────
-    # "event" 키 없이 time token만 있는 경우는 파싱 포기
     return []
 
 

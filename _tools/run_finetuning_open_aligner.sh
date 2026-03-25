@@ -2,7 +2,7 @@
 set -euo pipefail
 
 export PYTHONPATH=/home/aix23102/audiolm/vS2_eunji:$PYTHONPATH
-export CUDA_VISIBLE_DEVICES=5
+export CUDA_VISIBLE_DEVICES=4
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:64
 
 MASTER_PORT_TRAIN=29503   # 포트 충돌 방지
