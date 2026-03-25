@@ -2,7 +2,7 @@
 set -euo pipefail
 
 export PYTHONPATH=/home/aix23102/audiolm/vS2_eunji:$PYTHONPATH
-export CUDA_VISIBLE_DEVICES=4
+export CUDA_VISIBLE_DEVICES=5
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:64
 
 MASTER_PORT_TRAIN=29501
@@ -15,7 +15,6 @@ BASE_CKPT=/home/aix23102/audiolm/video-SALMONN-2/checkpoints/video_salmonn2_hf
 TRAIN_JSON=$BASE/data/unav100_train_dense.json
 TEST_JSON=$BASE/data/unav100_test_dense_5.json
 
-# 기존 폴더 말고 새 폴더 사용
 OUTDIR=$BASE/checkpoints
 TEST_OUT=$BASE/output/test_full_sft3
 LOGDIR=$BASE/tensor_logs_full_sft3
@@ -31,7 +30,7 @@ find_latest_checkpoint() {
 }
 
 # =========================================================
-# Force non-resume mode
+# TRAIN
 # =========================================================
 TRAIN_OUTPUT_DIR="$OUTDIR"
 
@@ -43,19 +42,15 @@ echo "model_base  = $MODEL_BASE"
 echo "output_dir  = $TRAIN_OUTPUT_DIR"
 echo "===================="
 
-# =========================================================
-# TRAIN
-# =========================================================
-TRAIN_OUTPUT_DIR="$OUTDIR"
-
-# train.py가 output_dir를 스캔해서 자동으로 resume/scratch 결정
+# resume 인자 조건부 설정 (핵심 수정 부분)
+RESUME_ARG=""
 EXISTING_CKPT=$(find_latest_checkpoint "$TRAIN_OUTPUT_DIR")
 if [[ -n "$EXISTING_CKPT" ]]; then
   echo "[TRAIN] Found existing checkpoint: $EXISTING_CKPT → will resume"
+  RESUME_ARG="--resume_from_checkpoint $EXISTING_CKPT"
 else
   echo "[TRAIN] No existing checkpoint found → starting from scratch"
 fi
-
 
 torchrun --nproc_per_node=1 --master_port=${MASTER_PORT_TRAIN} \
   $BASE/llava/train/train.py \
@@ -96,4 +91,5 @@ torchrun --nproc_per_node=1 --master_port=${MASTER_PORT_TRAIN} \
   --logging_steps 5 \
   --report_to tensorboard \
   --logging_dir "$LOGDIR" \
-  --disable_tqdm False
+  --disable_tqdm False \
+  $RESUME_ARG
