@@ -6,7 +6,7 @@
 # ============================================================
 set -euo pipefail
 
-CKPT=58401
+CKPT=71379
 
 BASE=/home/aix23102/audiolm/vS2_eunji
 UNAV_JSON=/home/aix23102/audiolm/CCNet/data/unav_100/annotations/unav100_annotations.json

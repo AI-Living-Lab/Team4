@@ -1861,23 +1861,11 @@ def train():
             if "spectrogram" in b and b["spectrogram"] is not None and torch.is_tensor(b["spectrogram"]):
                 b["spectrogram"] = b["spectrogram"].to(torch.bfloat16).cuda(non_blocking=True)
 
-            model.train()
-            with torch.no_grad():
-                lab   = b["labels"]
-                print("[DBG][LABEL] dtype:", lab.dtype, "min/max:", int(lab.min()), int(lab.max()), flush=True)
-                valid = (lab != -100).sum().item()
-                print("[DBG][LABEL] #valid(!=-100):", valid, " / total:", lab.numel(), flush=True)
-                print("[DBG][LABEL] tail raw:", lab[0, -60:].tolist(), flush=True)
-
-                out        = model(**{k: v for k, v in b.items() if v is not None})
-                logits_len = out.logits.shape[1]
-                valid_total = (lab != -100).sum().item()
-                valid_used  = (lab[:, :logits_len] != -100).sum().item()
-                print("[DBG][LEN] labels_len =", lab.shape[1], "logits_len =", logits_len, flush=True)
-                print("[DBG][VALID] total =", valid_total, " used =", valid_used, flush=True)
-                print("[DBG][TRAIN-DIRECT] out.loss =", getattr(out, "loss", None), flush=True)
-                if getattr(out, "loss", None) is not None:
-                    print(f"[DBG][TRAIN-DIRECT] out.loss.item = {out.loss.item():.8e}", flush=True)
+            lab   = b["labels"]
+            print("[DBG][LABEL] dtype:", lab.dtype, "min/max:", int(lab.min()), int(lab.max()), flush=True)
+            valid = (lab != -100).sum().item()
+            print("[DBG][LABEL] #valid(!=-100):", valid, " / total:", lab.numel(), flush=True)
+            print("[DBG][LABEL] tail raw:", lab[0, -60:].tolist(), flush=True)
 
         ckpts = sorted(
             glob.glob(os.path.join(training_args.output_dir, "checkpoint-*")),
