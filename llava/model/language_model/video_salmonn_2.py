@@ -186,6 +186,15 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         # 2) ✅ 핵심: vision forward를 chunk로 쪼개서 피크 메모리 낮추기
         chunk_size = 1  # OOM이면 2, 그래도 OOM이면 1
 
+        # mm_projector 등 vision 모듈 device 동기화
+        target_device = images.device
+        target_dtype = images.dtype
+        mm_proj = getattr(self.get_model(), "mm_projector", None)
+        if mm_proj is not None:
+            first_param = next(mm_proj.parameters(), None)
+            if first_param is not None and first_param.device != target_device:
+                self._ensure_all_modules_on_device(target_device, target_dtype)
+
         outs = []
         with torch.no_grad():
             for i in range(0, images.shape[0], chunk_size):
@@ -254,7 +263,35 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
 
         return speech_embeds, speech_atts
     
+    def _ensure_all_modules_on_device(self, device, dtype):
+        """모든 커스텀 모듈을 동일한 device/dtype으로 이동"""
+        # speech 모듈
+        for module_name in ["speech_encoder", "ln_speech", "speech_Qformer", "speech_llama_proj", "final_linear"]:
+            module = getattr(self, module_name, None)
+            if module is not None:
+                setattr(self, module_name, module.to(device=device, dtype=dtype))
+        if getattr(self, "speech_query_tokens", None) is not None:
+            self.speech_query_tokens = nn.Parameter(
+                self.speech_query_tokens.data.to(device=device, dtype=dtype)
+            )
+        # vision 모듈
+        mm_proj = getattr(self.get_model(), "mm_projector", None)
+        if mm_proj is not None:
+            self.get_model().mm_projector = mm_proj.to(device=device, dtype=dtype)
+        image_newline = getattr(self.get_model(), "image_newline", None)
+        if image_newline is not None:
+            self.get_model().image_newline = nn.Parameter(
+                image_newline.data.to(device=device, dtype=dtype)
+            )
+        vision_tower = self.get_vision_tower()
+        if vision_tower is not None:
+            vision_tower.to(device=device, dtype=dtype)
+
     def encode_speech(self, spectrogram):
+        target_device = spectrogram.device
+        target_dtype = spectrogram.dtype
+        if next(self.speech_encoder.parameters()).device != target_device:
+            self._ensure_all_modules_on_device(target_device, target_dtype)
         speech_embeds = self.speech_encoder(spectrogram, return_dict=True).last_hidden_state
         return self._encode_auditory_feature(speech_embeds)
 
@@ -274,6 +311,39 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         # if vision_tower is None or images is None or input_ids.shape[1] == 1:
         if vision_tower is None or (not isinstance(input_ids, list) and input_ids.shape[1] == 1):
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
+
+        # ── device/dtype 동기화: DeepSpeed init 후 CPU에 남는 모듈 강제 이동 ──
+        _ref = None
+        if isinstance(input_ids, torch.Tensor):
+            _ref = input_ids
+        elif attention_mask is not None and isinstance(attention_mask, torch.Tensor):
+            _ref = attention_mask
+        if _ref is not None and _ref.device.type == "cuda":
+            _target_device = _ref.device
+            _target_dtype  = torch.bfloat16
+            # speech 모듈
+            for _mn in ["speech_encoder", "ln_speech", "speech_Qformer", "speech_llama_proj", "final_linear"]:
+                _m = getattr(self, _mn, None)
+                if _m is not None:
+                    _fp = next(_m.parameters(), None)
+                    if _fp is not None and _fp.device != _target_device:
+                        setattr(self, _mn, _m.to(device=_target_device, dtype=_target_dtype))
+            if getattr(self, "speech_query_tokens", None) is not None:
+                if self.speech_query_tokens.device != _target_device:
+                    self.speech_query_tokens = nn.Parameter(
+                        self.speech_query_tokens.data.to(device=_target_device, dtype=_target_dtype)
+                    )
+            # vision 모듈
+            _mm = getattr(self.get_model(), "mm_projector", None)
+            if _mm is not None:
+                _fp = next(_mm.parameters(), None)
+                if _fp is not None and _fp.device != _target_device:
+                    self.get_model().mm_projector = _mm.to(device=_target_device, dtype=_target_dtype)
+            _nl = getattr(self.get_model(), "image_newline", None)
+            if _nl is not None and _nl.device != _target_device:
+                self.get_model().image_newline = nn.Parameter(
+                    _nl.data.to(device=_target_device, dtype=_target_dtype)
+                )
 
         if torch.cuda.current_device() == 0:
             print('>>> [RANK0 PRINT] | modalities in batch:', modalities)
@@ -376,9 +446,9 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                                 if self.add_time_token:
                                     frame_per_time = real_time[image_idx] / num_frames
                                     time_idx = [str(round(frame_per_time * f_idx, 1)) for f_idx in range(1, num_frames + 1)]
-                                    time_tokens = [self.tokenizer(t_idx, return_tensors='pt')["input_ids"].to(self.device) for t_idx in time_idx]
-                                    time_embeds = [self.get_model().embed_tokens(t_tok).squeeze() for t_tok in time_tokens]
-                                    padded_time_embeds = pad_sequence(time_embeds, batch_first=True)
+                                    time_tokens = [self.tokenizer(t_idx, return_tensors='pt')["input_ids"].to(image_feature.device) for t_idx in time_idx]
+                                    time_embeds = [self.get_model().embed_tokens(t_tok.to(next(self.get_model().embed_tokens.parameters()).device)).squeeze() for t_tok in time_tokens]
+                                    padded_time_embeds = pad_sequence(time_embeds, batch_first=True).to(image_feature.device)
                                     image_feature = image_feature.view(num_frames, -1, image_feature.size(-1))
                                     image_feature = torch.cat((image_feature, padded_time_embeds), dim=1)
                                     image_feature = image_feature.view(-1, image_feature.size(-1))
@@ -488,7 +558,7 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                 cur_input_ids_noim.append(cur_input_ids[image_token_indices[i]+1:image_token_indices[i+1]])
                 cur_labels_noim.append(cur_labels[image_token_indices[i]+1:image_token_indices[i+1]])
             split_sizes = [x.shape[0] for x in cur_labels_noim]
-            cur_input_embeds = self.get_model().embed_tokens(torch.cat(cur_input_ids_noim))
+            cur_input_embeds = self.get_model().embed_tokens(torch.cat(cur_input_ids_noim).to(next(self.get_model().embed_tokens.parameters()).device))
             cur_input_embeds_no_im = torch.split(cur_input_embeds, split_sizes, dim=0)
             cur_new_input_embeds = []
             cur_new_labels = []

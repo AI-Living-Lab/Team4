@@ -119,10 +119,10 @@ TEST_OUTPUT_DIR=output/test/$TEST_ID
 MODEL=$MODEL_ID
 echo "BASE CKPT: $MODEL"
 
-MODEL_MAX_LENGTH=32768
+MODEL_MAX_LENGTH=4096
 VISION_ENCODER=google/siglip-so400m-patch14-384
 
-FRAMES_UPBOUND=30 # 32
+FRAMES_UPBOUND=16
 POOLING_STYLE=max
 POOLING_STRIDE=2
 NEW_LINE_POSITION=grid
@@ -133,7 +133,7 @@ FREEZE_SPEECH_QFORMER=False
 FREEZE_FINAL_LINEAR=False
 USE_FINAL_LINEAR=False
 
-export HF_HOME="/mnt/bn/tiktok-mm-2/aiic/public/model/huggingface"
+export HF_HOME="/home/aix23102/.cache/huggingface"
 
 if [[ "$DO_DEMO" = "True" ]]; then
     GPU_NUM=1

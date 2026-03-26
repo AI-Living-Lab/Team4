@@ -7,9 +7,9 @@
 set -euo pipefail
 
 export PYTHONPATH=/home/aix23102/audiolm/vS2_eunji:$PYTHONPATH
-export CUDA_VISIBLE_DEVICES=6
+export CUDA_VISIBLE_DEVICES=5,6
 
-CKPT=64890
+CKPT=71379
 
 BASE=/home/aix23102/audiolm/vS2_eunji
 MODEL_BASE=/home/aix23102/audiolm/video-SALMONN-2/checkpoints/llava_onevision_qwen2_7b_ov
@@ -24,7 +24,7 @@ TEST_OUT=$BASE/eval/results/unav100_test_uf_$CKPT
 
 mkdir -p "$TEST_OUT"
  
-torchrun --nproc_per_node=1 --master_port=29521 \
+torchrun --nproc_per_node=2 --master_port=29521 \
   $BASE/llava/train/train.py \
   --version qwen_1_5 \
   --audio_visual True \
