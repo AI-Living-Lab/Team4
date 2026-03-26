@@ -1,0 +1,296 @@
+[
+  {
+    "video": "/data0/aix23102/unav_100/videos/8WSesSOfBrE.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/8WSesSOfBrE.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: sailing"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/0K4QM63pY-w.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/0K4QM63pY-w.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: horse clip-clop"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/yQQG03dAoLU.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/yQQG03dAoLU.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: driving motorcycle"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/D05-MrPXqjw.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/D05-MrPXqjw.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: fire truck siren"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/D05-MrPXqjw.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/D05-MrPXqjw.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: car passing by"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/l7Wo_s7HFIY.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/l7Wo_s7HFIY.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: police car siren"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/qwoyjr7tSBA.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/qwoyjr7tSBA.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: playing acoustic guitar"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/qwoyjr7tSBA.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/qwoyjr7tSBA.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: playing electronic organ"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/7VLSntkdnic.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/7VLSntkdnic.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: playing erhu"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/7VAGvfWSQlI.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/7VAGvfWSQlI.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: people crowd"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/-8RduCMIJG0.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/-8RduCMIJG0.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: playing tabla"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/-tv917VfSS8.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/-tv917VfSS8.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: playing acoustic guitar"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/-R2kN-_12pc.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/-R2kN-_12pc.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: horse clip-clop"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/-R2kN-_12pc.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/-R2kN-_12pc.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: wind noise"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/53ws7QAXixY.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/53ws7QAXixY.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: lawn mowing"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/-x9Ux6FfYcs.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/-x9Ux6FfYcs.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: auto racing"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/44Nt8WOHyyU.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/44Nt8WOHyyU.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: playing accordion"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/ABbELv-mcxk.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/ABbELv-mcxk.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: church bell ringing"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/-w16y9PQtIM.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/-w16y9PQtIM.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: car passing by"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/8UCxl9IRR7k.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/8UCxl9IRR7k.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: raining"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/1q-KrhSYMnU.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/1q-KrhSYMnU.wav",
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<image>\nYou are an audio-visual event localization model.\nGiven the video and audio, identify the time interval where the following event occurs.\n\nRequirements:\n- Time unit: seconds\n- Output exactly ONE JSON object\n- Do NOT include any explanation, text, or code block\n\nOutput format:\n{\"start\": <number>, \"end\": <number>}\n\nEvent: beat boxing"
+      },
+      {
+        "from": "gpt",
+        "value": ""
+      }
+    ]
+  }
+]
