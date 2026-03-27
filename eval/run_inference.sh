@@ -6,26 +6,33 @@
 # ============================================================
 set -euo pipefail
 
-export PYTHONPATH=/home/aix23102/audiolm/vS2_eunji:$PYTHONPATH
-export CUDA_VISIBLE_DEVICES=5,6
+# 경로 설정 로드
+SCRIPT_DIR=$(cd $(dirname $0); pwd)
+if [ -f "$SCRIPT_DIR/../paths.env" ]; then
+    source "$SCRIPT_DIR/../paths.env"
+else
+    echo "[WARNING] paths.env not found. Copy paths.env.example to paths.env and fill in the paths."
+fi
+
+export PYTHONPATH=${BASE_DIR}:$PYTHONPATH
+export CUDA_VISIBLE_DEVICES=0,1
 
 CKPT=71379
 
-BASE=/home/aix23102/audiolm/vS2_eunji
-MODEL_BASE=/home/aix23102/audiolm/video-SALMONN-2/checkpoints/llava_onevision_qwen2_7b_ov
-BASE_CKPT=/home/aix23102/audiolm/video-SALMONN-2/checkpoints/video_salmonn2_hf
+MODEL_BASE=${CHECKPOINTS_DIR}/llava_onevision_qwen2_7b_ov
+BASE_CKPT=${CHECKPOINTS_DIR}/video_salmonn2_hf
 
 # ↓ 평가할 checkpoint 폴더로 교체
-LORA_PATH=$BASE/checkpoints_open_aligner/checkpoint-$CKPT
+LORA_PATH=${CHECKPOINTS_DIR}/checkpoints_open_aligner/checkpoint-$CKPT
 
-TEST_JSON=$BASE/data/unav100_test_dense.json
-TEST_OUT=$BASE/eval/results/unav100_test_uf_$CKPT
+TEST_JSON=${BASE_DIR}/data/unav100_test_dense.json
+TEST_OUT=${BASE_DIR}/eval/results/unav100_test_uf_$CKPT
 
 
 mkdir -p "$TEST_OUT"
- 
+
 torchrun --nproc_per_node=2 --master_port=29521 \
-  $BASE/llava/train/train.py \
+  ${BASE_DIR}/llava/train/train.py \
   --version qwen_1_5 \
   --audio_visual True \
   --whisper_path openai/whisper-large-v3 \
@@ -60,4 +67,3 @@ torchrun --nproc_per_node=2 --master_port=29521 \
   --remove_unused_columns False \
   --use_timestamps_crop False \
   --evaluation_strategy "no"
- 

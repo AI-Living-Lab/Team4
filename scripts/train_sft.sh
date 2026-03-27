@@ -17,14 +17,21 @@
 PROJECT_ROOT=$(cd $(dirname $0); pwd)
 cd $PROJECT_ROOT
 
+# 경로 설정 로드
+if [ -f ../paths.env ]; then
+    source ../paths.env
+else
+    echo "[WARNING] paths.env not found. Copy paths.env.example to paths.env and fill in the paths."
+fi
+
 bash run.sh \
-    --training_data /mnt/bn/tiktok-mm-4/aiic/users/tangchangli/preprocess_dataset/ytb0-62kCapHumanDimQa.json \
-    --model_base /mnt/bn/tiktok-mm-4/aiic/public/model/OV-Qwen2-7B-AM9 \
-    --model /opt/tiger/sft_vanntShare_imPre_f110fps1FullTT_post_bs128Epo1_250115/checkpoint-12000.bin \
+    --training_data ${DATA_DIR}/training_data.json \
+    --model_base ${BASE_MODEL} \
+    --model ${CHECKPOINTS_DIR}/sft_ckpt/checkpoint-12000.bin \
     --load_from_lora \
     --save_model_name debug \
     --epochs 5 --save_steps 20 --lr 2e-5 --max_time 110 --fps 1 --add_time_token \
     --use_lora --lora_r 128 --lora_alpha 256  --lora_dropout 0.05 --load_full \
-    --pretrain_weight /opt/tiger/audio_120perMin_Ls960Com_AcSl_OVQwen2-7B_torch_250107/checkpoint-30000.bin \
+    --pretrain_weight ${CHECKPOINTS_DIR}/pretrain_audio/checkpoint-30000.bin \
     --winqf_second 0.5 --audio_visual \
     --mm_pooling_position after

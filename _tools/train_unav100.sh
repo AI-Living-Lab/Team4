@@ -6,14 +6,19 @@
 export CUDA_VISIBLE_DEVICES=4,5
 export ARNOLD_WORKER_GPU=2
 
-PROJECT_ROOT=$(cd $(dirname $0); pwd)
-cd $PROJECT_ROOT
+SCRIPT_DIR=$(cd $(dirname $0); pwd)
+cd $SCRIPT_DIR
 
+if [ -f "$SCRIPT_DIR/../paths.env" ]; then
+    source "$SCRIPT_DIR/../paths.env"
+else
+    echo "[WARNING] paths.env not found. Copy paths.env.example to paths.env and fill in the paths."
+fi
 
-bash /home/aix23102/audiolm/vS2_eunji/scripts/run.sh \
-    --training_data /home/aix23102/audiolm/vS2_eunji/data/unav100_train_dense.json \
-    --model_base    /home/aix23102/audiolm/video-SALMONN-2/checkpoints/llava_onevision_qwen2_7b_ov \
-    --model         /home/aix23102/audiolm/video-SALMONN-2/checkpoints/video_salmonn2_hf \
+bash ${BASE_DIR}/scripts/run.sh \
+    --training_data ${BASE_DIR}/data/unav100_train_dense.json \
+    --model_base    ${BASE_MODEL} \
+    --model         ${SALMONN2_CKPT} \
     --save_model_name unav100_sft \
     --epochs        5 \
     --save_steps    500 \

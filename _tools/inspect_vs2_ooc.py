@@ -148,8 +148,8 @@ def load_unav_labels(unav_json: str, split: str) -> Tuple[List[str], Dict[str, A
 
 def main():
     # ✅ 여기만 수정해서 쓰시면 됩니다.
-    UNAV_JSON = "/home/aix23102/audiolm/CCNet/data/unav_100/annotations/unav100_annotations.json"
-    VS2_RESULTS = "/home/aix23102/audiolm/vS2_eunji/output/test/1_multi_ft/test_results.json"
+    UNAV_JSON = os.environ.get('UNAV_ANNO', 'data/unav100_annotations.json')
+    VS2_RESULTS = os.environ.get('VS2_RESULTS', 'output/test/1_multi_ft/test_results.json')
     SPLIT = "test"
 
     # how many samples to print

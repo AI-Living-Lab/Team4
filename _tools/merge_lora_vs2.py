@@ -1,9 +1,10 @@
+import os
 import torch
 from llava.model.utils import load_qwen_lora_model
 
-BASE_MODEL = "/home/aix23102/audiolm/video-SALMONN-2/checkpoints/llava_onevision_qwen2_7b_ov"
-LORA_CKPT  = "/home/aix23102/audiolm/vS2_eunji/checkpoints/finetuning_test/all_parameters.bin"
-OUT_DIR    = "/home/aix23102/audiolm/vS2_eunji/checkpoints/finetuning_test/merged"
+BASE_MODEL = os.environ.get('BASE_MODEL', 'lmms-lab/llava-onevision-qwen2-7b-ov')
+LORA_CKPT  = os.environ.get('SFT_CKPT', 'checkpoints/finetuning_test/all_parameters.bin')
+OUT_DIR    = os.environ.get('MERGE_OUT_DIR', 'checkpoints/finetuning_test/merged')
 
 model, tokenizer = load_qwen_lora_model(
     model_path=LORA_CKPT,

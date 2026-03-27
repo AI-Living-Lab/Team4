@@ -148,13 +148,14 @@ def run_video2dataset(csv_path: str, output_dir: str, workers: int, resolution: 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--json",       default="/home/aix23102/audiolm/vS2_eunji/data/stage3.json")
-    parser.add_argument("--done-dir",   default="/data0/aix23102/internvid",  help="이미 다운받은 파일들이 있는 폴더")
-    parser.add_argument("--output",     default="/data0/aix23102/internvid",  help="다운로드 출력 폴더")
+    _data_dir = os.environ.get('DATA_DIR', 'data')
+    parser.add_argument("--json",       default=os.path.join(_data_dir, 'stage3.json'))
+    parser.add_argument("--done-dir",   default=os.path.join(_data_dir, 'internvid'),  help="이미 다운받은 파일들이 있는 폴더")
+    parser.add_argument("--output",     default=os.path.join(_data_dir, 'internvid'),  help="다운로드 출력 폴더")
     parser.add_argument("--csv",        default="internvid_remaining.csv")
     parser.add_argument("--workers",    type=int, default=32)
     parser.add_argument("--resolution", type=int, default=360)
-    parser.add_argument("--cookies",    default="/home/aix23102/audiolm/vS2_eunji/www.youtube.com_cookies (1).txt",
+    parser.add_argument("--cookies",    default=os.environ.get('YOUTUBE_COOKIES', 'www.youtube.com_cookies.txt'),
                                         help="YouTube 쿠키 파일 경로")
     parser.add_argument("--csv-only",   action="store_true", help="CSV만 생성하고 다운로드는 건너뜀")
     args = parser.parse_args()

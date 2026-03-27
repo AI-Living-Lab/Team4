@@ -180,6 +180,9 @@ youtube_cookies.txt
 www.youtube.com_cookies*
 *.cookies
 
+# local path configuration
+paths.env
+
 # random local files
 -4.38.0
 =4.38.0

@@ -29,6 +29,12 @@ NODE_RANK=${NODE_RANK:-0}
 PROJECT_ROOT=$(cd $(dirname $0); pwd)
 cd $PROJECT_ROOT
 
+if [ -f ../paths.env ]; then
+    source ../paths.env
+else
+    echo "[WARNING] paths.env not found. Copy paths.env.example to paths.env and fill in the paths."
+fi
+
 # Note: 
 # To evaluate a PyTorch model in ".bin" format, please add the "--load_from_lora" parameter.
 # For Hugginface format models, this parameter is not required.
@@ -38,12 +44,12 @@ cd $PROJECT_ROOT
 
 bash run.sh \
     --do_test \
-    --test_data /home/aix23102/audiolm/video-SALMONN-2/video_salmonn2_raw/vs2_unav_test_multi.json \
+    --test_data ${BASE_DIR}/data/unav100_test_dense.json \
     --test_id 3_unav_multi \
     --max_time 110 \
     --fps 1 \
-    --model /home/aix23102/audiolm/video-SALMONN-2/checkpoints/video_salmonn2_hf \
-    --model_base /home/aix23102/audiolm/video-SALMONN-2/checkpoints/llava_onevision_qwen2_7b_ov \
+    --model ${SALMONN2_CKPT} \
+    --model_base ${BASE_MODEL} \
     --add_time_token --mm_pooling_position after \
     --audio_visual --winqf_second 0.5
 

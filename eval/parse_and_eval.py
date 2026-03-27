@@ -13,8 +13,9 @@ Usage:
     --max_time  60.0 \
     --out_dir   eval/results/unav100_test
 """
+import os
 import sys
-sys.path.insert(0, '/home/aix23102/audiolm/vS2_eunji/CLAP/src')
+sys.path.insert(0, os.environ.get('CLAP_SRC', 'CLAP/src'))
 import laion_clap
 
 import argparse
@@ -112,7 +113,7 @@ def _get_clap_model():
     if _clap_model is None:
         print("[INFO] Loading CLAP model...")
         _clap_model = laion_clap.CLAP_Module(enable_fusion=True)  # False → True로 변경
-        _clap_model.load_ckpt('/home/aix23102/audiolm/vS2_eunji/CLAP/630k-audioset-fusion-best.pt')
+        _clap_model.load_ckpt(os.environ.get('CLAP_CKPT', 'CLAP/630k-audioset-fusion-best.pt'))
         _clap_model.eval()
         print("[INFO] CLAP model loaded.")
     return _clap_model

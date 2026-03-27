@@ -23,12 +23,18 @@ cd $PROJECT_ROOT
 cd ..
 export PYTHONPATH="$(pwd):$PYTHONPATH"
 
+# 경로 설정 로드 (paths.env가 없으면 경고만 출력)
+if [ -f ./paths.env ]; then
+    source ./paths.env
+else
+    echo "[WARNING] paths.env not found. Copy paths.env.example to paths.env and fill in the paths."
+fi
 
 # pip install -r requirements.txt
 
-TRAINING_DATA=/mnt/bn/tiktok-mm-4/aiic/users/tangchangli/preprocess_dataset/ytb0-62kCapHumanDimQa.json
-MODEL_ID=/mnt/bn/tiktok-mm-4/aiic/public/model/OV-Qwen2-7B-AM9
-MODEL_BASE=/mnt/bn/tiktok-mm-4/aiic/public/model/OV-Qwen2-7B-AM9
+TRAINING_DATA=${DATA_DIR}/training_data.json
+MODEL_ID=${BASE_MODEL}
+MODEL_BASE=${BASE_MODEL}
 SAVE_MODEL_NAME=debug # 
 LOAD_FROM_LORA=False # True # 
 EPOCHS=4 # 5
@@ -58,7 +64,7 @@ AUDIO_VISUAL=False
 
 DO_DEMO=False
 DO_TEST=False
-TEST_DATA_PATH=/mnt/bn/tiktok-mm-4/aiic/users/tangchangli/preprocess_dataset/videomme_audioVisual_test.json
+TEST_DATA_PATH=${DATA_DIR}/videomme_audioVisual_test.json
 TEST_ID=debug
 
 DPO_TRAIN=False
@@ -133,7 +139,7 @@ FREEZE_SPEECH_QFORMER=False
 FREEZE_FINAL_LINEAR=False
 USE_FINAL_LINEAR=False
 
-export HF_HOME="/home/aix23102/.cache/huggingface"
+export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
 
 if [[ "$DO_DEMO" = "True" ]]; then
     GPU_NUM=1

@@ -2,13 +2,19 @@
 # train_pu_valor.sh
 # PU-VALOR time-event alignment 학습 스크립트
 
-PROJECT_ROOT=$(cd $(dirname $0); pwd)
-cd $PROJECT_ROOT
+SCRIPT_DIR=$(cd $(dirname $0); pwd)
+cd $SCRIPT_DIR
 
-bash /home/aix23102/audiolm/vS2_eunji/scripts/run.sh \
-    --training_data /home/aix23102/audiolm/vS2_eunji/data/pu_valor_train.json \
-    --model_base    /path/to/OV-Qwen2-7B-AM9 \
-    --model         /path/to/base_checkpoint.bin \
+if [ -f "$SCRIPT_DIR/../paths.env" ]; then
+    source "$SCRIPT_DIR/../paths.env"
+else
+    echo "[WARNING] paths.env not found. Copy paths.env.example to paths.env and fill in the paths."
+fi
+
+bash ${BASE_DIR}/scripts/run.sh \
+    --training_data ${BASE_DIR}/data/pu_valor_train.json \
+    --model_base    ${BASE_MODEL} \
+    --model         ${SFT_CKPT} \
     --load_from_lora \
     --save_model_name pu_valor_time_event \
     --epochs        3 \

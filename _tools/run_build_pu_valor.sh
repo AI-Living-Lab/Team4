@@ -1,5 +1,13 @@
-python /home/aix23102/audiolm/vS2_eunji/_tools/build_pu_valor.py \
-    --stage3_json /home/aix23102/audiolm/vS2_eunji/data/stage3.json \
-    --valor_dir   /data0/aix23102/VALOR-32K/raid/datasets/audioset/valor_videos \
-    --output_dir  /data0/aix23102/PU-VALOR \
+#!/bin/bash
+SCRIPT_DIR=$(cd $(dirname $0); pwd)
+if [ -f "$SCRIPT_DIR/../paths.env" ]; then
+    source "$SCRIPT_DIR/../paths.env"
+else
+    echo "[WARNING] paths.env not found. Copy paths.env.example to paths.env and fill in the paths."
+fi
+
+python ${BASE_DIR}/_tools/build_pu_valor.py \
+    --stage3_json ${BASE_DIR}/data/stage3.json \
+    --valor_dir   ${VALOR_DIR} \
+    --output_dir  ${PUVALOR_DIR} \
     --workers     32

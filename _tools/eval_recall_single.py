@@ -6,8 +6,8 @@ import os
 import re
 import numpy as np
 
-UNAV_JSON = "/home/aix23102/audiolm/CCNet/data/unav_100/annotations/unav100_annotations.json"
-VS2_RESULTS = "/home/aix23102/audiolm/video-SALMONN-2/output/test/2_unav_single/test_results.json"  # 실제 경로로 수정
+UNAV_JSON = os.environ.get('UNAV_ANNO', 'data/unav100_annotations.json')
+VS2_RESULTS = os.environ.get('VS2_RESULTS', 'output/test/2_unav_single/test_results.json')  # 실제 경로로 수정
 SPLIT = "test"
 IOU_THRESHOLDS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 

@@ -17,6 +17,12 @@
 PROJECT_ROOT=$(cd $(dirname $0); pwd)
 cd $PROJECT_ROOT
 
+if [ -f ../paths.env ]; then
+    source ../paths.env
+else
+    echo "[WARNING] paths.env not found. Copy paths.env.example to paths.env and fill in the paths."
+fi
+
 #  --use_lora --lora_r 128 --lora_alpha 256 --lora_dropout 0.05 --load_from_lora
 
 export CUDA_VISIBLE_DEVICES=6
@@ -24,7 +30,7 @@ bash run.sh \
     --do_demo \
     --max_time 110 \
     --fps 1 \
-    --model /mnt/bn/tiktok-mm-4/aiic/users/tangchangli/video-SALMONN2/output/video_SALMONN_2 \
-    --model_base /mnt/bn/tiktok-mm-4/aiic/public/model/OV-Qwen2-7B-AM9 \
+    --model ${SALMONN2_CKPT} \
+    --model_base ${BASE_MODEL} \
     --add_time_token --mm_pooling_position after \
     --audio_visual --winqf_second 0.5
