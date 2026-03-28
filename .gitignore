@@ -205,3 +205,6 @@ events.out.tfevents.*
 *.tfevents.*
 # large local data
 data/stage3.json
+
+# 클로드 설정 파일
+.claude/
