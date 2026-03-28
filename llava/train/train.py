@@ -86,6 +86,13 @@ def _unwrap_model(m):
 def unfreeze_embeddings_and_lm_head(model):
     m = _unwrap_model(model)
 
+    # PeftModel을 완전히 unwrap
+    if hasattr(m, "get_base_model"):
+        try:
+            m = m.get_base_model()
+        except Exception:
+            pass
+
     in_emb = m.get_input_embeddings()
     if in_emb is not None:
         for p in in_emb.parameters():
@@ -98,6 +105,14 @@ def unfreeze_embeddings_and_lm_head(model):
     elif hasattr(m, "lm_head"):
         for p in m.lm_head.parameters():
             p.requires_grad_(True)
+
+    # fallback: PeftModel 구조에서 lm_head 직접 탐색
+    if out_emb is None and not hasattr(m, "lm_head"):
+        for name, mod in model.named_modules():
+            if name.endswith("lm_head"):
+                for p in mod.parameters():
+                    p.requires_grad_(True)
+                break
 
     return model
 
@@ -1862,10 +1877,6 @@ def train():
                 b["spectrogram"] = b["spectrogram"].to(torch.bfloat16).cuda(non_blocking=True)
 
             lab   = b["labels"]
-            print("[DBG][LABEL] dtype:", lab.dtype, "min/max:", int(lab.min()), int(lab.max()), flush=True)
-            valid = (lab != -100).sum().item()
-            print("[DBG][LABEL] #valid(!=-100):", valid, " / total:", lab.numel(), flush=True)
-            print("[DBG][LABEL] tail raw:", lab[0, -60:].tolist(), flush=True)
 
         ckpts = sorted(
             glob.glob(os.path.join(training_args.output_dir, "checkpoint-*")),

@@ -7,16 +7,16 @@
 set -euo pipefail
 
 export PYTHONPATH=/home/aix23102/audiolm/vS2_eunji:$PYTHONPATH
-export CUDA_VISIBLE_DEVICES=5,6
+export CUDA_VISIBLE_DEVICES=5,6,7
 
-CKPT=71379
+CKPT=16225
 
 BASE=/home/aix23102/audiolm/vS2_eunji
 MODEL_BASE=/home/aix23102/audiolm/video-SALMONN-2/checkpoints/llava_onevision_qwen2_7b_ov
 BASE_CKPT=/home/aix23102/audiolm/video-SALMONN-2/checkpoints/video_salmonn2_hf
+VISION_ENCODER=google/siglip-so400m-patch14-384
 
-# ↓ 평가할 checkpoint 폴더로 교체
-LORA_PATH=$BASE/checkpoints_open_aligner/checkpoint-$CKPT
+LORA_PATH=/data0/aix23102/checkpoints_open_aligner/unav100_sft/checkpoint-$CKPT
 
 TEST_JSON=$BASE/data/unav100_test_dense.json
 TEST_OUT=$BASE/eval/results/unav100_test_uf_$CKPT
@@ -24,7 +24,7 @@ TEST_OUT=$BASE/eval/results/unav100_test_uf_$CKPT
 
 mkdir -p "$TEST_OUT"
  
-torchrun --nproc_per_node=2 --master_port=29521 \
+torchrun --nproc_per_node=3 --master_port=29521 \
   $BASE/llava/train/train.py \
   --version qwen_1_5 \
   --audio_visual True \
@@ -36,16 +36,23 @@ torchrun --nproc_per_node=2 --master_port=29521 \
   --second_stride 0.5 \
   --video_fps 1 \
   --max_time 60 \
+  --vision_tower "$VISION_ENCODER" \
+  --image_processor "$VISION_ENCODER" \
   --mm_spatial_pool_stride 4 \
-  --mm_patch_merge_type spatial \
-  --model_max_length 4096 \
-  --modality_max_length "[64,256,4096]" \
+  --mm_spatial_pool_mode max \
+  --mm_spatial_pool_out_channels 1152 \
+  --mm_patch_merge_type spatial_unpad \
+  --mm_newline_position grid \
+  --image_aspect_ratio anyres \
+  --image_grid_pinpoints "[(384, 768), (768, 384), (768, 768), (1152, 384), (384, 1152)]" \
+  --model_max_length 10240 \
   --add_time_token True \
+  --mm_pooling_position after \
   --model_base "$MODEL_BASE" \
   --ckpt "$BASE_CKPT" \
   --lora_enable True \
-  --lora_r 32 \
-  --lora_alpha 64 \
+  --lora_r 128 \
+  --lora_alpha 256 \
   --lora_dropout 0.05 \
   --load_from_lora True \
   --lora_path "$LORA_PATH" \

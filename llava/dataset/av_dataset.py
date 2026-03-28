@@ -123,28 +123,32 @@ class LazyAVSupervisedDataset(Dataset):
             # ----------------------------
             if not self.is_test:
                 mode = sources[0].get("mode", "single")
+                skip_time_build = sources[0].get("ce_only", False)
 
-                if mode == "dense":
-                    events = sources[0].get("events")
-                    if not events:
-                        raise ValueError(f"[TIME-TOKEN] dense mode requires 'events' field.")
-                    new = _build_dense_time_token_answer(events)
+                # timestamps/events가 없고 답변에 이미 time token이 있으면 변환 skip
+                if not skip_time_build and mode != "dense" and "timestamps" not in sources[0]:
+                    skip_time_build = True
 
-                else:  # single
-                    if "timestamps" not in sources[0]:
-                        raise ValueError(f"[TIME-TOKEN] single mode requires 'timestamps' field.")
-                    t0 = float(sources[0]["timestamps"][0])
-                    t1 = float(sources[0]["timestamps"][1])
+                if not skip_time_build:
+                    if mode == "dense":
+                        events = sources[0].get("events")
+                        if not events:
+                            raise ValueError(f"[TIME-TOKEN] dense mode requires 'events' field.")
+                        new = _build_dense_time_token_answer(events)
 
-                    if self.use_timestamps_crop:
-                        # crop 모드는 single에서만 유효
-                        t1 = max(0.0, t1 - t0)
-                        t0 = 0.0
+                    else:  # single
+                        t0 = float(sources[0]["timestamps"][0])
+                        t1 = float(sources[0]["timestamps"][1])
 
-                    new = _build_single_time_token_answer(t0, t1)
+                        if self.use_timestamps_crop:
+                            # crop 모드는 single에서만 유효
+                            t1 = max(0.0, t1 - t0)
+                            t0 = 0.0
 
-                sources[0]["conversations"][-1]["value"] = new
-                text = new
+                        new = _build_single_time_token_answer(t0, t1)
+
+                    sources[0]["conversations"][-1]["value"] = new
+                    text = new
             # ----------------------------
 
             if self.is_test:
@@ -470,10 +474,6 @@ class DataCollatorForAVSupervisedDataset(object):
         # ===== [DBG] label mask sanity check (COLLATOR) =====
         is_rank0 = (not dist.is_available()) or (not dist.is_initialized()) or (dist.get_rank() == 0)
 
-        if is_rank0:
-            v = (batch["labels"] != IGNORE_INDEX).sum().item()
-            t = batch["labels"].numel()
-            print(f"[DBG][COLLATOR] valid_label_tokens={v}/{t}")
         # ===== [DBG] end =====
 
         return batch

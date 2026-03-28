@@ -4,9 +4,10 @@ convert_pu_valor_to_vs2.py
 PU-VALOR stage3.json → vS2 학습용 JSON 변환 스크립트.
 
 변환 전략:
-  샘플1,2: 마지막 gpt가 순수 텍스트       → ce_only=True (time token 변환 없음)
-  샘플3:   마지막 gpt가 "From <sN> to <eN>." → mode="single", timestamps=[t0, t1]
-  샘플4:   마지막 gpt가 여러 "From <sN>..."  → mode="dense",  events=[{label, timestamps}]
+  원본 PU-VALOR 대화 구조를 유지하면서, 시간 표현만 vS2 time token으로 변환.
+  샘플1,2 (ce_only): 대화 구조 유지, <sN>/<eN> → time token 치환
+  샘플3 (single):    대화 구조 유지, <sN>/<eN> → time token 치환
+  샘플4 (dense):     mode=dense, events + PLACEHOLDER (av_dataset.py가 time token 생성)
 
 타임스탬프 변환:
   token_value (0~100 퍼센트) → 실제 초: actual_sec = (token_value / 100.0) * duration
@@ -70,34 +71,53 @@ def classify_sample(sample: dict) -> str:
 
 
 # ────────────────────────────────────────────────
-# conversations 변환
+# 공통 헬퍼
 # ────────────────────────────────────────────────
-def replace_video_token(conversations: list) -> list:
-    """<video> → <image> 치환"""
+def _sec_to_time_tokens(sec: float) -> str:
+    """초 → vS2 time token 문자열 (e.g., 61.8 → '<t0><t0><t6><t1><tdot><t8>')"""
+    sec = round(sec, 1)
+    integer_part = int(sec)
+    frac = int(round((sec - integer_part) * 10))
+    digits = f"{integer_part:04d}"
+    return (
+        f"<t{digits[0]}><t{digits[1]}><t{digits[2]}><t{digits[3]}>"
+        f"<tdot><t{frac}>"
+    )
+
+
+def _replace_tokens_with_time_tokens(conversations: list,
+                                     token_sec: dict) -> list:
+    """conversations 내 <video>→<image>, <sN>/<eN>→time token 치환"""
     result = []
     for conv in conversations:
         c = dict(conv)
-        c["value"] = c["value"].replace("<video>", "<image>")
-        result.append(c)
-    return result
-
-
-def replace_time_tokens_in_conv(conversations: list, token_sec: dict) -> list:
-    """
-    conversations 내 모든 <sN>, <eN> 토큰을 실제 초 숫자로 치환.
-    (학습 시 av_dataset.py가 마지막 gpt의 timestamps 필드를 보고
-     time token으로 변환하므로, 나머지 turn의 <sN>/<eN>은
-     그냥 숫자 텍스트로 바꿔두는 게 자연스러움)
-    """
-    result = []
-    for conv in conversations:
-        c = dict(conv)
-        val = c["value"]
+        val = c["value"].replace("<video>", "<image>")
         for tok, sec in token_sec.items():
-            val = val.replace(tok, f"{sec:.1f}s")
+            val = val.replace(tok, _sec_to_time_tokens(sec))
         c["value"] = val
         result.append(c)
     return result
+
+
+def _make_dense_convs() -> list:
+    """unav100과 동일한 dense 대화 템플릿"""
+    return [
+        {
+            "from": "human",
+            "value": (
+                "<image>\nYou are an audio-visual event localization model.\n"
+                "Given the video and audio, localize all audio-visual events.\n\n"
+                "Output a JSON list. Each element must have:\n"
+                "  \"event\": event label (string)\n"
+                "  \"start\": six time tokens (4-digit integer part, <tdot>, 1-digit decimal)\n"
+                "  \"end\":   six time tokens (same format)\n"
+                "Example: [{\"event\": \"dog barking\", "
+                "\"start\": \"<t0><t0><t1><t2><tdot><t3>\", "
+                "\"end\": \"<t0><t0><t4><t5><tdot><t6>\"}]"
+            ),
+        },
+        {"from": "gpt", "value": "PLACEHOLDER"},
+    ]
 
 
 # ────────────────────────────────────────────────
@@ -105,9 +125,10 @@ def replace_time_tokens_in_conv(conversations: list, token_sec: dict) -> list:
 # ────────────────────────────────────────────────
 def convert_ce_only(sample: dict, video_path: str, audio_path: str,
                     token_sec: dict) -> dict:
-    """샘플1, 2: 순수 텍스트 답변 → ce_only"""
-    convs = replace_video_token(sample["conversations"])
-    convs = replace_time_tokens_in_conv(convs, token_sec)
+    """
+    샘플1,2 (ce_only): 대화 구조 유지, <sN>/<eN> → time token 치환.
+    """
+    convs = _replace_tokens_with_time_tokens(sample["conversations"], token_sec)
     return {
         "video": video_path,
         "audio": audio_path,
@@ -119,38 +140,13 @@ def convert_ce_only(sample: dict, video_path: str, audio_path: str,
 def convert_single(sample: dict, video_path: str, audio_path: str,
                    token_sec: dict) -> dict:
     """
-    샘플3: 마지막 gpt = "From <sN> to <eN>."
-    → mode=single, timestamps=[sN_sec, eN_sec]
-    마지막 gpt의 <sN>/<eN>은 av_dataset.py가 time token으로 교체하므로
-    그대로 두고, timestamps 필드만 추가.
+    샘플3 (single): 대화 구조 유지, <sN>/<eN> → time token 치환.
     """
-    last_gpt = sample["conversations"][-1]["value"]
-    s_match = re.search(r"<(s\d+)>", last_gpt)
-    e_match = re.search(r"<(e\d+)>", last_gpt)
-
-    s_key = f"<{s_match.group(1)}>"
-    e_key = f"<{e_match.group(1)}>"
-    t0 = token_sec[s_key]
-    t1 = token_sec[e_key]
-
-    # 마지막 gpt 이전 turn의 <sN>/<eN>만 숫자로 치환
-    convs = replace_video_token(sample["conversations"])
-    new_convs = []
-    for i, conv in enumerate(convs):
-        c = dict(conv)
-        if i < len(convs) - 1:  # 마지막 gpt 제외
-            val = c["value"]
-            for tok, sec in token_sec.items():
-                val = val.replace(tok, f"{sec:.1f}s")
-            c["value"] = val
-        new_convs.append(c)
-
+    convs = _replace_tokens_with_time_tokens(sample["conversations"], token_sec)
     return {
         "video": video_path,
         "audio": audio_path,
-        "mode": "single",
-        "timestamps": [t0, t1],
-        "conversations": new_convs,
+        "conversations": convs,
     }
 
 
@@ -180,34 +176,12 @@ def convert_dense(sample: dict, video_path: str, audio_path: str,
             "timestamps": [t0, t1],
         })
 
-    # unav100과 동일한 질문 형식 사용
-    convs = [
-        {
-            "from": "human",
-            "value": (
-                "<image>\nYou are an audio-visual event localization model.\n"
-                "Given the video and audio, localize all audio-visual events.\n\n"
-                "Output a JSON list. Each element must have:\n"
-                "  \"event\": event label (string)\n"
-                "  \"start\": six time tokens (4-digit integer part, <tdot>, 1-digit decimal)\n"
-                "  \"end\":   six time tokens (same format)\n"
-                "Example: [{\"event\": \"dog barking\", "
-                "\"start\": \"<t0><t0><t1><t2><tdot><t3>\", "
-                "\"end\": \"<t0><t0><t4><t5><tdot><t6>\"}]"
-            ),
-        },
-        {
-            "from": "gpt",
-            "value": "PLACEHOLDER",
-        },
-    ]
-
     return {
         "video": video_path,
         "audio": audio_path,
         "mode": "dense",
         "events": events,
-        "conversations": convs,
+        "conversations": _make_dense_convs(),
     }
 
 
@@ -265,9 +239,14 @@ def main():
                     item = convert_single(sample, video_path, audio_path, token_sec)
                 else:  # dense
                     item = convert_dense(sample, video_path, audio_path, token_sec)
-                    if not item["events"]:  # 파싱 실패 시 스킵
-                        stats["skip"] += 1
-                        continue
+
+                # dense 모드에서 이벤트 파싱 실패 시 스킵
+                if item is None:
+                    stats["skip"] += 1
+                    continue
+                if item.get("mode") == "dense" and not item.get("events"):
+                    stats["skip"] += 1
+                    continue
 
                 # audio_path가 None이면 키 제거
                 if audio_path is None:
@@ -287,10 +266,10 @@ def main():
 
     logger.info("=" * 50)
     logger.info(f"총 출력 샘플: {len(output)}")
-    logger.info(f"  ce_only:  {stats['ce_only']}")
-    logger.info(f"  single:   {stats['single']}")
-    logger.info(f"  dense:    {stats['dense']}")
-    logger.info(f"  skip:     {stats['skip']}")
+    logger.info(f"  ce_only (time token 치환): {stats['ce_only']}")
+    logger.info(f"  single  (time token 치환): {stats['single']}")
+    logger.info(f"  dense   (PLACEHOLDER):     {stats['dense']}")
+    logger.info(f"  skip:                      {stats['skip']}")
     logger.info(f"저장 완료: {args.output_json}")
     logger.info("=" * 50)
 

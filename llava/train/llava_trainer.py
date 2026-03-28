@@ -401,114 +401,8 @@ class LLaVATrainer(Trainer):
         # ---- call parent (this runs backward inside HF Trainer) ----
         loss = super().training_step(model, inputs)
 
-        # ---- debug only first few steps on rank0 ----
-        if self.state.global_step < 2 and _is_rank0():
-            try:
-                base = _unwrap(model)
-
-                # 1) returned loss (detached)
-                litem = loss.item() if torch.is_tensor(loss) else float(loss)
-                print(f"[DBG][LLaVATrainer] step={self.state.global_step} returned_loss={litem}", flush=True)
-
-                # 2) LoRA grad check (q/k/v, first 3 hits)
-                hit = 0
-                for n, p in model.named_parameters():  # keep names with module.* prefix for clarity
-                    ln = n.lower()
-                    if ("lora" in ln) and (("q_proj" in ln) or ("k_proj" in ln) or ("v_proj" in ln)) and p.requires_grad:
-                        g = p.grad
-                        print(f"[DBG][LORA] {n} grad_is_none={g is None}", flush=True)
-                        if g is not None:
-                            absmax = g.detach().abs().max().item()
-                            norm = g.detach().float().norm().item()
-                            print(f"[DBG][LORA] absmax={absmax:.6e} norm={norm:.6e}", flush=True)
-                        hit += 1
-                        if hit >= 3:
-                            break
-                if hit == 0:
-                    print("[DBG][LORA] no trainable LoRA q/k/v params found.", flush=True)
-
-                # 3) time token <t0> grad check (input emb + output emb/lm_head)
-                tok = getattr(self, "tokenizer", None)
-                if tok is None:
-                    print("[DBG][TIME] self.tokenizer is None", flush=True)
-                else:
-                    t0_id = tok.convert_tokens_to_ids("<t0>")
-                    print(f"[DBG][TIME] <t0> id={t0_id}", flush=True)
-
-                    # ---- 핵심: PEFT/LLM 본체까지 최대한 unwrap ----
-                    core = base
-                    # PeftModel이면 get_base_model()이 있음
-                    if hasattr(core, "get_base_model"):
-                        try:
-                            core = core.get_base_model()
-                        except Exception:
-                            pass
-                    # 일부 구조에서 base_model 속성으로 한 번 더 들어가야 함
-                    if hasattr(core, "base_model"):
-                        try:
-                            # PEFT base_model이 nn.Module일 때
-                            bm = getattr(core, "base_model", None)
-                            if bm is not None and hasattr(bm, "get_input_embeddings"):
-                                core = bm
-                        except Exception:
-                            pass
-
-                    # ---- helper: optimizer param group 포함 여부 체크 ----
-                    def _in_optimizer(p):
-                        try:
-                            if p is None or self.optimizer is None:
-                                return None
-                            pid = id(p)
-                            for g in self.optimizer.param_groups:
-                                for pp in g.get("params", []):
-                                    if id(pp) == pid:
-                                        return True
-                            return False
-                        except Exception:
-                            return None
-
-                    # ---- input embedding ----
-                    emb = core.get_input_embeddings() if hasattr(core, "get_input_embeddings") else None
-                    if emb is None or not hasattr(emb, "weight") or emb.weight is None:
-                        print("[DBG][t0][emb] missing get_input_embeddings()", flush=True)
-                    else:
-                        print(f"[DBG][t0][emb] requires_grad={emb.weight.requires_grad} in_optim={_in_optimizer(emb.weight)}",
-                              flush=True)
-                        eg = emb.weight.grad
-                        print(f"[DBG][t0][emb] grad_is_none={eg is None}", flush=True)
-                        if eg is not None and 0 <= t0_id < eg.shape[0]:
-                            row = eg[t0_id].detach()
-                            print(f"[DBG][t0][emb] absmax={row.abs().max().item():.6e} norm={row.float().norm().item():.6e}",
-                                  flush=True)
-
-                    # ---- output embedding / lm_head ----
-                    out_emb = core.get_output_embeddings() if hasattr(core, "get_output_embeddings") else None
-                    if out_emb is None or not hasattr(out_emb, "weight") or out_emb.weight is None:
-                        # fallback: lm_head 직접 접근
-                        lm_head = getattr(core, "lm_head", None)
-                        if lm_head is not None and hasattr(lm_head, "weight") and lm_head.weight is not None:
-                            print(f"[DBG][t0][lm_head] requires_grad={lm_head.weight.requires_grad} in_optim={_in_optimizer(lm_head.weight)}",
-                                  flush=True)
-                            og = lm_head.weight.grad
-                            print(f"[DBG][t0][lm_head] grad_is_none={og is None}", flush=True)
-                            if og is not None and 0 <= t0_id < og.shape[0]:
-                                row = og[t0_id].detach()
-                                print(f"[DBG][t0][lm_head] absmax={row.abs().max().item():.6e} norm={row.float().norm().item():.6e}",
-                                      flush=True)
-                        else:
-                            print("[DBG][t0][lm_head] missing get_output_embeddings() and lm_head.weight", flush=True)
-                    else:
-                        print(f"[DBG][t0][lm_head] requires_grad={out_emb.weight.requires_grad} in_optim={_in_optimizer(out_emb.weight)}",
-                              flush=True)
-                        og = out_emb.weight.grad
-                        print(f"[DBG][t0][lm_head] grad_is_none={og is None}", flush=True)
-                        if og is not None and 0 <= t0_id < og.shape[0]:
-                            row = og[t0_id].detach()
-                            print(f"[DBG][t0][lm_head] absmax={row.abs().max().item():.6e} norm={row.float().norm().item():.6e}",
-                                  flush=True)
-
-            except Exception as e:
-                print("[DBG][LLaVATrainer] debug exception:", repr(e), flush=True)
+        # Per-step debug removed (DeepSpeed+PeftModel makes grad checks unreliable here).
+        # See [CHK6] in train.py for trainable params verification at init time.
 
         return loss
 
@@ -653,10 +547,6 @@ class LLaVATrainer(Trainer):
         if getattr(self.args, "save_strategy", None) == "no":
             return
 
-        # 2) only rank0 saves
-        if dist.get_rank() != 0:
-            return
-
         from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 
         run_dir = self._get_output_dir(trial=trial)
@@ -665,18 +555,32 @@ class LLaVATrainer(Trainer):
         output_dir = os.path.join(run_dir, checkpoint_folder)
         os.makedirs(output_dir, exist_ok=True)
 
-        # 3) save in HF format
+        # DeepSpeed state 저장 (resume에 필요, 모든 rank에서 호출해야 함)
+        if self.is_deepspeed_enabled:
+            self.model_wrapped.save_checkpoint(output_dir)
+
+        # 이하 rank0만 수행
+        if dist.get_rank() != 0:
+            return
+
+        # trainer state 저장 (step, epoch 등 resume에 필요) — 가장 먼저 저장
+        self.state.save_to_json(os.path.join(output_dir, "trainer_state.json"))
+
+        # save in HF format
         # - If model is PeftModel (LoRA), save_pretrained stores adapters only (good).
         # - If not, it stores full model weights (may be large).
-        to_save = model.module if hasattr(model, "module") else model
-        to_save.config.save_pretrained(output_dir)
-        to_save.save_pretrained(output_dir)
+        try:
+            to_save = model.module if hasattr(model, "module") else model
+            to_save.config.save_pretrained(output_dir)
+            to_save.save_pretrained(output_dir)
+        except Exception as e:
+            print(f"[SAVE] WARNING: save_pretrained failed: {e}", flush=True)
 
-        # (선택) tokenizer도 같이 저장하면 test가 더 안정적입니다.
+        # tokenizer도 같이 저장
         if hasattr(self, "tokenizer") and self.tokenizer is not None:
             self.tokenizer.save_pretrained(output_dir)
 
-        print(f"[SAVE] Saved HF checkpoint at {output_dir}")
+        print(f"[SAVE] Saved HF + DeepSpeed checkpoint at {output_dir}")
 
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
         super(LLaVATrainer, self)._save(output_dir, state_dict)

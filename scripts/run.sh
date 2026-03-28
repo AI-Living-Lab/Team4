@@ -35,6 +35,7 @@ EPOCHS=4 # 5
 TRAIN_BS=1 # 1 # 2
 ACCUM_STEPS=1
 SAVE_STEPS=1000 # 2000
+SAVE_STRATEGY=steps
 
 LR=2e-5
 MAX_TIME=30 # 30
@@ -81,6 +82,7 @@ while [[ "$#" -gt 0 ]]; do
         --train_bs) TRAIN_BS="$2"; shift ;;
         --accum_steps) ACCUM_STEPS="$2"; shift ;;
         --save_steps) SAVE_STEPS="$2"; shift ;;
+        --save_strategy) SAVE_STRATEGY="$2"; shift ;;
         --lr) LR="$2"; shift ;;
         --max_time) MAX_TIME="$2"; shift ;;
         --fps) FPS="$2"; shift ;;
@@ -108,23 +110,25 @@ while [[ "$#" -gt 0 ]]; do
         --with_ce_loss) WITH_CE_LOSS=True; ;;
         --second_per_window) SECOND_PER_WINDOW="$2"; shift ;;
         --second_stride) SECOND_STRIDE="$2"; shift ;;
+        --resume_from_checkpoint) RESUME_FROM_CHECKPOINT="$2"; shift ;;
+        --lora_path) LORA_PATH="$2"; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
 done
 
-SAVE_DIR=output
+SAVE_DIR=${SAVE_DIR:-output}
 TEST_OUTPUT_DIR=output/test/$TEST_ID
 
 MODEL=$MODEL_ID
 echo "BASE CKPT: $MODEL"
 
-MODEL_MAX_LENGTH=4096
+MODEL_MAX_LENGTH=${MODEL_MAX_LENGTH:-4096}
 VISION_ENCODER=google/siglip-so400m-patch14-384
 
 FRAMES_UPBOUND=16
 POOLING_STYLE=max
-POOLING_STRIDE=2
+POOLING_STRIDE=${POOLING_STRIDE:-2}
 NEW_LINE_POSITION=grid
 IMAGE_ASPECT_RATIO=anyres
 
@@ -175,8 +179,8 @@ torchrun --standalone --nproc_per_node=$GPU_NUM \
         --per_device_eval_batch_size $TRAIN_BS \
         --gradient_accumulation_steps $ACCUM_STEPS \
         --evaluation_strategy "no" \
-        --save_strategy "steps" \
-        --save_steps $SAVE_STEPS \
+        --save_strategy "$SAVE_STRATEGY" \
+        $([ "$SAVE_STRATEGY" = "steps" ] && echo "--save_steps $SAVE_STEPS") \
         --save_total_limit 100 \
         --learning_rate $LR \
         --weight_decay 0. \
@@ -203,6 +207,7 @@ torchrun --standalone --nproc_per_node=$GPU_NUM \
         --pretrain_weight $PRETRAIN_WEIGHT \
         --mm_pooling_position $MM_POOLING_POSITION \
         --load_full $LOAD_FULL \
+        ${LORA_PATH:+--lora_path $LORA_PATH} \
         --merge_and_new_lora $MERGE_AND_NEW_LORA \
         --do_demo $DO_DEMO \
         --do_test $DO_TEST \
@@ -210,4 +215,5 @@ torchrun --standalone --nproc_per_node=$GPU_NUM \
         --test_output_dir $TEST_OUTPUT_DIR \
         --dpo_train $DPO_TRAIN \
         --ce_loss_weight $CE_LOSS_WEIGHT \
-        --with_ce_loss $WITH_CE_LOSS;
+        --with_ce_loss $WITH_CE_LOSS \
+        ${RESUME_FROM_CHECKPOINT:+--resume_from_checkpoint $RESUME_FROM_CHECKPOINT};
