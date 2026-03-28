@@ -22,7 +22,7 @@ import torch
 from datasets import Dataset
 from peft import LoraConfig
 from trl import GRPOConfig
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoConfig
 
 # 프로젝트 루트를 PYTHONPATH에 추가
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -35,21 +35,84 @@ from _tools.GDPO.reward_functions import (
     label_reward,
     iou_reward,
 )
+from llava.model.language_model.video_salmonn_2 import VideoSALMONN2ForCausalLM
+
+
+def load_model_and_tokenizer(model_path, model_base, lora_r=32, lora_alpha=64, lora_dropout=0.05):
+    """VideoSALMONN2 모델과 토크나이저를 로드.
+
+    기존 프로젝트의 load_qwen_lora_model 로직을 간소화.
+    SFT LoRA 체크포인트 또는 베이스 모델을 로드합니다.
+    """
+    # 체크포인트가 로컬 디렉토리인지 확인
+    is_local_ckpt = os.path.isdir(model_path)
+
+    if is_local_ckpt:
+        # 로컬 체크포인트에서 config 로드
+        config_path = os.path.join(model_path, "config.json")
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                ckpt_config = json.load(f)
+        else:
+            ckpt_config = {}
+
+        # 토크나이저: 체크포인트에 있으면 거기서, 없으면 베이스에서
+        tok_path = model_path if os.path.exists(os.path.join(model_path, "tokenizer.json")) else model_base
+    else:
+        ckpt_config = {}
+        tok_path = model_base
+
+    print(f"[GDPO] Loading tokenizer from: {tok_path}")
+    tokenizer = AutoTokenizer.from_pretrained(
+        tok_path,
+        model_max_length=4096,
+        padding_side="right",
+    )
+
+    # 베이스 모델 config
+    print(f"[GDPO] Loading base config from: {model_base}")
+    cfg = AutoConfig.from_pretrained(model_base)
+
+    # config에 model_args가 있으면 반영
+    if "model_args" in ckpt_config:
+        for k, v in ckpt_config["model_args"].items():
+            setattr(cfg, k, v) if hasattr(cfg, k) else None
+        cfg.model_args = ckpt_config["model_args"]
+
+    # add_time_token 기본값 설정
+    if "add_time_token" in ckpt_config:
+        cfg.add_time_token = ckpt_config["add_time_token"]
+    elif not hasattr(cfg, "add_time_token"):
+        cfg.add_time_token = False
+
+    # 모델 로드
+    print(f"[GDPO] Loading base model from: {model_base}")
+    model = VideoSALMONN2ForCausalLM.from_pretrained(
+        model_base,
+        config=cfg,
+        attn_implementation="sdpa",
+        torch_dtype=torch.bfloat16,
+    )
+    model.resize_token_embeddings(len(tokenizer))
+
+    # LoRA 어댑터 로드 (SFT 체크포인트인 경우)
+    adapter_config = os.path.join(model_path, "adapter_config.json") if is_local_ckpt else ""
+    if is_local_ckpt and os.path.exists(adapter_config):
+        from peft import PeftModel
+        print(f"[GDPO] Loading LoRA adapter from: {model_path}")
+        model = PeftModel.from_pretrained(model, model_path, is_trainable=True)
+        model = model.to(torch.bfloat16)
+    else:
+        print("[GDPO] No LoRA adapter found, using base model with new LoRA")
+
+    return model, tokenizer
 
 
 def load_gdpo_dataset(dataset_path: str) -> Dataset:
-    """GDPO 형식의 JSON 파일을 HuggingFace Dataset으로 변환.
-
-    GDPO JSON 형식:
-      [{"video": ..., "audio": ..., "prompt": ..., "events": [...]}, ...]
-
-    GRPOTrainer가 기대하는 형식:
-      Dataset with "prompt" column
-    """
+    """GDPO 형식의 JSON 파일을 HuggingFace Dataset으로 변환."""
     with open(dataset_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # GRPOTrainer는 prompt 컬럼이 필요
     records = []
     for sample in data:
         records.append({
@@ -63,18 +126,12 @@ def load_gdpo_dataset(dataset_path: str) -> Dataset:
 
 
 def make_reward_functions(gt_events_by_prompt: dict):
-    """GT 이벤트를 참조하는 리워드 함수들을 생성.
-
-    trl의 GRPOTrainer는 reward_funcs에 callable 리스트를 받습니다.
-    각 함수는 (completions, prompts, ...) → list[float] 형태.
-    """
+    """GT 이벤트를 참조하는 리워드 함수들을 생성."""
 
     def _format_reward(completions, **kwargs):
-        """포맷 리워드: JSON 파싱 가능 여부."""
         return [format_reward(c) for c in completions]
 
     def _label_reward(completions, prompts=None, **kwargs):
-        """라벨 리워드: GT 라벨 매칭 비율."""
         rewards = []
         for i, c in enumerate(completions):
             prompt = prompts[i] if prompts else ""
@@ -83,7 +140,6 @@ def make_reward_functions(gt_events_by_prompt: dict):
         return rewards
 
     def _iou_reward(completions, prompts=None, **kwargs):
-        """IoU 리워드: temporal IoU 정확도."""
         rewards = []
         for i, c in enumerate(completions):
             prompt = prompts[i] if prompts else ""
@@ -160,18 +216,25 @@ def main():
     # ============================================================
     # 3. 모델 & 토크나이저 로드
     # ============================================================
-    print(f"[GDPO] Loading model from {args.model_path}")
-    print(f"[GDPO] Base model: {args.model_base}")
-
-    # LoRA 설정
-    peft_config = LoraConfig(
-        r=args.lora_r,
+    model, tokenizer = load_model_and_tokenizer(
+        model_path=args.model_path,
+        model_base=args.model_base,
+        lora_r=args.lora_r,
         lora_alpha=args.lora_alpha,
-        target_modules=["q_proj", "k_proj", "v_proj"],
         lora_dropout=args.lora_dropout,
-        bias="none",
-        task_type="CAUSAL_LM",
     )
+
+    # LoRA 설정 (어댑터가 없는 경우 새로 적용)
+    peft_config = None
+    if not hasattr(model, "peft_config"):
+        peft_config = LoraConfig(
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            target_modules=["q_proj", "k_proj", "v_proj"],
+            lora_dropout=args.lora_dropout,
+            bias="none",
+            task_type="CAUSAL_LM",
+        )
 
     # ============================================================
     # 4. GDPO 트레이너 설정
@@ -195,9 +258,10 @@ def main():
     )
 
     trainer = GDPOTrainer(
-        model=args.model_path,
+        model=model,
+        processing_class=tokenizer,
         reward_funcs=reward_funcs,
-        config=training_config,
+        args=training_config,
         train_dataset=dataset,
         peft_config=peft_config,
         reward_weights=args.reward_weights,
