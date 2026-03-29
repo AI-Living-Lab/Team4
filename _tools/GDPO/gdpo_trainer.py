@@ -61,6 +61,11 @@ class GDPOTrainer(GRPOTrainer):
             reward_weights = torch.ones(num_reward_funcs, device=device)
         reward_weights = reward_weights.to(device)
 
+        # [개선 1] 가중치 개수 검사
+        assert len(reward_weights) == num_reward_funcs, \
+        f"reward_weights 개수({len(reward_weights)})와 " \
+        f"reward_funcs 개수({num_reward_funcs})가 다릅니다."
+
         rewards_per_func = torch.nan_to_num(rewards_per_func)
         num_generations = self.num_generations
 
@@ -68,16 +73,21 @@ class GDPOTrainer(GRPOTrainer):
         for i in range(num_reward_funcs):
             reward_i = rewards_per_func[:, i]
 
-            # 그룹별 정규화 (같은 프롬프트에서 나온 응답끼리)
-            grouped = reward_i.view(-1, num_generations)
-            mean_g = grouped.mean(dim=1, keepdim=True)
-            std_g = grouped.std(dim=1, keepdim=True)
-            normed = (grouped - mean_g) / (std_g + 1e-4)
-            all_advantages.append(normed.view(-1))
+            # [개선 2] 공식과 동일하게 1D 유지 방식으로 변경
+            mean_g = reward_i.view(-1, num_generations).mean(dim=1)
+            std_g  = reward_i.view(-1, num_generations).std(dim=1)
+
+            mean_g = mean_g.repeat_interleave(num_generations, dim=0)
+            std_g  = std_g.repeat_interleave(num_generations, dim=0)
+
+            each_advantage = (reward_i - mean_g) / (std_g + 1e-4)
+            all_advantages.append(each_advantage)
 
         # 가중 합산
         stacked = torch.stack(all_advantages, dim=1)  # (batch, num_funcs)
-        combined = (stacked * reward_weights.unsqueeze(0)).sum(dim=1)
+
+        # [개선 3] sum → nansum으로 변경하여 NaN이 있는 경우에도 계산 가능하도록
+        combined = (stacked * reward_weights.unsqueeze(0)).nansum(dim=1)
 
         # 배치 정규화
         advantages = (combined - combined.mean()) / (combined.std() + 1e-4)
