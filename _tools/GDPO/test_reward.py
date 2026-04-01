@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""GDPO 리워드 함수 + convert 임포트 테스트."""
+"""GDPO_v2(revised) 리워드 함수 + convert 임포트 테스트."""
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from _tools.GDPO.reward_functions import format_reward, label_reward, iou_reward, combined_reward
-from _tools.GDPO.convert_to_gdpo import convert_sample
+# 프로젝트 루트 + 현재 폴더를 path에 추가
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.dirname(__file__))
+
+from reward_functions import format_reward, label_reward, iou_reward, combined_reward
+from convert_to_gdpo import convert_sample
 print("reward_functions: OK")
 print("convert_to_gdpo: OK")
 
@@ -24,16 +27,9 @@ print(f"combined_reward: {r_combined:.4f}")
 
 # gdpo_trainer 임포트 테스트
 try:
-    from _tools.GDPO.gdpo_trainer import GDPOTrainer
+    from gdpo_trainer import GDPOTrainer
     print("gdpo_trainer: OK")
 except ImportError as e:
-    print(f"gdpo_trainer: SKIP (trl not installed) - {e}")
-
-# train_gdpo 임포트 테스트
-try:
-    from _tools.GDPO.train_gdpo import load_gdpo_dataset
-    print("train_gdpo: OK")
-except ImportError as e:
-    print(f"train_gdpo: SKIP (trl/datasets not installed) - {e}")
+    print(f"gdpo_trainer: SKIP (dependencies not installed) - {e}")
 
 print("\nAll tests passed!")

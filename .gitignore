@@ -208,3 +208,6 @@ data/stage3.json
 
 # 클로드 설정 파일
 .claude/
+
+# 구버전 GDPO
+_tools/GDPO(OLD)/
