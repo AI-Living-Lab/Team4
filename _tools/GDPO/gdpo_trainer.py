@@ -370,32 +370,51 @@ class GDPOTrainer(Trainer):
 
 
         # ── Generate completions ──
-        with unwrap_model_for_generation(model, self.accelerator) as unwrapped_model:
-            prompt_completion_ids = unwrapped_model.generate(
-                input_ids=prompt_ids,
-                attention_mask=prompt_mask,
-                images=images,
-                spectrogram=spectrogram,
-                org_groups=org_groups,
-                real_time=real_time,
-                modalities=modalities,
-                max_new_tokens=self.max_completion_length,
-                do_sample=True,
-                temperature=self.temperature,
-                top_p=0.9,
-                num_return_sequences=self.num_generations,
-            )
-
+        # num_return_sequences는 inputs_embeds와 호환 안 됨 → G번 루프
+        all_completion_ids = []
         prompt_length = prompt_ids.size(1)
-        completion_ids = prompt_completion_ids[:, prompt_length:]
-        prompt_ids = prompt_completion_ids[:, :prompt_length]
-        prompt_mask = prompt_mask.repeat_interleave(self.num_generations, dim=0)
+
+        # generate 시 gradient_checkpointing 비활성화 (KV 캐시 충돌 방지)
+        if hasattr(model, "gradient_checkpointing_disable"):
+            model.gradient_checkpointing_disable()
+
+        with unwrap_model_for_generation(model, self.accelerator) as unwrapped_model:
+            for _ in range(self.num_generations):
+                gen_ids = unwrapped_model.generate(
+                    input_ids=prompt_ids,
+                    attention_mask=prompt_mask,
+                    images=images,
+                    spectrogram=spectrogram,
+                    org_groups=org_groups,
+                    real_time=real_time,
+                    modalities=modalities,
+                    max_new_tokens=self.max_completion_length,
+                    do_sample=True,
+                    temperature=self.temperature,
+                    top_p=0.9,
+                )
+                all_completion_ids.append(gen_ids[:, prompt_length:])
+
+        # gradient_checkpointing 다시 활성화
+        if hasattr(model, "gradient_checkpointing_enable"):
+            model.gradient_checkpointing_enable()
+
+        # 길이 맞춰서 패딩 후 결합
+        import torch.nn.functional as F
+        max_len = max(c.size(1) for c in all_completion_ids)
+        pad_id = self.processing_class.pad_token_id or 0
+        padded = [F.pad(c, (0, max_len - c.size(1)), value=pad_id) for c in all_completion_ids]
+        completion_ids = torch.cat(padded, dim=0)  # (G, max_len)
+        prompt_ids = prompt_ids.repeat(self.num_generations, 1)  # (G, P)
+        prompt_completion_ids = torch.cat([prompt_ids, completion_ids], dim=1)  # (G, P+C)
+        prompt_mask = prompt_mask.repeat(self.num_generations, 1)
 
 
         # Mask everything after the first EOS token
         is_eos = completion_ids == self.processing_class.eos_token_id
         eos_idx = torch.full((is_eos.size(0),), is_eos.size(1), dtype=torch.long, device=device)
-        eos_idx[is_eos.any(dim=1)] = is_eos.int().argmax(dim=1)[is_eos.any(dim=1)]
+        if completion_ids.size(1) > 0 and is_eos.any():
+            eos_idx[is_eos.any(dim=1)] = is_eos.int().argmax(dim=1)[is_eos.any(dim=1)]
         sequence_indices = torch.arange(is_eos.size(1), device=device).expand(is_eos.size(0), -1)
         completion_mask = (sequence_indices <= eos_idx.unsqueeze(1)).int()
         # Concatenate prompt_mask with completion_mask for logit computation
@@ -421,32 +440,49 @@ class GDPOTrainer(Trainer):
 
 
         # ── Per-token log probs (policy) ──
-        per_token_logps = self._get_per_token_logps(
-            model, prompt_completion_ids, attention_mask,
-            images_repeated, spec_repeated,
-            org_groups_repeated, real_time_repeated, modalities_repeated,
-        )
+        # G=8 배치를 한 번에 넘기면 멀티모달 인코더에서 인덱스 에러 발생
+        # → 한 샘플씩 루프로 계산
+        all_per_token_logps = []
+        for g in range(self.num_generations):
+            g_logps = self._get_per_token_logps(
+                model,
+                prompt_completion_ids[g:g+1],
+                attention_mask[g:g+1],
+                images,  # 원본 (복제 아님)
+                spectrogram,  # 원본 (복제 아님)
+                org_groups,
+                real_time if not isinstance(real_time, list) else real_time[:1],
+                modalities[:1],
+            )
+            all_per_token_logps.append(g_logps)
+        per_token_logps = torch.cat(all_per_token_logps, dim=0)
         per_token_logps = per_token_logps[:, prompt_length - 1:]
 
 
         # ── ⑤ Per-token log probs (reference) ──
         if self.beta != 0.0:
             with torch.inference_mode():
-                if self.ref_model is not None:
-                    # ref 모델 따로 들고왔을 시
-                    ref_per_token_logps = self._get_per_token_logps(
-                        self.ref_model, prompt_completion_ids, attention_mask,
-                        images_repeated, spec_repeated,
-                        org_groups_repeated, real_time_repeated, modalities_repeated,
-                    )
-                else:
-                    # 따로 들고올 필요 없이 LoRA 스위치 끄고 원본 사용
-                    with self.accelerator.unwrap_model(model).disable_adapter():
-                        ref_per_token_logps = self._get_per_token_logps(
-                            model, prompt_completion_ids, attention_mask,
-                            images_repeated, spec_repeated,
-                            org_groups_repeated, real_time_repeated, modalities_repeated,
+                all_ref_logps = []
+                for g in range(self.num_generations):
+                    if self.ref_model is not None:
+                        g_ref_logps = self._get_per_token_logps(
+                            self.ref_model,
+                            prompt_completion_ids[g:g+1], attention_mask[g:g+1],
+                            images, spectrogram, org_groups,
+                            real_time if not isinstance(real_time, list) else real_time[:1],
+                            modalities[:1],
                         )
+                    else:
+                        with self.accelerator.unwrap_model(model).disable_adapter():
+                            g_ref_logps = self._get_per_token_logps(
+                                model,
+                                prompt_completion_ids[g:g+1], attention_mask[g:g+1],
+                                images, spectrogram, org_groups,
+                                real_time if not isinstance(real_time, list) else real_time[:1],
+                                modalities[:1],
+                            )
+                    all_ref_logps.append(g_ref_logps)
+                ref_per_token_logps = torch.cat(all_ref_logps, dim=0)
             ref_per_token_logps = ref_per_token_logps[:, prompt_length - 1:]
             # KL divergence 계산
             per_token_kl = (
