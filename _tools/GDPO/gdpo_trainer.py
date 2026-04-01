@@ -9,7 +9,7 @@ gdpo_trainer.py
 Usage:
   # config.yaml 사용 (권장)
   set -a && source paths.env && set +a
-  python -m _tools.GDPO_v2_revised.gdpo_trainer --config config.yaml
+  python _tools/GDPO/gdpo_trainer.py --config _tools/GDPO/config.yaml
 
   # CLI 직접 지정
   python -m _tools.GDPO_v2_revised.gdpo_trainer \\
@@ -359,7 +359,7 @@ class GDPOTrainer(Trainer):
         images = inputs.get("images", None)
         spectrogram = inputs.get("spectrogram", None)
         if spectrogram is not None:
-            spectrogram = spectrogram.to(device)
+            spectrogram = spectrogram.to(device=device, dtype=torch.bfloat16)
         org_groups = inputs.get("org_groups", None)
         real_time = inputs.get("real_time", None)
         modalities = inputs.get("modalities", ["text"])
@@ -561,15 +561,42 @@ def load_model_and_tokenizer(model_path, model_base):
     cfg = AutoConfig.from_pretrained(model_base)
     if "model_args" in ckpt_config:
         cfg.model_args = ckpt_config["model_args"]
+        # model_args의 모든 속성을 config에 반영 (mm_pooling_position 등)
+        for k, v in ckpt_config["model_args"].items():
+            if not hasattr(cfg, k):
+                setattr(cfg, k, v)
     if "add_time_token" in ckpt_config:
         cfg.add_time_token = ckpt_config["add_time_token"]
     elif not hasattr(cfg, "add_time_token"):
         cfg.add_time_token = False
 
+    # SFT 학습과 동일한 설정 강제
+    # SFT 학습(run.sh)과 동일한 설정 강제
+    cfg.mm_spatial_pool_mode = "max"
+    cfg.mm_spatial_pool_stride = 2
+    cfg.mm_spatial_pool_out_channels = 1152
+    cfg.mm_newline_position = "grid"
+    cfg.mm_patch_merge_type = "spatial_unpad"
+    cfg.image_aspect_ratio = "anyres"
+
+    # audio_config: speech_encoder 초기화에 필요 (train.py와 동일)
+    model_args = ckpt_config.get("model_args", {})
+    audio_config = dict(
+        audio_visual=model_args.get("audio_visual", True),
+        video_fps=model_args.get("fps", 1),
+        whisper_path=model_args.get("whisper_path", "openai/whisper-large-v3"),
+        num_speech_query_token=model_args.get("num_speech_query_token", 25),
+        window_level_Qformer=model_args.get("window_level_Qformer", True),
+        second_per_window=model_args.get("second_per_window", 0.5),
+        second_stride=model_args.get("second_stride", 0.5),
+        use_final_linear=model_args.get("use_final_linear", False),
+    )
+
     # base model
     print(f"[GDPO] Loading base model from: {model_base}")
     model = VideoSALMONN2ForCausalLM.from_pretrained(
         model_base, config=cfg, attn_implementation="sdpa", torch_dtype=torch.bfloat16,
+        **audio_config,
     )
     model.resize_token_embeddings(len(tokenizer))
 
@@ -580,8 +607,18 @@ def load_model_and_tokenizer(model_path, model_base):
         print(f"[GDPO] Loading LoRA adapter from: {model_path}")
         model = PeftModel.from_pretrained(model, model_path, is_trainable=True)
         model = model.to(torch.bfloat16)
+        # speech_encoder도 bf16으로 강제 변환
+        if hasattr(model, "base_model") and hasattr(model.base_model, "speech_encoder"):
+            model.base_model.model.speech_encoder = model.base_model.model.speech_encoder.to(torch.bfloat16)
     else:
         print("[GDPO] No LoRA adapter found, using base model")
+
+    # 모델에 tokenizer 연결 (prepare_inputs_labels_for_multimodal에서 사용)
+    # PeftModel 래핑 후에는 base_model.model에 붙여야 접근 가능
+    if hasattr(model, "base_model") and hasattr(model.base_model, "model"):
+        model.base_model.model.tokenizer = tokenizer
+    else:
+        model.tokenizer = tokenizer
 
     return model, tokenizer
 
@@ -683,7 +720,7 @@ def main():
     save_total_limit = _get(None, "logging", "save_total_limit", default=3)
 
 
-    # Model (데이터셋보다 먼저 로드 — tokenizer 필요)
+    # Model 
     model, tokenizer = load_model_and_tokenizer(model_path, model_base)
 
 
@@ -697,6 +734,12 @@ def main():
         audio_processor: str = "openai/whisper-large-v3"
         image_processor: object = None
         use_timestamps_crop: bool = False
+        is_multimodal: bool = True
+        mm_use_im_start_end: bool = False
+        image_aspect_ratio: str = "square"
+        image_grid_pinpoints: str = None
+        image_crop_resolution: int = 224
+        image_split_resolution: int = 224
 
     data_args = GDPODataArgs()
 
