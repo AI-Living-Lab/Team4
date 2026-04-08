@@ -537,14 +537,6 @@ class GDPOTrainer(Trainer):
                 ref_per_token_logps = torch.cat(all_ref_logps, dim=0)
             ref_per_token_logps = ref_per_token_logps[:, -comp_len:] if comp_len > 0 else ref_per_token_logps[:, :0]
 
-            # # DEBUG: NaN 원인 추적
-            # print(f"[DEBUG KL] shapes: policy={per_token_logps.shape}, ref={ref_per_token_logps.shape}, numel: policy={per_token_logps.numel()}, ref={ref_per_token_logps.numel()}")
-            # if per_token_logps.numel() > 0 and ref_per_token_logps.numel() > 0:
-            #     print(f"[DEBUG KL] policy logps: min={per_token_logps.min().item():.4f}, max={per_token_logps.max().item():.4f}, has_nan={per_token_logps.isnan().any().item()}, has_inf={per_token_logps.isinf().any().item()}")
-            #     print(f"[DEBUG KL] ref logps: min={ref_per_token_logps.min().item():.4f}, max={ref_per_token_logps.max().item():.4f}, has_nan={ref_per_token_logps.isnan().any().item()}, has_inf={ref_per_token_logps.isinf().any().item()}")
-            # else:
-            #     print(f"[DEBUG KL] WARNING: empty logps! completion might be 0 length")
-
             # KL divergence 계산
             per_token_kl = (
                 torch.exp(ref_per_token_logps - per_token_logps)

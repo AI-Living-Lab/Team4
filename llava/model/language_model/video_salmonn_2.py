@@ -346,7 +346,7 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                 )
 
         if torch.cuda.current_device() == 0:
-            print('>>> [RANK0 PRINT] | modalities in batch:', modalities)
+            pass # # print('>>> [RANK0 PRINT] | modalities in batch:', modalities)
 
         if isinstance(modalities, str):
             modalities = [modalities]
@@ -613,7 +613,7 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
             }
             default_len = int(modality_max_length[2])
 
-            # ✅ 핵심: 원본을 덮어쓰지 말고, 새 리스트에 담기
+
             sliced_input_embeds = []
             sliced_labels = []
 
@@ -674,7 +674,7 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
             position_ids = None
 
         if torch.cuda.current_device() == 0:
-            print('>>> [RANK0 PRINT] | batch new_input_embeds\' shape:', new_input_embeds.shape)
+            pass # print('>>> [RANK0 PRINT] | batch new_input_embeds\' shape:', new_input_embeds.shape)
         
         return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels
 
