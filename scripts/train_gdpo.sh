@@ -61,7 +61,7 @@ echo "[GDPO] Starting GDPO training..."
 
 # echo "[GDPO] Training complete!"
 
-python ${BASE_DIR}/_tools/GDPO_v2/train_gdpo.py \
+python ${BASE_DIR}/_tools/GDPO/gdpo_trainer.py \
     --model_path    ${SFT_CKPT} \
     --model_base    ${BASE_MODEL} \
     --dataset_path  ${GDPO_DATA} \

@@ -838,11 +838,13 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
     ) -> Union[GenerateOutput, torch.LongTensor]:
         position_ids = kwargs.pop("position_ids", None)
         attention_mask = kwargs.pop("attention_mask", None)
-        if "inputs_embeds" in kwargs:
-            raise NotImplementedError("`inputs_embeds` is not supported")
+        inputs_embeds = kwargs.pop("inputs_embeds", None)
 
-        if images is not None or spectrogram is not None:
-            (inputs, position_ids, attention_mask, _, inputs_embeds, _) = self.prepare_inputs_labels_for_multimodal(input_ids, position_ids, attention_mask, None, None, images, modalities, spectrogram=spectrogram, org_groups=org_groups, real_time=real_time)
+        if inputs_embeds is not None:
+            # 캐싱된 inputs_embeds가 직접 전달된 경우 → 인코딩 스킵
+            pass
+        elif images is not None or spectrogram is not None:
+            (_, position_ids, attention_mask, _, inputs_embeds, _) = self.prepare_inputs_labels_for_multimodal(input_ids, position_ids, attention_mask, None, None, images, modalities, spectrogram=spectrogram, org_groups=org_groups, real_time=real_time)
         else:
             inputs_embeds = self.get_model().embed_tokens(input_ids)
 
