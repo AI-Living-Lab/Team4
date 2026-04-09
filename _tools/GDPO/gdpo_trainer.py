@@ -423,8 +423,9 @@ class GDPOTrainer(Trainer):
 
         # 멀티모달 인코딩을 1번만 수행하고 캐싱 (SigLIP + Whisper는 deterministic)
         with unwrap_model_for_generation(model, self.accelerator) as unwrapped_model:
+            # PeftModel → VideoSALMONN2ForCausalLM 까지만 (prepare_inputs_labels_for_multimodal이 여기 있음)
             base_model = unwrapped_model
-            while hasattr(base_model, "model"):
+            while not hasattr(base_model, "prepare_inputs_labels_for_multimodal"):
                 base_model = base_model.model
             with torch.no_grad():
                 (_, cached_position_ids, cached_attention_mask, _, cached_inputs_embeds, _) = (
@@ -435,19 +436,24 @@ class GDPOTrainer(Trainer):
                     )
                 )
 
-            # 캐싱된 inputs_embeds로 G번 generate (인코딩 반복 없음)
-            for _ in range(self.num_generations):
-                gen_ids = unwrapped_model.generate(
-                    inputs_embeds=cached_inputs_embeds,
-                    position_ids=cached_position_ids,
-                    attention_mask=cached_attention_mask,
-                    max_new_tokens=self.max_completion_length,
-                    do_sample=True,
-                    temperature=self.temperature,
-                    top_p=0.9,
-                    min_new_tokens=30,
-                )
-                all_completion_ids.append(gen_ids)
+            # 캐싱된 inputs_embeds를 G개로 복제하여 배치 생성 (순차 루프 → 1회 호출)
+            batched_embeds = cached_inputs_embeds.repeat(self.num_generations, 1, 1)
+            batched_mask = cached_attention_mask.repeat(self.num_generations, 1)
+            batched_pos = cached_position_ids.repeat(self.num_generations, 1) if cached_position_ids is not None else None
+
+            batched_gen_ids = unwrapped_model.generate(
+                inputs_embeds=batched_embeds,
+                position_ids=batched_pos,
+                attention_mask=batched_mask,
+                max_new_tokens=self.max_completion_length,
+                do_sample=True,
+                temperature=self.temperature,
+                top_p=0.9,
+                min_new_tokens=30,
+            )
+            # 배치 결과를 개별 리스트로 분리
+            for g in range(self.num_generations):
+                all_completion_ids.append(batched_gen_ids[g:g+1])
 
         # gradient_checkpointing 다시 활성화
         if hasattr(model, "gradient_checkpointing_enable"):
@@ -484,29 +490,19 @@ class GDPOTrainer(Trainer):
         comp_len = completion_ids.size(1)
 
 
-        # ── 캐싱된 prompt embeds + completion token embeds 결합 ──
-        # completion 토큰을 임베딩으로 변환하여 캐싱된 프롬프트 embeds 뒤에 붙임
-        base_model_for_embed = model
-        while hasattr(base_model_for_embed, "model"):
-            base_model_for_embed = base_model_for_embed.model
-        with torch.no_grad():
-            completion_embeds = base_model_for_embed.embed_tokens(completion_ids)  # (G, C, H)
-        # 각 generation에 대해 prompt_embeds + completion_embeds 결합
-        cached_prompt_embeds = cached_inputs_embeds.repeat(self.num_generations, 1, 1)  # (G, P_emb, H)
-        prompt_completion_embeds = torch.cat([cached_prompt_embeds, completion_embeds], dim=1)  # (G, P_emb+C, H)
-
-        # attention_mask도 embeds 길이에 맞게 재구성
-        cached_prompt_mask = cached_attention_mask.repeat(self.num_generations, 1)  # (G, P_emb)
-        embeds_attention_mask = torch.cat([cached_prompt_mask, completion_mask], dim=1)  # (G, P_emb+C)
-
         # ── Per-token log probs (policy) ──
+        # policy는 gradient 필요 → 캐싱 embeds 사용 불가, 원본 멀티모달 입력 사용
         all_per_token_logps = []
         for g in range(self.num_generations):
             g_logps = self._get_per_token_logps(
                 model,
                 prompt_completion_ids[g:g+1],
-                embeds_attention_mask[g:g+1],
-                inputs_embeds=prompt_completion_embeds[g:g+1],
+                attention_mask[g:g+1],
+                images=images,
+                spectrogram=spectrogram,
+                org_groups=org_groups,
+                real_time=real_time if not isinstance(real_time, list) else real_time[:1],
+                modalities=modalities[:1],
             )
             all_per_token_logps.append(g_logps)
         per_token_logps = torch.cat(all_per_token_logps, dim=0)
@@ -514,6 +510,7 @@ class GDPOTrainer(Trainer):
 
 
         # ── Per-token log probs (reference) ──
+        # ref도 원본 멀티모달 입력 사용 (캐싱 embeds 경로와 logits이 달라지는 문제 방지)
         if self.beta != 0.0:
             with torch.inference_mode():
                 all_ref_logps = []
@@ -522,16 +519,24 @@ class GDPOTrainer(Trainer):
                         g_ref_logps = self._get_per_token_logps(
                             self.ref_model,
                             prompt_completion_ids[g:g+1],
-                            embeds_attention_mask[g:g+1],
-                            inputs_embeds=prompt_completion_embeds[g:g+1],
+                            attention_mask[g:g+1],
+                            images=images,
+                            spectrogram=spectrogram,
+                            org_groups=org_groups,
+                            real_time=real_time if not isinstance(real_time, list) else real_time[:1],
+                            modalities=modalities[:1],
                         )
                     else:
                         with self.accelerator.unwrap_model(model).disable_adapter():
                             g_ref_logps = self._get_per_token_logps(
                                 model,
                                 prompt_completion_ids[g:g+1],
-                                embeds_attention_mask[g:g+1],
-                                inputs_embeds=prompt_completion_embeds[g:g+1],
+                                attention_mask[g:g+1],
+                                images=images,
+                                spectrogram=spectrogram,
+                                org_groups=org_groups,
+                                real_time=real_time if not isinstance(real_time, list) else real_time[:1],
+                                modalities=modalities[:1],
                             )
                     all_ref_logps.append(g_ref_logps)
                 ref_per_token_logps = torch.cat(all_ref_logps, dim=0)
@@ -550,7 +555,12 @@ class GDPOTrainer(Trainer):
 
 
         # Decode the generated completions
-        completions = self.processing_class.batch_decode(completion_ids, skip_special_tokens=True)
+        # skip_special_tokens=False → time token(<t0>~<t9>, <tdot>) 보존
+        completions = self.processing_class.batch_decode(completion_ids, skip_special_tokens=False)
+        completions = [
+            c.replace("<|im_end|>", "").replace("<|endoftext|>", "").replace("<|im_start|>assistant\n", "").replace("<|im_start|>assistant", "").strip()
+            for c in completions
+        ]
         print(f"[GDPO SAMPLE] completion[0][:200]: {completions[0][:200]}")
         # Compute the rewards
         rewards_per_func = torch.zeros(len(completions), len(self.reward_funcs), device=device)

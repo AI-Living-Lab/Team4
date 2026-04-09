@@ -89,6 +89,45 @@ def extract_pred_events(text: str) -> Optional[List[Dict]]:
 # 핵심 리워드 함수들
 # ============================================================
 
+def decode_vtg_time(token_str: str, max_time: float = 60.0) -> float | None:
+    """VTG-LLM time token 역변환.
+    "<t0><t0><t3><t9><tdot><t0>" → 39.0
+    형식: 정수부 4자리 digit + <tdot> + 소수부 1자리 digit → 6토큰 고정
+    """
+    has_dot = "<tdot>" in token_str
+
+    if has_dot:
+        parts = token_str.split("<tdot>")
+        int_part = re.findall(r"<t(\d)>", parts[0])
+        dec_part = re.findall(r"<t(\d)>", parts[1]) if len(parts) > 1 else []
+    else:
+        int_part = re.findall(r"<t(\d)>", token_str)
+        dec_part = []
+
+    if not int_part:
+        return None
+
+    integer_part = int("".join(int_part))
+    decimal_part = int(dec_part[0]) if dec_part else 0
+    t = integer_part + decimal_part / 10.0
+    return min(t, max_time)
+
+
+def parse_time_value(val) -> float | None:
+    """시간 값을 파싱. time token 형식과 일반 float 모두 지원."""
+    if val is None:
+        return None
+    s = str(val)
+    # time token 형식 감지
+    if "<t" in s:
+        return decode_vtg_time(s)
+    # 일반 float
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return None
+
+
 def temporal_iou(ps: float, pe: float, gs: float, ge: float) -> float:
     """두 시간 구간의 IoU 계산."""
     inter = max(0.0, min(pe, ge) - max(ps, gs))
@@ -107,12 +146,15 @@ def format_reward(completion: str, **kwargs) -> float:
     if events is None or len(events) == 0:
         return 0.0
 
-    # 최소 하나의 이벤트가 필수 필드를 갖고 있으면 OK
+    # 최소 하나의 이벤트가 필수 필드 + time token 형식이면 OK
+    _time_token_re = re.compile(r"^(<t\d>){1,4}<tdot><t\d>$")
     for ev in events:
         has_label = isinstance(ev.get("event") or ev.get("label"), str)
-        has_start = ev.get("start") is not None
-        has_end = ev.get("end") is not None
-        if has_label and has_start and has_end:
+        start_str = str(ev.get("start", ""))
+        end_str = str(ev.get("end", ""))
+        valid_start = bool(_time_token_re.match(start_str))
+        valid_end = bool(_time_token_re.match(end_str))
+        if has_label and valid_start and valid_end:
             return 1.0
 
     return 0.0
@@ -146,7 +188,11 @@ def label_reward(completion: str, gt_events: List[Dict], **kwargs) -> float:
             pred_labels.add(norm)
 
     matched = gt_labels & pred_labels
-    return len(matched) / len(gt_labels)
+    if not matched:
+        return 0.0
+    precision = len(matched) / len(pred_labels)
+    recall = len(matched) / len(gt_labels)
+    return 2 * precision * recall / (precision + recall)
 
 
 def iou_reward(completion: str, gt_events: List[Dict], **kwargs) -> float:
@@ -165,18 +211,15 @@ def iou_reward(completion: str, gt_events: List[Dict], **kwargs) -> float:
     if not pred_events or not gt_events:
         return 0.0
 
-    # 예측 파싱
+    # 예측 파싱 (time token 및 일반 float 모두 지원)
     preds = []
     for ev in pred_events:
         raw_label = ev.get("event") or ev.get("label") or ""
         norm = normalize_label(raw_label)
-        try:
-            start = float(ev["start"])
-            end = float(ev["end"])
-            if end > start:
-                preds.append({"label": norm, "start": start, "end": end})
-        except (KeyError, TypeError, ValueError):
-            continue
+        start = parse_time_value(ev.get("start"))
+        end = parse_time_value(ev.get("end"))
+        if start is not None and end is not None and end > start:
+            preds.append({"label": norm, "start": start, "end": end})
 
     if not preds:
         return 0.0
