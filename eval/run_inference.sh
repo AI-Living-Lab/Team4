@@ -14,19 +14,17 @@ else
     echo "[WARNING] paths.env not found. Copy paths.env.example to paths.env and fill in the paths."
 fi
 
-export PYTHONPATH=${BASE_DIR}:$PYTHONPATH
+export PYTHONPATH=${BASE_DIR}:${PYTHONPATH:-}
 export CUDA_VISIBLE_DEVICES=0,1
 
-CKPT=71379
+CKPT=26000
 
-MODEL_BASE=${CHECKPOINTS_DIR}/llava_onevision_qwen2_7b_ov
-BASE_CKPT=${CHECKPOINTS_DIR}/video_salmonn2_hf
+MODEL_BASE=/workspace/models/llava-onevision-qwen2-7b-ov
+BASE_CKPT=/workspace/models/video-SALMONN-2
+LORA_PATH=${CHECKPOINTS_DIR}/checkpoint-${CKPT}
 
-# ↓ 평가할 checkpoint 폴더로 교체
-LORA_PATH=${CHECKPOINTS_DIR}/checkpoints_open_aligner/checkpoint-$CKPT
-
-TEST_JSON=${BASE_DIR}/data/unav100_test_dense.json
-TEST_OUT=${BASE_DIR}/eval/results/unav100_test_uf_$CKPT
+TEST_JSON=${BASE_DIR}/data/unav100_test_dense_5.json         
+TEST_OUT=${BASE_DIR}/eval/results/unav100_test_cdh_${CKPT}
 
 
 mkdir -p "$TEST_OUT"
@@ -35,7 +33,7 @@ torchrun --nproc_per_node=2 --master_port=29521 \
   ${BASE_DIR}/llava/train/train.py \
   --version qwen_1_5 \
   --audio_visual True \
-  --whisper_path openai/whisper-large-v3 \
+  --whisper_path /workspace/models/whisper-large-v3 \
   --freeze_whisper True \
   --freeze_backbone True \
   --window_level_Qformer True \

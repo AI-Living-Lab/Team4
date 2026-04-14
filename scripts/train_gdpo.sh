@@ -38,7 +38,30 @@ fi
 # ============================================================
 echo "[GDPO] Starting GDPO training..."
 
-python ${BASE_DIR}/_tools/GDPO/train_gdpo.py \
+# python ${BASE_DIR}/_tools/GDPO/train_gdpo.py \
+#     --model_path    ${SFT_CKPT} \
+#     --model_base    ${BASE_MODEL} \
+#     --dataset_path  ${GDPO_DATA} \
+#     --output_dir    ${BASE_DIR}/output/gdpo \
+#     --num_generations       4 \
+#     --max_completion_length 1024 \
+#     --num_train_epochs      1 \
+#     --per_device_train_batch_size 1 \
+#     --gradient_accumulation_steps 4 \
+#     --learning_rate 5e-6 \
+#     --beta          0.04 \
+#     --reward_weights 0.1 0.3 0.6 \
+#     --lora_r        32 \
+#     --lora_alpha    64 \
+#     --lora_dropout  0.05 \
+#     --logging_steps 5 \
+#     --save_steps    500 \
+#     --seed          2024 \
+#     --bf16
+
+# echo "[GDPO] Training complete!"
+
+python ${BASE_DIR}/_tools/GDPO_v2/train_gdpo.py \
     --model_path    ${SFT_CKPT} \
     --model_base    ${BASE_MODEL} \
     --dataset_path  ${GDPO_DATA} \

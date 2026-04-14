@@ -1,7 +1,7 @@
 [
   {
-    "video": "/root/datasets/unav_100/videos/8WSesSOfBrE.mp4",
-    "audio": "/root/datasets/unav_100/audio/8WSesSOfBrE.wav",
+    "video": "/workspace/datasets/unav_100/videos/8WSesSOfBrE.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/8WSesSOfBrE.wav",
     "mode": "dense",
     "events": [
       {
@@ -24,8 +24,8 @@
     ]
   },
   {
-    "video": "/root/datasets/unav_100/videos/0K4QM63pY-w.mp4",
-    "audio": "/root/datasets/unav_100/audio/0K4QM63pY-w.wav",
+    "video": "/workspace/datasets/unav_100/videos/0K4QM63pY-w.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/0K4QM63pY-w.wav",
     "mode": "dense",
     "events": [
       {
@@ -48,8 +48,8 @@
     ]
   },
   {
-    "video": "/root/datasets/unav_100/videos/yQQG03dAoLU.mp4",
-    "audio": "/root/datasets/unav_100/audio/yQQG03dAoLU.wav",
+    "video": "/workspace/datasets/unav_100/videos/yQQG03dAoLU.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/yQQG03dAoLU.wav",
     "mode": "dense",
     "events": [
       {
@@ -72,8 +72,8 @@
     ]
   },
   {
-    "video": "/root/datasets/unav_100/videos/D05-MrPXqjw.mp4",
-    "audio": "/root/datasets/unav_100/audio/D05-MrPXqjw.wav",
+    "video": "/workspace/datasets/unav_100/videos/D05-MrPXqjw.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/D05-MrPXqjw.wav",
     "mode": "dense",
     "events": [
       {
@@ -103,8 +103,8 @@
     ]
   },
   {
-    "video": "/root/datasets/unav_100/videos/20Nlj7Cz4E0.mp4",
-    "audio": "/root/datasets/unav_100/audio/20Nlj7Cz4E0.wav",
+    "video": "/workspace/datasets/unav_100/videos/20Nlj7Cz4E0.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/20Nlj7Cz4E0.wav",
     "mode": "dense",
     "events": [
       {
