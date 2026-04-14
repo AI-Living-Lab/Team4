@@ -435,6 +435,7 @@ class GDPOTrainer(Trainer):
 
         # 멀티모달 인코딩을 1번만 수행하고 캐싱 (SigLIP + Whisper는 deterministic)
         with unwrap_model_for_generation(model, self.accelerator) as unwrapped_model:
+            # PeftModel → VideoSALMONN2ForCausalLM 까지만 (prepare_inputs_labels_for_multimodal이 여기 있음)
             base_model = unwrapped_model
             while not hasattr(base_model, "prepare_inputs_labels_for_multimodal"):
                 base_model = base_model.model
@@ -452,7 +453,10 @@ class GDPOTrainer(Trainer):
             batched_mask = cached_attention_mask.repeat(self.num_generations, 1)
             batched_pos = cached_position_ids.repeat(self.num_generations, 1) if cached_position_ids is not None else None
 
+<<<<<<< HEAD
             #generate
+=======
+>>>>>>> a2aec1f3fc9826ce60202ef1e660f44de3646ae0
             batched_gen_ids = unwrapped_model.generate(
                 inputs_embeds=batched_embeds,
                 position_ids=batched_pos,
@@ -502,7 +506,11 @@ class GDPOTrainer(Trainer):
 
 
         # ── Per-token log probs (policy) ──
+<<<<<<< HEAD
         # policy는 gradient 필요 → 원본 멀티모달 입력 사용
+=======
+        # policy는 gradient 필요 → 캐싱 embeds 사용 불가, 원본 멀티모달 입력 사용
+>>>>>>> a2aec1f3fc9826ce60202ef1e660f44de3646ae0
         all_per_token_logps = []
         for g in range(self.num_generations):
             g_logps = self._get_per_token_logps(
@@ -522,7 +530,11 @@ class GDPOTrainer(Trainer):
 
 
         # ── Per-token log probs (reference) ──
+<<<<<<< HEAD
         # ref 원본 멀티모달 입력 사용
+=======
+        # ref도 원본 멀티모달 입력 사용 (캐싱 embeds 경로와 logits이 달라지는 문제 방지)
+>>>>>>> a2aec1f3fc9826ce60202ef1e660f44de3646ae0
         if self.beta != 0.0:
             with torch.inference_mode():
                 all_ref_logps = []

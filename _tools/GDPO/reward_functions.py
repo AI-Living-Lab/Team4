@@ -147,14 +147,26 @@ def format_reward(completion: str, **kwargs) -> float:
     if events is None or len(events) == 0:
         return 0.0
 
+<<<<<<< HEAD
     _time_token_re = re.compile(r"^(<t\d>){1,4}<tdot><t\d>$")
     has_valid_json = False
     has_time_token = False
 
+=======
+    # 최소 하나의 이벤트가 필수 필드 + time token 형식이면 OK
+    _time_token_re = re.compile(r"^(<t\d>){1,4}<tdot><t\d>$")
+>>>>>>> a2aec1f3fc9826ce60202ef1e660f44de3646ae0
     for ev in events:
         has_label = isinstance(ev.get("event") or ev.get("label"), str)
         start_str = str(ev.get("start", ""))
         end_str = str(ev.get("end", ""))
+<<<<<<< HEAD
+=======
+        valid_start = bool(_time_token_re.match(start_str))
+        valid_end = bool(_time_token_re.match(end_str))
+        if has_label and valid_start and valid_end:
+            return 1.0
+>>>>>>> a2aec1f3fc9826ce60202ef1e660f44de3646ae0
 
         if has_label and start_str and end_str:
             has_valid_json = True
