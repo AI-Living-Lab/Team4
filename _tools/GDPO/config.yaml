@@ -20,8 +20,8 @@ gdpo:
   num_generations: 8                         # 프롬프트당 생성 수
   max_completion_length: 1024                # 생성 최대 토큰 수
   beta: 0.04                                 # KL 페널티 계수
-  temperature: 1.0                           # 샘플링 온도
-  reward_weights: [0.1, 0.3, 0.6]           # [format, label, iou]
+  temperature: 0.01                           # 샘플링 온도
+  reward_weights: [1.0, 1.0, 1.0]           # [format, label, iou]
 
 # 학습 설정
 training:
