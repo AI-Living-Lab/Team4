@@ -1,0 +1,17 @@
+{
+  "total": 3720,
+  "parse_ok": 413,
+  "parse_fail": 3307,
+  "mIoU": 2.34,
+  "mIoU_parsed_only": 21.05,
+  "metrics": {
+    "R@1_IoU=0.3": 3.6,
+    "R@1_IoU=0.5": 2.1,
+    "R@1_IoU=0.7": 0.89
+  },
+  "metrics_parsed_only": {
+    "R@1_IoU=0.3": 32.45,
+    "R@1_IoU=0.5": 18.89,
+    "R@1_IoU=0.7": 7.99
+  }
+}

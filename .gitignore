@@ -202,3 +202,12 @@ events.out.tfevents.*
 *.tfevents.*
 # large local data
 data/stage3.json
+data/pu_valor_train.json
+data/pu_valor_train_salmonn2plus.json
+
+# cookies (all patterns)
+cookies_*.txt
+
+# local notes / conversation logs
+*.md
+!README.md

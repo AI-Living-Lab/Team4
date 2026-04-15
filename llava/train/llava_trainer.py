@@ -398,13 +398,64 @@ class LLaVATrainer(Trainer):
                 m = m.module
             return m
 
-        # ---- call parent (this runs backward inside HF Trainer) ----
-        loss = super().training_step(model, inputs)
+        # ---- Keep frozen modules in eval mode ----
+        base = _unwrap(model)
+        if hasattr(base, 'speech_encoder'):
+            base.speech_encoder.eval()
+        if hasattr(base, 'speech_Qformer'):
+            base.speech_Qformer.eval()
 
-        # Per-step debug removed (DeepSpeed+PeftModel makes grad checks unreliable here).
-        # See [CHK6] in train.py for trainable params verification at init time.
+        # ---- OOM-safe distributed training step ----
+        oom_flag = torch.zeros(1, dtype=torch.int32, device=model.device)
+        try:
+            loss = super().training_step(model, inputs)
+        except torch.cuda.OutOfMemoryError:
+            oom_flag.fill_(1)
+            torch.cuda.empty_cache()
+
+        # Sync OOM flag across all ranks so everyone skips together
+        if dist.is_available() and dist.is_initialized():
+            dist.all_reduce(oom_flag, op=dist.ReduceOp.MAX)
+
+        if oom_flag.item() > 0:
+            if _is_rank0():
+                print("[OOM] CUDA out of memory on some rank — all ranks skipping this batch")
+            torch.cuda.empty_cache()
+            return torch.tensor(0.0, device=model.device, requires_grad=False)
+
+        # DeepSpeed 호환 time token gradient masking:
+        # backward 후, optimizer.step() 전에 non-time-token gradient를 zeroing
+        time_ids = getattr(self, "time_token_ids", None)
+        if time_ids:
+            self._zero_non_time_token_grads(base, time_ids)
 
         return loss
+
+    def _zero_non_time_token_grads(self, model, time_ids):
+        """embed_tokens/lm_head의 non-time-token 행 gradient를 0으로 설정."""
+        time_id_set = set(time_ids)
+
+        m = model
+        if hasattr(m, "get_base_model"):
+            try:
+                m = m.get_base_model()
+            except Exception:
+                pass
+
+        for emb_getter in [m.get_input_embeddings, m.get_output_embeddings]:
+            try:
+                emb = emb_getter()
+            except Exception:
+                continue
+            if emb is None or not hasattr(emb, "weight"):
+                continue
+            w = emb.weight
+            if w.grad is None:
+                continue
+            mask = torch.ones(w.grad.size(0), device=w.grad.device, dtype=torch.bool)
+            idx = torch.tensor(sorted(time_id_set), device=w.grad.device, dtype=torch.long)
+            mask[idx] = False  # time token은 유지
+            w.grad[mask] = 0
 
     def _get_train_sampler(self, train_dataset=None) -> Optional[torch.utils.data.Sampler]:
         train_dataset = train_dataset if train_dataset is not None else self.train_dataset
@@ -560,7 +611,7 @@ class LLaVATrainer(Trainer):
             self.model_wrapped.save_checkpoint(output_dir)
 
         # 이하 rank0만 수행
-        if dist.get_rank() != 0:
+        if dist.is_initialized() and dist.get_rank() != 0:
             return
 
         # trainer state 저장 (step, epoch 등 resume에 필요) — 가장 먼저 저장
@@ -753,9 +804,27 @@ class LLaVATrainer(Trainer):
         # ckpt loading
         if resume_from_checkpoint is not None:
             if self.is_deepspeed_enabled:
-                deepspeed_load_checkpoint(
-                    self.model_wrapped, resume_from_checkpoint, load_module_strict=not _is_peft_model(self.model)
-                )
+                try:
+                    deepspeed_load_checkpoint(
+                        self.model_wrapped, resume_from_checkpoint, load_module_strict=not _is_peft_model(self.model)
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"[RESUME] DeepSpeed checkpoint load failed: {e}\n"
+                        f"  → Loading LoRA adapter weights manually (optimizer will reinitialize).\n"
+                        f"  → LR schedule will be restored from scheduler.pt / trainer_state.json."
+                    )
+                    adapter_path = os.path.join(resume_from_checkpoint, "adapter_model.safetensors")
+                    if os.path.exists(adapter_path):
+                        from peft import set_peft_model_state_dict
+                        from safetensors.torch import load_file
+                        adapter_state = load_file(adapter_path)
+                        # unwrap DeepSpeed/DDP to get the actual PeftModel
+                        inner_model = self.model_wrapped.module if hasattr(self.model_wrapped, "module") else self.model_wrapped
+                        set_peft_model_state_dict(inner_model, adapter_state)
+                        print(f"[RESUME] Loaded LoRA adapter from {adapter_path}", flush=True)
+                    else:
+                        print(f"[RESUME] WARNING: No adapter_model.safetensors found at {resume_from_checkpoint}", flush=True)
             elif is_sagemaker_mp_enabled() or self.is_fsdp_enabled:
                 self._load_from_checkpoint(resume_from_checkpoint, self.model_wrapped)
 
@@ -791,6 +860,13 @@ class LLaVATrainer(Trainer):
             os.path.join(resume_from_checkpoint, TRAINER_STATE_NAME)
         ):
             self.state = TrainerState.load_from_json(os.path.join(resume_from_checkpoint, TRAINER_STATE_NAME))
+            # Re-apply current args so they are not overwritten by stale values in the checkpoint
+            if args.save_steps is not None:
+                self.state.save_steps = math.ceil(max_steps * args.save_steps) if args.save_steps < 1 else args.save_steps
+            if args.logging_steps is not None:
+                self.state.logging_steps = math.ceil(max_steps * args.logging_steps) if args.logging_steps < 1 else args.logging_steps
+            if args.eval_steps is not None:
+                self.state.eval_steps = math.ceil(max_steps * args.eval_steps) if args.eval_steps < 1 else args.eval_steps
             epochs_trained = self.state.global_step // num_update_steps_per_epoch
             if not args.ignore_data_skip:
                 steps_trained_in_current_epoch = self.state.global_step % (num_update_steps_per_epoch)
@@ -1204,7 +1280,7 @@ class LLaVATrainer(Trainer):
 
         model.eval()
         results = []
-        if dist.get_rank() == 0:
+        if not dist.is_initialized() or dist.get_rank() == 0:
             for inputs in tqdm(dataloader):
                 ids = inputs['ids']
                 ids = [eval(it) for it in ids]

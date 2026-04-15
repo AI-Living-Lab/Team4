@@ -175,7 +175,7 @@ class LazyAVSupervisedDataset(Dataset):
                 avg_fps = max(round(ori_fps / self.data_args.video_fps), 1)
                 real_time = total_frame_num / vr.get_avg_fps()
                 
-                max_frames = self.max_frame_num
+                max_frames = min(self.max_frame_num, 120)
 
                 if not use_crop:
                     frame_idx = [k for k in range(0, total_frame_num, round(avg_fps))]

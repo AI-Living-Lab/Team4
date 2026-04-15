@@ -118,6 +118,7 @@ def run_video2dataset(csv_path: str, output_dir: str, workers: int, resolution: 
     cmd = [
         v2d_bin,
         csv_path,                                    # positional: URL_LIST
+        "--input_format",            "csv",
         "--url_col",                 "url",
         "--start_time_col",          "start_time",
         "--end_time_col",            "end_time",
@@ -132,9 +133,9 @@ def run_video2dataset(csv_path: str, output_dir: str, workers: int, resolution: 
         "--config",                  "default",
     ]
 
-    # 쿠키 파일: --yt-dlp_args 로 전달
+    # 쿠키 파일: --yt_dlp_args 로 전달 (공백 없이 =로 연결)
     if cookies and os.path.exists(cookies):
-        cmd += ["--yt-dlp_args", f"--cookies '{cookies}'"]
+        cmd += ["--yt_dlp_args", f'{{"cookiefile": "{cookies}", "quiet": true}}']
         print(f"[✓] 쿠키 파일 사용: {cookies}")
 
     print(f"\n[→] video2dataset 시작")

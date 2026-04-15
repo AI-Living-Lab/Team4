@@ -1,0 +1,202 @@
+[
+  {
+    "index": 0,
+    "pred": "The person turns a light on in segments 2 and 3 of the video."
+  },
+  {
+    "index": 1,
+    "pred": "The person turns the light switch on while standing at the open door."
+  },
+  {
+    "index": 2,
+    "pred": "The video showcases a person putting a picture onto the wall from the 4th to the 10th second."
+  },
+  {
+    "index": 3,
+    "pred": "The person walks through the doorway in segments 1, 2, and 3 of the video."
+  },
+  {
+    "index": 4,
+    "pred": "The person closes the door in the final segment of the video."
+  },
+  {
+    "index": 5,
+    "pred": "Person in gray shirt and blue jeans runs up the stairs midway through the video."
+  },
+  {
+    "index": 6,
+    "pred": "The person runs to the window to look out in segments 2 and 3 of the video."
+  },
+  {
+    "index": 7,
+    "pred": "The person runs to the window between 0<t0>:00:00 and 00:00:08."
+  },
+  {
+    "index": 9,
+    "pred": "The person is standing in the bathroom holding a glass in the first and second segments of the video."
+  },
+  {
+    "index": 10,
+    "pred": "The person sits in a chair from the 10th to the <t1>3th second of the video."
+  },
+  {
+    "index": 11,
+    "pred": "Person throws a blanket onto the vacuum. occurs after they remove their dark-colored jacket<tdot>"
+  },
+  {
+    "index": 12,
+    "pred": "Person they stand up. occurs after 0<t0>:00:1<t1> in the video<tdot>"
+  },
+  {
+    "index": 13,
+    "pred": "The person is seen holding a small object, likely a pill or a container of medicine, while standing near the bed."
+  },
+  {
+    "index": 14,
+    "pred": "The person takes a cup off the desk in the initial frames of the video."
+  },
+  {
+    "index": 15,
+    "pred": "The person opens the door leading outside in the living room scene."
+  },
+  {
+    "index": 16,
+    "pred": "The video begins with a person wearing a red hoodie and gray pants walking into the room through a doorway while holding a red cup, presumably containing coffee."
+  },
+  {
+    "index": 17,
+    "pred": "The person puts on their shoes while standing at the entrance of a house."
+  },
+  {
+    "index": 18,
+    "pred": "In the first two segments of the video, a person is seen eating some food."
+  },
+  {
+    "index": 19,
+    "pred": "The person is holding a glass of water in the first and second segments of the video."
+  },
+  {
+    "index": 20,
+    "pred": "The person stands in the doorway holding a glass."
+  },
+  {
+    "index": 21,
+    "pred": "The person puts on some shoes while standing at the entrance of a house."
+  },
+  {
+    "index": 22,
+    "pred": "The person walks into the house and puts down the food after the dog moves closer to them."
+  },
+  {
+    "index": 23,
+    "pred": "In segments 1, 2, and 3 of the video, we find the person drinking a glass of water."
+  },
+  {
+    "index": 24,
+    "pred": "The person is sitting on the bed in segments 1 and 2 of the video."
+  },
+  {
+    "index": 25,
+    "pred": "The person is sitting on a teal-colored couch."
+  },
+  {
+    "index": 26,
+    "pred": "The person throws shoes under the window on the left side of the room."
+  },
+  {
+    "index": 27,
+    "pred": "The first three frames of the video showcase person sitting on top of bed closes laptop."
+  },
+  {
+    "index": 28,
+    "pred": "In the initial segments of the video, a person is seen closing a door."
+  },
+  {
+    "index": 29,
+    "pred": "The person runs into the dining room from the left side of the frame."
+  },
+  {
+    "index": 30,
+    "pred": "The video showcases the same person laughing as he was undressing in the final scene."
+  },
+  {
+    "index": 31,
+    "pred": "The person puts the bag into the cabinet after walking through the room and before they start unbuttoning their shirt."
+  },
+  {
+    "index": 32,
+    "pred": "The person is lying on bed sneezing at the beginning of the video."
+  },
+  {
+    "index": 33,
+    "pred": "The video showcases a person in an orange shirt picking up their phone and talking on it from the 0th second to the 6th second."
+  },
+  {
+    "index": 34,
+    "pred": "The person opens a cabinet door twice, first on the left side and then on the right side."
+  },
+  {
+    "index": 35,
+    "pred": "The person is seated on a couch in the cozy room."
+  },
+  {
+    "index": 38,
+    "pred": "The person turns on the light in the first few frames of the video."
+  },
+  {
+    "index": 39,
+    "pred": "The person takes a phone after examining the pink towel."
+  },
+  {
+    "index": 41,
+    "pred": "On the right side of the frame, there is a tripod with a camera mounted on top, suggesting that someone might be taking pictures or recording the scene."
+  },
+  {
+    "index": 42,
+    "pred": "The person is seen looking at the picture for a second in the first and last frames of the video."
+  },
+  {
+    "index": 43,
+    "pred": "The person can be detected on the left side of the frame."
+  },
+  {
+    "index": 44,
+    "pred": "The person is smiling in the mirror of their bathroom."
+  },
+  {
+    "index": 45,
+    "pred": "The video showcases the person opening the door from the 0th to the 4th second."
+  },
+  {
+    "index": 46,
+    "pred": "The person is standing in the kitchen, holding a colorful blanket close to their face."
+  },
+  {
+    "index": 47,
+    "pred": "Person takes some food from the container and eats it after standing in the kitchen."
+  },
+  {
+    "index": 48,
+    "pred": "Person eats it. occurs after the person is seen standing in the kitchen holding a blanket and then moving towards the table<tdot>"
+  },
+  {
+    "index": 49,
+    "pred": "The person is standing in front of a purple wardrobe with a small mirror."
+  },
+  {
+    "index": 50,
+    "pred": "The person in dark clothing is seen drinking from a cup while seated at the desk with the computer on the left side of the room."
+  },
+  {
+    "index": 52,
+    "pred": "The timestamp where person takes out a towel is between 0<t0>:00:08 and 00:00:12."
+  },
+  {
+    "index": 53,
+    "pred": "The person wearing a red hoodie enters the frame from the right side, holding a stack of dishes."
+  },
+  {
+    "index": 54,
+    "pred": "The person is seated in a chair at a desk."
+  }
+]

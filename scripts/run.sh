@@ -55,6 +55,7 @@ PRETRAIN_WEIGHT=None
 MM_POOLING_POSITION=after
 LOAD_FULL=False
 MERGE_AND_NEW_LORA=False
+FREEZE_EMBED_LM_HEAD=False
 AUDIO_VISUAL=False
 
 DO_DEMO=False
@@ -100,6 +101,10 @@ while [[ "$#" -gt 0 ]]; do
         --mm_pooling_position) MM_POOLING_POSITION="$2"; shift ;;
         --load_full) LOAD_FULL=True; ;;
         --merge_and_new_lora) MERGE_AND_NEW_LORA=True; ;;
+        --freeze_embed_lm_head) FREEZE_EMBED_LM_HEAD=True; ;;
+        --freeze_speech_QFormer) FREEZE_SPEECH_QFORMER=True; ;;
+        --unfreeze_mm_projector) FREEZE_MM_PROJECTOR=False; ;;
+        --mm_projector_lr) MM_PROJECTOR_LR="$2"; shift ;;
         --audio_visual) AUDIO_VISUAL=True; ;;
         --do_demo) DO_DEMO=True; ;;
         --do_test) DO_TEST=True; ;;
@@ -112,6 +117,7 @@ while [[ "$#" -gt 0 ]]; do
         --second_stride) SECOND_STRIDE="$2"; shift ;;
         --resume_from_checkpoint) RESUME_FROM_CHECKPOINT="$2"; shift ;;
         --lora_path) LORA_PATH="$2"; shift ;;
+        --save_total_limit) SAVE_TOTAL_LIMIT="$2"; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -133,7 +139,9 @@ NEW_LINE_POSITION=grid
 IMAGE_ASPECT_RATIO=anyres
 
 WHISPER_PATH=openai/whisper-large-v3
-FREEZE_SPEECH_QFORMER=False
+FREEZE_SPEECH_QFORMER=${FREEZE_SPEECH_QFORMER:-False}
+FREEZE_MM_PROJECTOR=${FREEZE_MM_PROJECTOR:-True}
+MM_PROJECTOR_LR=${MM_PROJECTOR_LR:-2e-5}
 FREEZE_FINAL_LINEAR=False
 USE_FINAL_LINEAR=False
 
@@ -147,13 +155,25 @@ fi
 
 # ${ARNOLD_WORKER_GPU}
 GPU_NUM=${GPU_NUM:-1}
-torchrun --standalone --nproc_per_node=$GPU_NUM \
+DEEPSPEED_ARG=""
+if [[ "$DEEPSPEED_TYPE" != "none" ]]; then
+    DEEPSPEED_ARG="--deepspeed ./scripts/$DEEPSPEED_TYPE.json"
+fi
+
+if [[ "$GPU_NUM" -eq 1 ]]; then
+    LAUNCHER="python"
+else
+    LAUNCHER="torchrun --standalone --nproc_per_node=$GPU_NUM"
+fi
+
+$LAUNCHER \
     llava/train/train_mem.py \
         --ckpt $MODEL \
-        --deepspeed ./scripts/$DEEPSPEED_TYPE.json \
+        $DEEPSPEED_ARG \
         --max_time $MAX_TIME \
         --load_from_lora $LOAD_FROM_LORA \
-        --lora_enable $LORA_ENABLE --lora_r $LORA_R --lora_alpha $LORA_ALPHA --lora_dropout $LORA_DROPOUT --mm_projector_lr 2e-5 \
+        --lora_enable $LORA_ENABLE --lora_r $LORA_R --lora_alpha $LORA_ALPHA --lora_dropout $LORA_DROPOUT --mm_projector_lr $MM_PROJECTOR_LR \
+        --freeze_mm_projector $FREEZE_MM_PROJECTOR \
         --audio_visual $AUDIO_VISUAL \
         --whisper_path $WHISPER_PATH \
         --audio_processor $WHISPER_PATH \
@@ -181,7 +201,7 @@ torchrun --standalone --nproc_per_node=$GPU_NUM \
         --evaluation_strategy "no" \
         --save_strategy "$SAVE_STRATEGY" \
         $([ "$SAVE_STRATEGY" = "steps" ] && echo "--save_steps $SAVE_STEPS") \
-        --save_total_limit 100 \
+        --save_total_limit ${SAVE_TOTAL_LIMIT:-5} \
         --learning_rate $LR \
         --weight_decay 0. \
         --warmup_ratio 0.03 \
@@ -209,6 +229,7 @@ torchrun --standalone --nproc_per_node=$GPU_NUM \
         --load_full $LOAD_FULL \
         ${LORA_PATH:+--lora_path $LORA_PATH} \
         --merge_and_new_lora $MERGE_AND_NEW_LORA \
+        --freeze_embed_lm_head $FREEZE_EMBED_LM_HEAD \
         --do_demo $DO_DEMO \
         --do_test $DO_TEST \
         --test_data_path $TEST_DATA_PATH \

@@ -3,7 +3,7 @@
 """
 parse_and_eval.py
   - vS2 inference 결과(test_results.json)를 파싱해서
-  - UnAV-100 기준 mAP를 계산한다 (AVicuna 방식: score=1.0 고정)
+  - UnAV-100 기준 mAP를 계산한다 (CLAP cosine sim confidence + all-point AP)
 
 Usage:
   python eval/parse_and_eval.py \
@@ -129,13 +129,14 @@ def _get_label_embeddings(valid_labels: list[str]):
 
 
 def fuzzy_match_label(pred_label: str, valid_labels: list[str],
-                      cutoff: float = 0.6) -> str:
+                      cutoff: float = 0.6):
+    """Returns (matched_label, confidence_score)."""
     pred_norm = normalize_label(pred_label)
     norm_map  = {normalize_label(v): v for v in valid_labels}
 
-    # 1. exact match
+    # 1. exact match → score 1.0
     if pred_norm in norm_map:
-        return norm_map[pred_norm]
+        return norm_map[pred_norm], 1.0
 
     # 2. CLAP text embedding cosine similarity NN
     model = _get_clap_model()
@@ -148,7 +149,8 @@ def fuzzy_match_label(pred_label: str, valid_labels: list[str],
 
     sims = (label_embs_norm @ pred_emb.T).squeeze()  # (N,)
     best_idx = int(np.argmax(sims))
-    return valid_labels[best_idx]
+    best_score = float(sims[best_idx])
+    return valid_labels[best_idx], best_score
 
 
 def _extract_event_dicts(raw: str) -> list[dict]:
@@ -241,11 +243,11 @@ def parse_single_output(raw: str, valid_labels: list[str],
         if end <= start:
             end = min(start + 1.0, max_time)
 
-        label = fuzzy_match_label(event_raw, valid_labels, cutoff=fuzzy_cutoff)
+        label, clap_score = fuzzy_match_label(event_raw, valid_labels, cutoff=fuzzy_cutoff)
 
         predictions.append({
             "label":   label,
-            "score":   1.0,    # AVicuna 방식: confidence 고정
+            "score":   clap_score,
             "segment": [start, end],
         })
 
@@ -391,12 +393,13 @@ class ANETdetection:
 
     @staticmethod
     def _voc_ap(recall, precision):
-        """VOC 11-point interpolation AP."""
-        ap = 0.0
-        for thr in np.linspace(0, 1, 11):
-            prec_at_thr = precision[recall >= thr]
-            p = float(prec_at_thr.max()) if prec_at_thr.size > 0 else 0.0
-            ap += p / 11.0
+        """VOC all-point interpolation AP (CCNet/AVicuna와 동일)."""
+        mrec = np.concatenate(([0.0], recall, [1.0]))
+        mpre = np.concatenate(([0.0], precision, [0.0]))
+        for i in range(len(mpre) - 1, 0, -1):
+            mpre[i - 1] = max(mpre[i - 1], mpre[i])
+        idx = np.where(mrec[1:] != mrec[:-1])[0]
+        ap = np.sum((mrec[idx + 1] - mrec[idx]) * mpre[idx + 1])
         return ap
 
 

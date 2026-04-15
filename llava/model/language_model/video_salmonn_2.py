@@ -447,7 +447,10 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                                     frame_per_time = real_time[image_idx] / num_frames
                                     time_idx = [str(round(frame_per_time * f_idx, 1)) for f_idx in range(1, num_frames + 1)]
                                     time_tokens = [self.tokenizer(t_idx, return_tensors='pt')["input_ids"].to(image_feature.device) for t_idx in time_idx]
-                                    time_embeds = [self.get_model().embed_tokens(t_tok.to(next(self.get_model().embed_tokens.parameters()).device)).squeeze() for t_tok in time_tokens]
+                                    # 직접 weight 인덱싱: embed_tokens() 모듈 forward를 중복 호출하면
+                                    # DeepSpeed ZeRO-2에서 gradient double-reduce 에러 발생
+                                    _emb_weight = self.get_model().embed_tokens.weight
+                                    time_embeds = [_emb_weight[t_tok.to(_emb_weight.device).squeeze()] for t_tok in time_tokens]
                                     padded_time_embeds = pad_sequence(time_embeds, batch_first=True).to(image_feature.device)
                                     image_feature = image_feature.view(num_frames, -1, image_feature.size(-1))
                                     image_feature = torch.cat((image_feature, padded_time_embeds), dim=1)
