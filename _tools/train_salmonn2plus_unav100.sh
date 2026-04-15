@@ -1,17 +1,16 @@
 #!/bin/bash
 # ============================================================
 # SALMONN2+ UnAV-100 multi-segment fine-tuning
-#   - Base: PU-VALOR 0.3ep LoRA checkpoint (best)
 #   - Data: UnAV-100 multi-segment QA
-#   - LoRA: r=128, alpha=256
-#   - GPU 5,7
+#   - LoRA: r=128, alpha=256 (from scratch)
+#   - GPU 1
 # ============================================================
 
 source /workspace/setup.sh
 conda activate salmonn2plus
 
-export CUDA_VISIBLE_DEVICES=4,5,6
-export ARNOLD_WORKER_GPU=3
+export CUDA_VISIBLE_DEVICES=0
+export ARNOLD_WORKER_GPU=1
 export ARNOLD_WORKER_NUM=1
 export ARNOLD_ID=0
 export METIS_WORKER_0_HOST=localhost
@@ -24,17 +23,8 @@ DATASET=${BASE_DIR}/data/unav100_train_multiseg_salmonn2plus.json
 OUTPUT_DIR=${CHECKPOINTS_DIR}/salmonn2plus_unav100_multiseg
 RUN_NAME=salmonn2plus_unav100
 
-# PU-VALOR best LoRA checkpoint 자동 탐색
-PUVALOR_DIR=${CHECKPOINTS_DIR}/salmonn2plus_puvalor_0.3ep
-LORA_CKPT=$(ls -d "$PUVALOR_DIR"/checkpoint-* 2>/dev/null | sort -V | tail -n 1)
-if [ -z "$LORA_CKPT" ]; then
-    echo "[ERROR] No PU-VALOR checkpoint found in $PUVALOR_DIR"
-    exit 1
-fi
-echo "Using PU-VALOR LoRA: $LORA_CKPT"
-
-# UnAV-100: 10358 samples, effective_batch=4 (bs=1, accum=2, gpu=2)
-# steps_per_epoch = 10358 / 4 = 2590
+# UnAV-100: 10358 samples, effective_batch=2 (bs=1, accum=2, gpu=1)
+# steps_per_epoch = 10358 / 2 = 5179
 # 1 epoch, save every 500 steps
 
 mkdir -p "$OUTPUT_DIR"
@@ -54,7 +44,6 @@ torchrun --standalone --nproc_per_node=$ARNOLD_WORKER_GPU \
     --lora_r 128 \
     --lora_alpha 256 \
     --lora_dropout 0.05 \
-    --lora_ckpt "$LORA_CKPT" \
     --bf16 \
     --output_dir "$OUTPUT_DIR" \
     --num_train_epochs 1 \
@@ -62,8 +51,8 @@ torchrun --standalone --nproc_per_node=$ARNOLD_WORKER_GPU \
     --gradient_accumulation_steps 2 \
     --max_pixels 176400 \
     --min_pixels 784 \
-    --video_max_frame_pixels 25088 \
-    --video_min_frame_pixels 3136 \
+    --video_max_frame_pixels 28224 \
+    --video_min_frame_pixels 784 \
     --eval_strategy "no" \
     --save_strategy "steps" \
     --save_steps 500 \
@@ -74,14 +63,14 @@ torchrun --standalone --nproc_per_node=$ARNOLD_WORKER_GPU \
     --max_grad_norm 1 \
     --lr_scheduler_type "cosine" \
     --logging_steps 1 \
-    --model_max_length 6000 \
+    --model_max_length 100000 \
     --gradient_checkpointing True \
     --dataloader_num_workers 4 \
     --run_name "$RUN_NAME" \
     --report_to wandb \
-    --video_min_frames 4 \
+    --video_min_frames 64 \
     --video_max_frames 128 \
-    --base_interval 2 \
+    --base_interval 0.2 \
     --train_type sft \
     --no_audio False \
     2>&1 | tee -a "$OUTPUT_DIR/train.log"
