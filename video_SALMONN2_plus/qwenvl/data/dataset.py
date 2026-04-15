@@ -34,7 +34,9 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
-from torchcodec.decoders import VideoDecoder, AudioDecoder
+from torchcodec.decoders import VideoDecoder
+import soundfile as sf
+import soxr
 import transformers
 
 from .rope2d import get_rope_index_25, get_rope_index_2
@@ -375,24 +377,18 @@ class LazySupervisedDataset(Dataset):
                 "return_attention_mask": False,
             }
             processor = copy.deepcopy(self.data_args.audio_processor)
+            def _load_audio(path, target_sr):
+                data, sr = sf.read(path, dtype="float32")
+                if data.ndim > 1:
+                    data = data.mean(axis=1)
+                if sr != target_sr:
+                    data = soxr.resample(data, sr, target_sr)
+                return data
+
             if isinstance(audio_file, list):
-                audio_data = []
-                for file in audio_file:
-                    decoder = AudioDecoder(
-                        file,
-                        sample_rate=audio_kwargs["sampling_rate"],
-                        num_channels=1,
-                    )
-                    audio = decoder.get_all_samples()
-                    audio_data.append(audio.data.numpy().squeeze(0))
+                audio_data = [_load_audio(f, audio_kwargs["sampling_rate"]) for f in audio_file]
             else:
-                decoder = AudioDecoder(
-                    audio_file,
-                    sample_rate=audio_kwargs["sampling_rate"],
-                    num_channels=1,
-                )
-                audio = decoder.get_all_samples()
-                audio_data = [audio.data.numpy().squeeze(0)]
+                audio_data = [_load_audio(audio_file, audio_kwargs["sampling_rate"])]
             audio_inputs = []
             audio_lengths = []
             for idx in range(len(audio_data)):
