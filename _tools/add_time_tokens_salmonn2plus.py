@@ -6,6 +6,7 @@ SALMONN2+ 모델에 VTG-LLM time token (<t0>~<t9>, <tdot>)을 추가.
 - 저장
 """
 import argparse
+import os
 import torch
 from transformers import AutoTokenizer
 
@@ -33,7 +34,7 @@ def main():
 
     print(f"[3/4] Loading model and resizing embeddings")
     import sys
-    sys.path.insert(0, "/home/aix23102/audiolm/video-SALMONN-2/video_SALMONN2_plus")
+    sys.path.insert(0, os.path.join(os.environ["BASE_DIR"], "video_SALMONN2_plus"))
     from qwenvl.model.modeling_qwen2_5_vl import video_SALMONN2_plus
 
     model = video_SALMONN2_plus.from_pretrained(

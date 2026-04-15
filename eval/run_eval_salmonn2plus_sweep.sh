@@ -5,21 +5,21 @@
 # ============================================================
 set -eo pipefail
 
-source /home/aix23102/anaconda3/etc/profile.d/conda.sh
+source /workspace/setup.sh
 conda activate salmonn2plus
 
 export ARNOLD_WORKER_NUM=1
 export ARNOLD_ID=0
 export METIS_WORKER_0_HOST=localhost
 
-BASE_CODE=/home/aix23102/audiolm/video-SALMONN-2/video_SALMONN2_plus
-MODEL_BASE=/data0/aix23102/checkpoints_open_aligner/video_salmonn2_plus_7B_time_tokens
-TEST_JSON=/home/aix23102/audiolm/vS2_eunji/data/unav100_test_multiseg_sub80.json
-EVAL_SCRIPT=/home/aix23102/audiolm/vS2_eunji/eval/eval_miou_multiseg.py
-RESULTS_BASE=/home/aix23102/audiolm/vS2_eunji/eval/results/salmonn2plus_sweep
+BASE_CODE=${BASE_DIR}/video_SALMONN2_plus
+MODEL_BASE=${CHECKPOINTS_DIR}/video_salmonn2_plus_7B_time_tokens
+TEST_JSON=${BASE_DIR}/data/unav100_test_multiseg_sub80.json
+EVAL_SCRIPT=${BASE_DIR}/eval/eval_miou_multiseg.py
+RESULTS_BASE=${BASE_DIR}/eval/results/salmonn2plus_sweep
 
-PUVALOR_DIR=/data0/aix23102/checkpoints_open_aligner/salmonn2plus_puvalor_0.3ep
-UNAV_DIR=/data0/aix23102/checkpoints_open_aligner/salmonn2plus_unav100_multiseg
+PUVALOR_DIR=${CHECKPOINTS_DIR}/salmonn2plus_puvalor_0.3ep
+UNAV_DIR=${CHECKPOINTS_DIR}/salmonn2plus_unav100_multiseg
 
 cd "$BASE_CODE"
 
