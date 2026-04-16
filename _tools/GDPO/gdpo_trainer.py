@@ -322,6 +322,7 @@ class GDPOTrainer(Trainer):
 
         logits = logits[:, :-1, :]   # (B, L_logits-1, V)
         input_ids = input_ids[:, 1:]  # (B, L_input-1)
+        # 멀티모달 임베딩 확장으로 logits과 input_ids 길이가 다를 수 있음
         # completion 토큰은 시퀀스 끝에 있으므로 뒤에서부터 정렬
         min_len = min(logits.size(1), input_ids.size(1))
         logits = logits[:, -min_len:, :]
@@ -398,6 +399,8 @@ class GDPOTrainer(Trainer):
         prompt_mask = inputs["attention_mask"].to(device)
 
         # GT 답변 제거 — 프롬프트만 추출
+        # av_dataset.py는 SFT용이라 input_ids에 프롬프트+GT답변이 합쳐져 있음
+        # labels에서 IGNORE_INDEX(-100)가 아닌 첫 위치 = 답변 시작점
         labels = inputs.get("labels", None)
         if labels is not None:
             labels = labels.to(device)
@@ -406,7 +409,6 @@ class GDPOTrainer(Trainer):
                 prompt_end_idx = answer_start[0].item()
                 prompt_ids = prompt_ids[:, :prompt_end_idx]
                 prompt_mask = prompt_mask[:, :prompt_end_idx]
-
 
         # 멀티모달 입력 (av_dataset.py가 전처리 완료)
         images = inputs.get("images", None)
@@ -433,6 +435,7 @@ class GDPOTrainer(Trainer):
 
         # 멀티모달 인코딩을 1번만 수행하고 캐싱 (SigLIP + Whisper는 deterministic)
         with unwrap_model_for_generation(model, self.accelerator) as unwrapped_model:
+            # PeftModel → VideoSALMONN2ForCausalLM 까지만 (prepare_inputs_labels_for_multimodal이 여기 있음)
             base_model = unwrapped_model
             while not hasattr(base_model, "prepare_inputs_labels_for_multimodal"):
                 base_model = base_model.model
@@ -450,7 +453,10 @@ class GDPOTrainer(Trainer):
             batched_mask = cached_attention_mask.repeat(self.num_generations, 1)
             batched_pos = cached_position_ids.repeat(self.num_generations, 1) if cached_position_ids is not None else None
 
+<<<<<<< HEAD
             #generate
+=======
+>>>>>>> a2aec1f3fc9826ce60202ef1e660f44de3646ae0
             batched_gen_ids = unwrapped_model.generate(
                 inputs_embeds=batched_embeds,
                 position_ids=batched_pos,
@@ -500,7 +506,11 @@ class GDPOTrainer(Trainer):
 
 
         # ── Per-token log probs (policy) ──
+<<<<<<< HEAD
         # policy는 gradient 필요 → 원본 멀티모달 입력 사용
+=======
+        # policy는 gradient 필요 → 캐싱 embeds 사용 불가, 원본 멀티모달 입력 사용
+>>>>>>> a2aec1f3fc9826ce60202ef1e660f44de3646ae0
         all_per_token_logps = []
         for g in range(self.num_generations):
             g_logps = self._get_per_token_logps(
@@ -520,7 +530,11 @@ class GDPOTrainer(Trainer):
 
 
         # ── Per-token log probs (reference) ──
+<<<<<<< HEAD
         # ref 원본 멀티모달 입력 사용
+=======
+        # ref도 원본 멀티모달 입력 사용 (캐싱 embeds 경로와 logits이 달라지는 문제 방지)
+>>>>>>> a2aec1f3fc9826ce60202ef1e660f44de3646ae0
         if self.beta != 0.0:
             with torch.inference_mode():
                 all_ref_logps = []
@@ -720,6 +734,21 @@ def load_model_and_tokenizer(model_path, model_base):
         **audio_config,
     )
     model.resize_token_embeddings(len(tokenizer))
+
+    # time token 임베딩 복원 (SFT에서 학습된 embed_tokens + lm_head)
+    time_token_path = os.path.join(model_path, "time_token_rows.pt")
+    if os.path.exists(time_token_path):
+        print(f"[GDPO] Loading time token embeddings from: {time_token_path}")
+        tt_data = torch.load(time_token_path, map_location="cpu", weights_only=False)
+        time_ids = tt_data["time_ids"]
+        input_emb = tt_data["input_emb_rows"].to(torch.bfloat16)
+        output_emb = tt_data["output_emb_rows"].to(torch.bfloat16)
+        with torch.no_grad():
+            for i, tid in enumerate(time_ids):
+                model.get_input_embeddings().weight[tid] = input_emb[i]
+                model.get_output_embeddings().weight[tid] = output_emb[i]
+        print(f"[GDPO] Restored {len(time_ids)} time token embeddings")
+
     model = model.to(torch.bfloat16)
 
     # 인코더 분리
@@ -737,25 +766,6 @@ def load_model_and_tokenizer(model_path, model_base):
         model = PeftModel.from_pretrained(model, model_path, is_trainable=True)
     else:
         print("[GDPO] No LoRA adapter found, using base model")
-
-    # SFT에서 학습된 time token embedding/lm_head 가중치 복원
-    # resize_token_embeddings는 새 토큰 자리를 랜덤 초기화하므로,
-    # SFT 체크포인트의 time_token_rows.pt에서 학습된 가중치를 덮어써야 한다.
-    _time_rows_path = os.path.join(model_path, "time_token_rows.pt")
-    if os.path.exists(_time_rows_path):
-        payload = torch.load(_time_rows_path, map_location="cpu")
-        time_ids = payload.get("time_ids", [])
-        if time_ids:
-            m = model.get_base_model() if hasattr(model, "get_base_model") else model
-            in_emb = m.get_input_embeddings()
-            out_emb = m.get_output_embeddings()
-            idx = torch.tensor(time_ids, dtype=torch.long, device=in_emb.weight.device)
-            in_emb.weight.data.index_copy_(0, idx, payload["input_emb_rows"].to(in_emb.weight.device))
-            if "output_emb_rows" in payload and out_emb is not None and hasattr(out_emb, "weight"):
-                out_emb.weight.data.index_copy_(0, idx, payload["output_emb_rows"].to(out_emb.weight.device))
-            print(f"[GDPO] Loaded time token embeddings from {_time_rows_path} ({len(time_ids)} tokens)")
-    else:
-        print(f"[GDPO] WARNING: time_token_rows.pt not found at {model_path}, time token embeddings remain random")
 
     # 인코더 붙이기
     print("[GDPO] Re-attaching encoders...")
