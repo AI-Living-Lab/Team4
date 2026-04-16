@@ -1,0 +1,77 @@
+[
+  {
+    "video": "/data0/aix23102/unav_100/videos/--56QUhyDQM.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/--56QUhyDQM.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing tennis occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t3><tdot><t3> to <t0><t0><t0><t5><tdot><t6>. From <t0><t0><t0><t9><tdot><t1> to <t0><t0><t1><t0><tdot><t0>. From <t0><t0><t1><t3><tdot><t4> to <t0><t0><t1><t4><tdot><t0>. From <t0><t0><t2><t4><tdot><t4> to <t0><t0><t2><t5><tdot><t2>."
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/--5OkAjCI7g.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/--5OkAjCI7g.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people laughing occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t2><tdot><t7> to <t0><t0><t0><t3><tdot><t7>. From <t0><t0><t0><t8><tdot><t5> to <t0><t0><t1><t5><tdot><t4>. From <t0><t0><t1><t8><tdot><t1> to <t0><t0><t2><t7><tdot><t2>. From <t0><t0><t3><t1><tdot><t6> to <t0><t0><t3><t8><tdot><t0>."
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/--5OkAjCI7g.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/--5OkAjCI7g.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nIn which segments of the video do we find kid speaking visually or audibly represented?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t3><tdot><t9> to <t0><t0><t0><t5><tdot><t2>. From <t0><t0><t0><t8><tdot><t8> to <t0><t0><t1><t5><tdot><t4>. From <t0><t0><t4><t2><tdot><t2> to <t0><t0><t4><t8><tdot><t0>."
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/--9O4XZOge4.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/--9O4XZOge4.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nCan you identify the timestamps where woman speaking happens in the video?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t0><tdot><t0>."
+      }
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/--EquRwM9IQ.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/--EquRwM9IQ.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nCan you identify the timestamps where playing volleyball happens in the video?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t4><tdot><t6>. From <t0><t0><t0><t7><tdot><t6> to <t0><t0><t3><t3><tdot><t9>."
+      }
+    ]
+  }
+  ]
