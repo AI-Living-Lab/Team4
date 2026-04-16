@@ -31,15 +31,16 @@ mkdir -p "$OUTPUT_DIR"
 
 torchrun --standalone --nproc_per_node=$ARNOLD_WORKER_GPU \
     qwenvl/train/train_qwen.py \
-    --deepspeed scripts/zero2.json \
+    --deepspeed scripts/zero3_offload.json \
     --model_name_or_path "$MODEL" \
     --model_base "$MODEL_BASE" \
     --dataset_use "$DATASET" \
     --tune_mm_vision False \
-    --tune_mm_mlp True \
+    --tune_mm_mlp False \
     --tune_mm_llm False \
     --tune_mm_audio False \
-    --tune_mm_qformer True \
+    --tune_mm_qformer False \
+    --tune_lm_head True \
     --use_lora True \
     --lora_r 128 \
     --lora_alpha 256 \

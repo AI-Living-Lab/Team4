@@ -156,6 +156,10 @@ def set_model(model_args, model):
         model.model.requires_grad_(False)
         model.lm_head.requires_grad_(False)
 
+    if model_args.tune_lm_head:
+        model.lm_head.requires_grad_(True)
+        model.model.embed_tokens.requires_grad_(True)
+
 
 def train(attn_implementation="flash_attention_2"):
     global local_rank
@@ -256,6 +260,9 @@ def train(attn_implementation="flash_attention_2"):
                 module_to_save.append("audio.qformer")
                 module_to_save.append("audio.q_tokens")
                 module_to_save.append("audio.audio_proj")
+            if model_args.tune_lm_head:
+                module_to_save.append("lm_head")
+                module_to_save.append("model.embed_tokens")
             lora_config = LoraConfig(
                 r=model_args.lora_r,
                 lora_alpha=model_args.lora_alpha,
