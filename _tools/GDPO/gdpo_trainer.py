@@ -1,37 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-gdpo_trainer.py 
+gdpo_trainer.py (VS2+ / Qwen2.5-VL 버전)
   transformers.Trainer 상속 + GDPO compute_loss 전체 루프.
-  Time-R1(timer1_trainer.py), Omni-R1(grpo_trainer.py) 구조 기반.
-  VideoSALMONN2 멀티모달 API에 맞게 구현.
+  VS2+ (video_SALMONN2_plus) 백본 기반.
 
 Usage:
-  # config.yaml 사용 (권장)
   set -a && source paths.env && set +a
-  python _tools/GDPO/gdpo_trainer.py --config _tools/GDPO/config.yaml
-
-  # CLI 직접 지정
-  python -m _tools.GDPO_v2_revised.gdpo_trainer \\
-    --model_path ${SFT_CKPT} --model_base ${BASE_MODEL} \\
-    --dataset_path data/unav100_train_gdpo.json
-
-    set -a && source paths.env && set +a
-    python _tools/GDPO/gdpo_trainer.py \
-    --config _tools/GDPO/config.yaml \
+  python _tools/GDPO_revised/gdpo_trainer.py \
+    --config _tools/GDPO_revised/config.yaml \
     --model_path ${SFT_CKPT} \
     --model_base ${BASE_MODEL} \
     --dataset_path data/unav100_train_dense.json \
-    --output_dir output/gdpo_test  
-
-참고:
-  - Time-R1: https://github.com/xiaomi-research/time-r1
-  - Omni-R1: https://github.com/aim-uofa/Omni-R1
-  - GDPO:    https://github.com/NVlabs/GDPO
+    --output_dir output/gdpo_vs2plus
 """
 
-
-# 임포트
 import argparse
 import json
 import os
@@ -51,7 +34,6 @@ from transformers import (
     GenerationConfig,
     PreTrainedModel,
     Trainer,
-    # is_wandb_available,
 )
 from transformers.integrations.deepspeed import is_deepspeed_zero3_enabled
 from transformers.utils import is_peft_available
@@ -63,10 +45,6 @@ if is_peft_available():
     from peft import PeftConfig, PeftModel, get_peft_model
 
 
-# if is_wandb_available():
-#     import wandb
-
-
 
 
 
@@ -75,17 +53,19 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from llava.model.language_model.video_salmonn_2 import VideoSALMONN2ForCausalLM
-from llava.dataset.av_dataset import LazyAVSupervisedDataset, DataCollatorForAVSupervisedDataset
+# VS2+ 모델
+sys.path.insert(0, os.path.join(PROJECT_ROOT, "video_SALMONN2_plus"))
+from qwenvl.model.modeling_qwen2_5_vl import video_SALMONN2_plus
+from qwenvl.data.dataset import LazySupervisedDataset, DataCollatorForSupervisedDataset
 
-# 같은 폴더의 reward_functions
+
+
+# reward 함수
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _THIS_DIR)
-from reward_functions import format_reward, label_reward, iou_reward
+from reward_functions import format_reward, iou_reward
 
-# 리워드 함수 타입 정의
 RewardFunc = Union[str, PreTrainedModel, Callable[[list, list], list[float]]]
-
 
 
 
@@ -95,12 +75,10 @@ RewardFunc = Union[str, PreTrainedModel, Callable[[list, list], list[float]]]
 # 유틸리티
 # ============================================================
 
-# 둘 다 로깅용. 일단 둘 다 있어서 가져옴
 def nanmin(tensor: torch.Tensor) -> torch.Tensor:
     if torch.isnan(tensor).all():
         return torch.tensor(float("nan"), dtype=tensor.dtype, device=tensor.device)
     return torch.min(tensor[~torch.isnan(tensor)])
-
 
 def nanmax(tensor: torch.Tensor) -> torch.Tensor:
     if torch.isnan(tensor).all():
@@ -111,17 +89,12 @@ def nanmax(tensor: torch.Tensor) -> torch.Tensor:
 
 
 
-
-
 # ============================================================
 # GDPOTrainer
 # ============================================================
 
 class GDPOTrainer(Trainer):
-    """GDPO Trainer — transformers.Trainer 상속.
-
-    compute_loss() 안에서 generate → reward → GDPO advantage → loss 전체 수행.
-    """
+    """GDPO Trainer for VS2+ (Qwen2.5-VL 백본)."""
 
     def __init__(
         self,
@@ -129,7 +102,6 @@ class GDPOTrainer(Trainer):
         reward_funcs: list[RewardFunc],
         args: GRPOConfig = None,
         train_dataset=None,
-        # eval_dataset = None,
         processing_class=None,
         ref_model: Optional[PreTrainedModel] = None,
         callbacks=None,
@@ -137,44 +109,27 @@ class GDPOTrainer(Trainer):
         peft_config: Optional["PeftConfig"] = None,
         reward_weights: Optional[list[float]] = None,
     ):
-        # ── Args 기본값 ──
-        # trl에서 들고온 GRPOConfig 
         if args is None:
             model_name = model.config._name_or_path.split("/")[-1]
             args = GRPOConfig(f"{model_name}-GDPO")
 
 
-        # ── PEFT ──
-        # TODO : llm과 encoder 분리
-
-
+        # PEFT
+        # LoRA adapter가 타겟을 llm으로 이미 지정해뒀기 때문에
+        # 이전처럼 인코더 분리를 할 필요가 없음.
         if peft_config is not None:
-            # 인코더 분리
-            speech_encoder = model.speech_encoder
-            model.speech_encoder = None
-            vision_tower = model.vision_tower if hasattr(model, "vision_tower") else None
-            if vision_tower is not None:
-                model.vision_tower = None
-            
-            # 로라 적용
             model = get_peft_model(model, peft_config)
-            
-            # 인코더 붙이기
-            model.model.speech_encoder = speech_encoder
-            if vision_tower is not None:
-                model.model.model.vision_tower = vision_tower
-
-            # model = get_peft_model(model, peft_config)
 
 
-        # ── Reference model ──
+
+        # Reference model
         self.beta = args.beta
         if self.beta == 0.0:
             self.ref_model = None
         elif ref_model is not None:
             self.ref_model = ref_model
         elif is_deepspeed_zero3_enabled():
-            self.ref_model = VideoSALMONN2ForCausalLM.from_pretrained(
+            self.ref_model = video_SALMONN2_plus.from_pretrained(
                 model.config._name_or_path,
                 attn_implementation="sdpa",
                 torch_dtype=torch.bfloat16,
@@ -182,11 +137,12 @@ class GDPOTrainer(Trainer):
         elif peft_config is None:
             self.ref_model = create_reference_model(model)
         else:
-            # PEFT 사용 시 adapter disable로 ref 역할을 함
+            # PEFT 사용 시 adapter disable로 ref 역할
             self.ref_model = None
 
 
-        # ── Processing class ──
+
+        # Processing class
         if processing_class is None:
             processing_class = AutoTokenizer.from_pretrained(
                 model.config._name_or_path, padding_side="left"
@@ -196,7 +152,7 @@ class GDPOTrainer(Trainer):
             pad_token_id = processing_class.eos_token_id
 
 
-        # ── Reward functions ──
+        # Reward functions
         if not isinstance(reward_funcs, list):
             reward_funcs = [reward_funcs]
         self.reward_funcs = reward_funcs
@@ -207,7 +163,7 @@ class GDPOTrainer(Trainer):
             self.reward_weights = torch.ones(len(reward_funcs), dtype=torch.float32)
 
 
-        # ── Generation config ──
+        # Generation config
         self.max_completion_length = args.max_completion_length
         self.num_generations = args.num_generations
         self.temperature = getattr(args, "temperature", 1.0)
@@ -221,33 +177,25 @@ class GDPOTrainer(Trainer):
         )
 
 
-        # ── PPO-clip epsilon ──
-        # use_grpo가 False면 대신 ppo-clip을 쓰게 합니다..
+        # PPO-clip epsilon
         self.epsilon_low = getattr(args, "epsilon", 0.2)
         self.epsilon_high = getattr(args, "epsilon_high", None) or self.epsilon_low
         self.use_grpo = getattr(args, "use_grpo", True)
 
 
-        # ── Data collator --
-        # av_dataset.py의 collator 사용
-        data_collator = DataCollatorForAVSupervisedDataset(tokenizer=processing_class)
+        # Data collator — VS2+
+        # VS2의 av_dataset.py 대체하는 LazySupervisedDataset
+        data_collator = DataCollatorForSupervisedDataset(tokenizer=processing_class)
 
 
-        # suppress FLOPs warning
-        # The trainer estimates the number of FLOPs (floating-point operations) using the number of elements in the
-        # input tensor associated with the key "input_ids". However, in GRPO, the sampled data does not include the
-        # "input_ids" key. Instead, the available keys is "prompt". As a result, the trainer issues the warning:
-        # "Could not estimate the number of tokens of the input, floating-point operations will not be computed." To
-        # suppress this warning, we set the "estimate_tokens" key in the model's "warnings_issued" dictionary to True.
-        # This acts as a flag to indicate that the warning has already been issued.
-        # 로그용
+        # 로그 정리 용
         model.warnings_issued["estimate_tokens"] = True
 
-
-        # ── Metrics ──
+        # 메트릭
         self._metrics = defaultdict(list)
 
-        # ── super().__init__ ──
+
+
         super().__init__(
             model=model,
             args=args,
@@ -260,7 +208,6 @@ class GDPOTrainer(Trainer):
 
         self.model_accepts_loss_kwargs = False
 
-        # ── Prepare ref_model for deepspeed ──
         if self.ref_model is not None:
             if self.is_deepspeed_enabled:
                 self.ref_model = prepare_deepspeed(self.ref_model, self.accelerator)
@@ -271,10 +218,8 @@ class GDPOTrainer(Trainer):
 
 
 
-
-
     # ============================================================
-    # Trainer 오버라이드: 기본 전처리 비활성화
+    # Trainer 오버라이드 : 비활성화
     # ============================================================
 
     def _set_signature_columns_if_needed(self):
@@ -284,55 +229,43 @@ class GDPOTrainer(Trainer):
     def _prepare_inputs(self, inputs):
         return inputs
 
-
-
     # ============================================================
-    # Per-token log probabilities (VS2 API)
+    # Per-token log probabilities (VS2+ API)
     # ============================================================
 
     def _get_per_token_logps(
         self, model, input_ids, attention_mask,
-        images=None, spectrogram=None, org_groups=None, real_time=None, modalities=None,
-        inputs_embeds=None,
+        pixel_values_videos=None, video_grid_thw=None,
+        audio_feature=None, audio_lengths=None,
+        position_ids=None, second_per_grid_ts=None,
     ):
-        """model.forward → logits → per-token log probability.
-        inputs_embeds가 주어지면 멀티모달 인코딩을 건너뛰고 직접 사용.
-        """
-        if inputs_embeds is not None:
-            # 캐싱된 임베딩 사용 → 인코딩 스킵
-            logits = model(
-                input_ids=None,
-                attention_mask=attention_mask,
-                inputs_embeds=inputs_embeds,
-                dpo_forward=False,
-                use_cache=False,
-            ).logits
-        else:
-            logits = model(
-                input_ids,
-                attention_mask=attention_mask,
-                images=images,
-                spectrogram=spectrogram,
-                org_groups=org_groups,
-                real_time=real_time,
-                modalities=modalities,
-                dpo_forward=False,
-                use_cache=False,
-            ).logits  # (B, L, V)
+        """VS2+의 sft_forward 
+        → logits 
+        → per-token log probability."""
+        # sft_forward 내부에서 inputs_embeds 분기를 처리
+        logits = model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            pixel_values_videos=pixel_values_videos,
+            video_grid_thw=video_grid_thw,
+            audio_feature=audio_feature,
+            audio_lengths=audio_lengths,
+            second_per_grid_ts=second_per_grid_ts,
+            train_type="sft",
+            use_cache=False,
+        ).logits
 
-        logits = logits[:, :-1, :]   # (B, L_logits-1, V)
-        input_ids = input_ids[:, 1:]  # (B, L_input-1)
-        # 멀티모달 임베딩 확장으로 logits과 input_ids 길이가 다를 수 있음
-        # completion 토큰은 시퀀스 끝에 있으므로 뒤에서부터 정렬
+        logits = logits[:, :-1, :]
+        input_ids = input_ids[:, 1:]
+        # 길이 정렬
         min_len = min(logits.size(1), input_ids.size(1))
         logits = logits[:, -min_len:, :]
         input_ids = input_ids[:, -min_len:]
-        # vocab 범위 밖 토큰 방지 (패딩 등)
         vocab_size = logits.size(-1)
         input_ids = input_ids.clamp(0, vocab_size - 1)
 
         per_token_logps = []
-
         for logits_row, input_ids_row in zip(logits, input_ids):
             log_probs = logits_row.log_softmax(dim=-1)
             token_log_prob = torch.gather(
@@ -344,20 +277,16 @@ class GDPOTrainer(Trainer):
 
 
 
+
     # ============================================================
     # GDPO advantage 계산
     # ============================================================
-
+    # 기존 코드와 동일
     def _compute_gdpo_advantages(self, rewards_per_func, rewards):
-        """
-        리워드 함수가 1개면 기본 GRPO 정규화로 fallback.
-        """
         num_funcs = rewards_per_func.shape[1]
         device = rewards_per_func.device
 
-        # 리워드 함수
         if num_funcs <= 1:
-            # 기본 GRPO
             mean = rewards.view(-1, self.num_generations).mean(dim=1)
             std = rewards.view(-1, self.num_generations).std(dim=1)
             mean = mean.repeat_interleave(self.num_generations, dim=0)
@@ -376,14 +305,15 @@ class GDPOTrainer(Trainer):
             normed = ((grouped - mean_g) / (std_g + 1e-4)).view(-1)
             all_adv.append(normed)
 
-        stacked = torch.stack(all_adv, dim=1)  # (B*G, num_funcs)
+        stacked = torch.stack(all_adv, dim=1)
         combined = (stacked * reward_weights.unsqueeze(0)).sum(dim=1)
         advantages = (combined - combined.mean()) / (combined.std() + 1e-4)
         return advantages
 
 
+
     # ============================================================
-    # compute_loss — 핵심
+    # compute_loss 
     # ============================================================
 
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
@@ -392,15 +322,11 @@ class GDPOTrainer(Trainer):
 
         device = self.accelerator.device
 
-
-        # ── 입력 추출 ──
-        # av_dataset.py의 DataCollatorForAVSupervisedDataset이 만든 배치 딕셔너리
+        # ── 입력 추출 (VS2+ 데이터셋 필드) ──
         prompt_ids = inputs["input_ids"].to(device)
         prompt_mask = inputs["attention_mask"].to(device)
 
         # GT 답변 제거 — 프롬프트만 추출
-        # av_dataset.py는 SFT용이라 input_ids에 프롬프트+GT답변이 합쳐져 있음
-        # labels에서 IGNORE_INDEX(-100)가 아닌 첫 위치 = 답변 시작점
         labels = inputs.get("labels", None)
         if labels is not None:
             labels = labels.to(device)
@@ -410,131 +336,125 @@ class GDPOTrainer(Trainer):
                 prompt_ids = prompt_ids[:, :prompt_end_idx]
                 prompt_mask = prompt_mask[:, :prompt_end_idx]
 
-        # 멀티모달 입력 (av_dataset.py가 전처리 완료)
-        images = inputs.get("images", None)
-        spectrogram = inputs.get("spectrogram", None)
-        if spectrogram is not None:
-            spectrogram = spectrogram.to(device=device, dtype=torch.bfloat16)
-        org_groups = inputs.get("org_groups", None)
-        real_time = inputs.get("real_time", None)
-        modalities = inputs.get("modalities", ["text"])
 
-        # 리워드 계산용 GT
-        gt_events = inputs.get("gt_events", [None])[0] or []
-        prompt_text = inputs.get("prompts", [""])[0]
+        # 멀티모달 입력
+        pixel_values_videos = inputs.get("pixel_values_videos", None)
+        if pixel_values_videos is not None:
+            pixel_values_videos = pixel_values_videos.to(device=device, dtype=torch.bfloat16)
+        video_grid_thw = inputs.get("video_grid_thw", None)
+        if video_grid_thw is not None:
+            video_grid_thw = video_grid_thw.to(device)
+
+        audio_feature = inputs.get("audio_feature", None)
+        if audio_feature is not None:
+            audio_feature = audio_feature.to(device=device, dtype=torch.bfloat16)
+        audio_lengths = inputs.get("audio_lengths", None)
+
+        second_per_grid_ts = inputs.get("second_per_grid_ts", None)
+        if second_per_grid_ts is not None:
+            second_per_grid_ts = second_per_grid_ts.to(device)
+
+
+        # 리워드 계산용 GT — gpt 답변에서 시간 구간 추출
+        # multi-segment QA 포맷: "From <t0>...<t3> to <t0>...<t6>. From ..."
+        # labels에서 GT 답변 토큰을 디코딩 → 시간 구간 리스트로 파싱
+        from reward_functions import decode_vtg_time
+        gt_intervals = []
+        raw_labels = inputs.get("labels", None)
+        if raw_labels is not None:
+            raw_labels = raw_labels.to(device)
+            gt_token_ids = raw_labels[0][raw_labels[0] != -100]
+            if len(gt_token_ids) > 0:
+                gt_answer = self.processing_class.decode(gt_token_ids, skip_special_tokens=False)
+                # "From <t...> to <t...>" 패턴에서 시간 구간 추출
+                segments = re.findall(
+                    r"[Ff]rom\s+((?:<t\d>)+<tdot><t\d>)\s+to\s+((?:<t\d>)+<tdot><t\d>)",
+                    gt_answer
+                )
+                for start_str, end_str in segments:
+                    s = decode_vtg_time(start_str)
+                    e = decode_vtg_time(end_str)
+                    if s is not None and e is not None and e > s:
+                        gt_intervals.append((s, e))
 
 
         # ── Generate completions ──
-        # num_return_sequences는 inputs_embeds와 호환 안 됨 → G번 루프
         all_completion_ids = []
+        # TODO : 추후 확인 필요
+        # VS2+가 generate 반환하는거에 따라 달라질 수 있음
         prompt_length = prompt_ids.size(1)
 
-        # generate 시 gradient_checkpointing 비활성화 (KV 캐시 충돌 방지)
+        # generate 동안 비활성화
         if hasattr(model, "gradient_checkpointing_disable"):
             model.gradient_checkpointing_disable()
 
-        # 멀티모달 인코딩을 1번만 수행하고 캐싱 (SigLIP + Whisper는 deterministic)
+        # 일단 캐싱 구현 X
+        # TODO : generate 반환에 따라 나중에
+        # 캐싱 구현 가능성 있음
         with unwrap_model_for_generation(model, self.accelerator) as unwrapped_model:
-            # PeftModel → VideoSALMONN2ForCausalLM 까지만 (prepare_inputs_labels_for_multimodal이 여기 있음)
-            base_model = unwrapped_model
-            while not hasattr(base_model, "prepare_inputs_labels_for_multimodal"):
-                base_model = base_model.model
-            with torch.no_grad():
-                (_, cached_position_ids, cached_attention_mask, _, cached_inputs_embeds, _) = (
-                    base_model.prepare_inputs_labels_for_multimodal(
-                        prompt_ids, None, prompt_mask, None, None,
-                        images, modalities,
-                        spectrogram=spectrogram, org_groups=org_groups, real_time=real_time,
-                    )
+            for _ in range(self.num_generations):
+                gen_ids = unwrapped_model.generate(
+                    input_ids=prompt_ids,
+                    attention_mask=prompt_mask,
+                    pixel_values_videos=pixel_values_videos,
+                    video_grid_thw=video_grid_thw,
+                    audio_feature=audio_feature,
+                    audio_lengths=audio_lengths,
+                    max_new_tokens=self.max_completion_length,
+                    do_sample=True,
+                    temperature=self.temperature,
+                    top_p=0.9,
+                    min_new_tokens=30,
                 )
+                all_completion_ids.append(gen_ids)
 
-            # 캐싱된 inputs_embeds를 G개로 복제하여 배치 생성 (순차 루프 → 1회 호출)
-            batched_embeds = cached_inputs_embeds.repeat(self.num_generations, 1, 1)
-            batched_mask = cached_attention_mask.repeat(self.num_generations, 1)
-            batched_pos = cached_position_ids.repeat(self.num_generations, 1) if cached_position_ids is not None else None
-
-<<<<<<< HEAD
-            #generate
-=======
->>>>>>> a2aec1f3fc9826ce60202ef1e660f44de3646ae0
-            batched_gen_ids = unwrapped_model.generate(
-                inputs_embeds=batched_embeds,
-                position_ids=batched_pos,
-                attention_mask=batched_mask,
-                max_new_tokens=self.max_completion_length,
-                do_sample=True,
-                temperature=self.temperature,
-                top_p=0.9,
-                min_new_tokens=30,
-            )
-            # 배치 결과를 개별 리스트로 분리
-            for g in range(self.num_generations):
-                all_completion_ids.append(batched_gen_ids[g:g+1])
-
-        # gradient_checkpointing 다시 활성화
+        # generate 끝나고 활성화
         if hasattr(model, "gradient_checkpointing_enable"):
             model.gradient_checkpointing_enable()
 
-        # 길이 맞춰서 패딩 후 결합
+        # 패딩 후 결합
         import torch.nn.functional as F
         max_len = max(c.size(1) for c in all_completion_ids)
         pad_id = self.processing_class.pad_token_id or 0
         padded = [F.pad(c, (0, max_len - c.size(1)), value=pad_id) for c in all_completion_ids]
-        completion_ids = torch.cat(padded, dim=0)  # (G, max_len)
-        prompt_ids = prompt_ids.repeat(self.num_generations, 1)  # (G, P)
-        prompt_completion_ids = torch.cat([prompt_ids, completion_ids], dim=1)  # (G, P+C)
+        completion_ids = torch.cat(padded, dim=0)
+        prompt_ids = prompt_ids.repeat(self.num_generations, 1)
+        prompt_completion_ids = torch.cat([prompt_ids, completion_ids], dim=1)
         prompt_mask = prompt_mask.repeat(self.num_generations, 1)
 
-
-        # Mask everything after the first EOS token
+        # EOS 마스크
         is_eos = completion_ids == self.processing_class.eos_token_id
         eos_idx = torch.full((is_eos.size(0),), is_eos.size(1), dtype=torch.long, device=device)
         if completion_ids.size(1) > 0 and is_eos.any():
             eos_idx[is_eos.any(dim=1)] = is_eos.int().argmax(dim=1)[is_eos.any(dim=1)]
         sequence_indices = torch.arange(is_eos.size(1), device=device).expand(is_eos.size(0), -1)
         completion_mask = (sequence_indices <= eos_idx.unsqueeze(1)).int()
-        # Concatenate prompt_mask with completion_mask for logit computation
         attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)
 
-
-        # 샘플 요약 로그 — 실제 유효 길이 (EOS까지)
+        # 로그
         actual_lengths = completion_mask.sum(dim=1).tolist()
         print(f"[GDPO STEP] prompt_len={prompt_length}, actual_lengths={[int(l) for l in actual_lengths]}, comp_len={completion_ids.size(1)}")
 
-        # completion 길이 (뒤에서부터 자르기 위해)
         comp_len = completion_ids.size(1)
 
-
         # ── Per-token log probs (policy) ──
-<<<<<<< HEAD
-        # policy는 gradient 필요 → 원본 멀티모달 입력 사용
-=======
-        # policy는 gradient 필요 → 캐싱 embeds 사용 불가, 원본 멀티모달 입력 사용
->>>>>>> a2aec1f3fc9826ce60202ef1e660f44de3646ae0
         all_per_token_logps = []
         for g in range(self.num_generations):
             g_logps = self._get_per_token_logps(
                 model,
                 prompt_completion_ids[g:g+1],
                 attention_mask[g:g+1],
-                images=images,
-                spectrogram=spectrogram,
-                org_groups=org_groups,
-                real_time=real_time if not isinstance(real_time, list) else real_time[:1],
-                modalities=modalities[:1],
+                pixel_values_videos=pixel_values_videos,
+                video_grid_thw=video_grid_thw,
+                audio_feature=audio_feature,
+                audio_lengths=audio_lengths,
+                second_per_grid_ts=second_per_grid_ts,
             )
-            # 각 generation마다 즉시 comp_len으로 슬라이싱 (멀티모달 확장으로 길이가 다를 수 있음)
             g_logps = g_logps[:, -comp_len:] if comp_len > 0 else g_logps[:, :0]
             all_per_token_logps.append(g_logps)
         per_token_logps = torch.cat(all_per_token_logps, dim=0)
 
-
         # ── Per-token log probs (reference) ──
-<<<<<<< HEAD
-        # ref 원본 멀티모달 입력 사용
-=======
-        # ref도 원본 멀티모달 입력 사용 (캐싱 embeds 경로와 logits이 달라지는 문제 방지)
->>>>>>> a2aec1f3fc9826ce60202ef1e660f44de3646ae0
         if self.beta != 0.0:
             with torch.inference_mode():
                 all_ref_logps = []
@@ -544,11 +464,11 @@ class GDPOTrainer(Trainer):
                             self.ref_model,
                             prompt_completion_ids[g:g+1],
                             attention_mask[g:g+1],
-                            images=images,
-                            spectrogram=spectrogram,
-                            org_groups=org_groups,
-                            real_time=real_time if not isinstance(real_time, list) else real_time[:1],
-                            modalities=modalities[:1],
+                            pixel_values_videos=pixel_values_videos,
+                            video_grid_thw=video_grid_thw,
+                            audio_feature=audio_feature,
+                            audio_lengths=audio_lengths,
+                            second_per_grid_ts=second_per_grid_ts,
                         )
                     else:
                         with self.accelerator.unwrap_model(model).disable_adapter():
@@ -556,62 +476,49 @@ class GDPOTrainer(Trainer):
                                 model,
                                 prompt_completion_ids[g:g+1],
                                 attention_mask[g:g+1],
-                                images=images,
-                                spectrogram=spectrogram,
-                                org_groups=org_groups,
-                                real_time=real_time if not isinstance(real_time, list) else real_time[:1],
-                                modalities=modalities[:1],
+                                pixel_values_videos=pixel_values_videos,
+                                video_grid_thw=video_grid_thw,
+                                audio_feature=audio_feature,
+                                audio_lengths=audio_lengths,
+                                second_per_grid_ts=second_per_grid_ts,
                             )
-                    # 각 generation마다 즉시 comp_len으로 슬라이싱
                     g_ref_logps = g_ref_logps[:, -comp_len:] if comp_len > 0 else g_ref_logps[:, :0]
                     all_ref_logps.append(g_ref_logps)
                 ref_per_token_logps = torch.cat(all_ref_logps, dim=0)
 
-            # KL divergence 계산
             per_token_kl = (
                 torch.exp(ref_per_token_logps - per_token_logps)
                 - (ref_per_token_logps - per_token_logps) - 1
             )
-            if per_token_kl.numel() > 0:
-                print(f"[DEBUG KL] kl: min={per_token_kl.min().item():.4f}, max={per_token_kl.max().item():.4f}, has_nan={per_token_kl.isnan().any().item()}")
-            else:
-                print(f"[DEBUG KL] WARNING: kl is empty!")
 
 
-
-        # Decode the generated completions
-        # skip_special_tokens=False → time token(<t0>~<t9>, <tdot>) 보존
+        # Decode completions
         completions = self.processing_class.batch_decode(completion_ids, skip_special_tokens=False)
-        completions = [
-            c.replace("<|im_end|>", "").replace("<|endoftext|>", "").replace("<|im_start|>assistant\n", "").replace("<|im_start|>assistant", "").strip()
-            for c in completions
-        ]
-        print(f"[GDPO SAMPLE] completion[0][:200]: {completions[0][:200]}")
-        # Compute the rewards
-        rewards_per_func = torch.zeros(len(completions), len(self.reward_funcs), device=device)
+        _TIME_TOKENS = {f"<t{i}>" for i in range(10)} | {"<tdot>"}
+        _special_to_remove = set(self.processing_class.all_special_tokens) - _TIME_TOKENS
+        for tok in _special_to_remove:
+            completions = [c.replace(tok, "") for c in completions]
+        completions = [re.sub(r"<\|im_start\|>\s*\w+\s*", "", c).strip() for c in completions]
 
-        # 프롬프트 및 gt_events를 G번 복제(batchsize=1 가정)
-        prompts_repeated = [prompt_text] * self.num_generations
-        gt_events_repeated = [gt_events] * self.num_generations #added
+        print(f"[GDPO SAMPLE] completion[0][:200]: {completions[0][:200]}")
+
+        # Compute rewards
+        rewards_per_func = torch.zeros(len(completions), len(self.reward_funcs), device=device)
+        gt_intervals_repeated = [gt_intervals] * self.num_generations
 
         for i, reward_func in enumerate(self.reward_funcs):
             output = reward_func(
-                prompts=prompts_repeated,
                 completions=completions,
-                gt_events=gt_events_repeated,
+                gt_intervals=gt_intervals_repeated,
             )
             rewards_per_func[:, i] = torch.tensor(output, dtype=torch.float32, device=device)
 
         rewards = rewards_per_func.sum(dim=1)
-
-
-        # ── Compute GDPO advantage ──
         advantages = self._compute_gdpo_advantages(rewards_per_func, rewards)
 
 
-        # ── Compute Loss ──
+        # ── Loss ──
         if self.use_grpo:
-            # GRPO-style loss
             per_token_loss = torch.exp(per_token_logps - per_token_logps.detach()) * advantages.unsqueeze(1)
             if self.beta != 0.0:
                 per_token_loss = -(per_token_loss - self.beta * per_token_kl)
@@ -620,7 +527,6 @@ class GDPOTrainer(Trainer):
             comp_lengths = completion_mask.sum(dim=1).clamp(min=1)
             loss = ((per_token_loss * completion_mask).sum(dim=1) / comp_lengths).mean()
         else:
-            # PPO-clip style loss
             coef_1 = torch.exp(per_token_logps - per_token_logps.detach())
             coef_2 = torch.clamp(coef_1, 1 - self.epsilon_low, 1 + self.epsilon_high)
             per_token_loss1 = coef_1 * advantages.unsqueeze(1)
@@ -629,7 +535,6 @@ class GDPOTrainer(Trainer):
             if self.beta != 0.0:
                 per_token_loss = per_token_loss + self.beta * per_token_kl
             loss = (per_token_loss * completion_mask).sum() / completion_mask.sum()
-
 
         # ── 로깅 ──
         completion_length = self.accelerator.gather_for_metrics(completion_mask.sum(1)).float().mean().item()
@@ -654,7 +559,6 @@ class GDPOTrainer(Trainer):
 
         return loss
 
-
     # ============================================================
     # 로깅
     # ============================================================
@@ -669,123 +573,64 @@ class GDPOTrainer(Trainer):
         self._metrics.clear()
 
 
-
 # ============================================================
-# 모델 로딩
+# 모델 로딩 (VS2+)
 # ============================================================
 
 def load_model_and_tokenizer(model_path, model_base):
-    """
-    베이스 모델을 model_base에서 직접 로드하고,
-    인코더 분리 → SFT LoRA 로드 → 인코더 재결합 (train.py와 동일 패턴).
-    load_qwen_lora_model을 사용하지 않음 (adapter 자동 로드 방지).
-    """
-    print(f"[GDPO] Loading model")
+    """VS2+ (Qwen2.5-VL 기반) 모델 로딩."""
+    print(f"[GDPO] Loading VS2+ model")
     print(f"[GDPO]   model_path (SFT ckpt): {model_path}")
     print(f"[GDPO]   model_base: {model_base}")
-
-    # 체크포인트 config
-    ckpt_config = {}
-    if os.path.isdir(model_path):
-        config_file = os.path.join(model_path, "config.json")
-        if os.path.exists(config_file):
-            ckpt_config = json.load(open(config_file))
 
     # 토크나이저 로드
     tok_path = model_path if os.path.isdir(model_path) and os.path.exists(os.path.join(model_path, "tokenizer.json")) else model_base
     print(f"[GDPO] Loading tokenizer from: {tok_path}")
     tokenizer = AutoTokenizer.from_pretrained(tok_path, model_max_length=4096, padding_side="left")
 
-    # config 구성
-    cfg = AutoConfig.from_pretrained(model_base)
-    if "model_args" in ckpt_config:
-        cfg.model_args = ckpt_config["model_args"]
-        for k, v in ckpt_config["model_args"].items():
-            if not hasattr(cfg, k):
-                setattr(cfg, k, v)
-    if not hasattr(cfg, "add_time_token"):
-        cfg.add_time_token = ckpt_config.get("add_time_token", False)
-    cfg.mm_spatial_pool_mode = "max"
-    cfg.mm_spatial_pool_stride = 4
-    cfg.mm_spatial_pool_out_channels = 1152
-    cfg.mm_newline_position = "grid"
-    cfg.mm_patch_merge_type = "spatial_unpad"
-    cfg.image_aspect_ratio = "anyres"
-    if not hasattr(cfg, "mm_pooling_position"):
-        cfg.mm_pooling_position = "after"
-
-    # audio_config
-    model_args = ckpt_config.get("model_args", {})
-    audio_config = dict(
-        audio_visual=model_args.get("audio_visual", True),
-        video_fps=model_args.get("fps", 1),
-        whisper_path="/workspace/models/whisper-large-v3",
-        num_speech_query_token=model_args.get("num_speech_query_token", 25),
-        window_level_Qformer=model_args.get("window_level_Qformer", True),
-        second_per_window=model_args.get("second_per_window", 0.5),
-        second_stride=model_args.get("second_stride", 0.5),
-        use_final_linear=model_args.get("use_final_linear", False),
-    )
-
-    # 베이스 모델 로드
+    # 모델 로드
     print(f"[GDPO] Loading base model from: {model_base}")
-    model = VideoSALMONN2ForCausalLM.from_pretrained(
-        model_base, config=cfg, attn_implementation="sdpa", torch_dtype=torch.bfloat16,
-        **audio_config,
+    model = video_SALMONN2_plus.from_pretrained(
+        model_base,
+        attn_implementation="sdpa",
+        torch_dtype=torch.bfloat16,
     )
     model.resize_token_embeddings(len(tokenizer))
-
-    # time token 임베딩 복원 (SFT에서 학습된 embed_tokens + lm_head)
-    time_token_path = os.path.join(model_path, "time_token_rows.pt")
-    if os.path.exists(time_token_path):
-        print(f"[GDPO] Loading time token embeddings from: {time_token_path}")
-        tt_data = torch.load(time_token_path, map_location="cpu", weights_only=False)
-        time_ids = tt_data["time_ids"]
-        input_emb = tt_data["input_emb_rows"].to(torch.bfloat16)
-        output_emb = tt_data["output_emb_rows"].to(torch.bfloat16)
-        with torch.no_grad():
-            for i, tid in enumerate(time_ids):
-                model.get_input_embeddings().weight[tid] = input_emb[i]
-                model.get_output_embeddings().weight[tid] = output_emb[i]
-        print(f"[GDPO] Restored {len(time_ids)} time token embeddings")
-
     model = model.to(torch.bfloat16)
-
-    # 인코더 분리
-    print("[GDPO] Separating encoders before LoRA loading...")
-    speech_encoder = model.speech_encoder
-    model.speech_encoder = None
-    vision_tower = model.vision_tower if hasattr(model, "vision_tower") else None
-    if vision_tower is not None:
-        model.vision_tower = None
 
     # LoRA
     adapter_config_path = os.path.join(model_path, "adapter_config.json")
     if os.path.isdir(model_path) and os.path.exists(adapter_config_path):
-        print(f"[GDPO] Loading LoRA adapter (LLM only): {model_path}")
+        print(f"[GDPO] Loading LoRA adapter: {model_path}")
         model = PeftModel.from_pretrained(model, model_path, is_trainable=True)
     else:
         print("[GDPO] No LoRA adapter found, using base model")
+    
 
-    # 인코더 붙이기
-    print("[GDPO] Re-attaching encoders...")
-    model.model.speech_encoder = speech_encoder
-    if vision_tower is not None:
-        model.model.model.vision_tower = vision_tower
-
-    model = model.to(torch.bfloat16)
+    # TODO : VS2+ SFT 체크포인트 확인 후 고쳐야함
+    # time token 임베딩 복원
+    _time_rows_path = os.path.join(model_path, "time_token_rows.pt")
+    if os.path.exists(_time_rows_path):
+        payload = torch.load(_time_rows_path, map_location="cpu")
+        time_ids = payload.get("time_ids", [])
+        if time_ids:
+            m = model.get_base_model() if hasattr(model, "get_base_model") else model
+            in_emb = m.get_input_embeddings()
+            out_emb = m.get_output_embeddings()
+            idx = torch.tensor(time_ids, dtype=torch.long, device=in_emb.weight.device)
+            in_emb.weight.data.index_copy_(0, idx, payload["input_emb_rows"].to(in_emb.weight.device))
+            if "output_emb_rows" in payload and out_emb is not None and hasattr(out_emb, "weight"):
+                out_emb.weight.data.index_copy_(0, idx, payload["output_emb_rows"].to(out_emb.weight.device))
+            print(f"[GDPO] Loaded time token embeddings ({len(time_ids)} tokens)")
+    else:
+        print(f"[GDPO] WARNING: time_token_rows.pt not found")
 
     # tokenizer 연결
-    if hasattr(model, "model") and hasattr(model.model, "model"):
-        model.model.model.tokenizer = tokenizer
-    if hasattr(model, "base_model") and hasattr(model.base_model, "model"):
-        model.base_model.model.tokenizer = tokenizer
     if not hasattr(model, "tokenizer"):
         model.tokenizer = tokenizer
 
-    print(f"[GDPO] Model loaded successfully")
+    print(f"[GDPO] VS2+ model loaded successfully")
     return model, tokenizer
-
 
 
 # ============================================================
@@ -801,38 +646,29 @@ def load_config(config_path: str) -> dict:
     return yaml.safe_load(raw)
 
 
-
 # ============================================================
-# 리워드 함수 생성
+# 리워드 함수
 # ============================================================
 
 def make_reward_functions():
     def _format_reward(completions, **kwargs):
         return [format_reward(c) for c in completions]
 
-    def _label_reward(completions, gt_events=None, **kwargs):
-        gt = gt_events or [[] for _ in completions]
-        return [label_reward(c, g) for c, g in zip(completions, gt)]
-
-    def _iou_reward(completions, gt_events=None, **kwargs):
-        gt = gt_events or [[] for _ in completions]
+    def _iou_reward(completions, gt_intervals=None, **kwargs):
+        gt = gt_intervals or [[] for _ in completions]
         return [iou_reward(c, g) for c, g in zip(completions, gt)]
 
     _format_reward.__name__ = "format"
-    _label_reward.__name__ = "label"
     _iou_reward.__name__ = "iou"
-    return [_format_reward, _label_reward, _iou_reward]
-
-
-
+    return [_format_reward, _iou_reward]
 
 
 # ============================================================
-# Main (train_gdpo.py 통합)
+# Main
 # ============================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="GDPO Training (revised)")
+    parser = argparse.ArgumentParser(description="GDPO Training (VS2+)")
     parser.add_argument("--config", type=str, default=None)
     parser.add_argument("--model_path", default=None)
     parser.add_argument("--model_base", default=None)
@@ -840,7 +676,6 @@ def main():
     parser.add_argument("--output_dir", default=None)
     cli = parser.parse_args()
 
-    # ── Config 로딩 ──
     cfg = load_config(cli.config) if cli.config else {}
 
     def _get(cli_val, *keys, default=None):
@@ -855,22 +690,20 @@ def main():
         return d if d is not None else default
 
     model_path = _get(cli.model_path, "model", "model_path")
-    model_base = _get(cli.model_base, "model", "model_base", default="lmms-lab/llava-onevision-qwen2-7b-ov")
+    model_base = _get(cli.model_base, "model", "model_base")
     dataset_path = _get(cli.dataset_path, "data", "dataset_path")
-    output_dir = _get(cli.output_dir, "training", "output_dir", default="output/gdpo_revised")
+    output_dir = _get(cli.output_dir, "training", "output_dir", default="output/gdpo_vs2plus")
 
     if model_path is None or dataset_path is None:
-        parser.error("--model_path와 --dataset_path 필수 (config.yaml 또는 CLI)")
-
+        parser.error("--model_path와 --dataset_path 필수")
 
     # GDPO 파라미터
     num_generations = _get(None, "gdpo", "num_generations", default=8)
-    max_completion_length = _get(None, "gdpo", "max_completion_length", default=1024)
+    max_completion_length = _get(None, "gdpo", "max_completion_length", default=512)
     beta = _get(None, "gdpo", "beta", default=0.04)
-    reward_weights = _get(None, "gdpo", "reward_weights", default=[0.1, 0.3, 0.6])
+    reward_weights = _get(None, "gdpo", "reward_weights", default=[1.0, 1.0, 1.0])
 
-
-    # training 파라미터
+    # 학습 파라미터
     num_epochs = _get(None, "training", "num_train_epochs", default=1)
     batch_size = _get(None, "training", "per_device_train_batch_size", default=1)
     grad_accum = _get(None, "training", "gradient_accumulation_steps", default=4)
@@ -878,55 +711,54 @@ def main():
     warmup = _get(None, "training", "warmup_ratio", default=0.1)
     scheduler = _get(None, "training", "lr_scheduler_type", default="cosine")
     seed = _get(None, "training", "seed", default=2024)
-
     logging_steps = _get(None, "logging", "logging_steps", default=1)
     save_steps = _get(None, "logging", "save_steps", default=500)
     save_total_limit = _get(None, "logging", "save_total_limit", default=3)
 
-
-    # Model 
+    # Model
     model, tokenizer = load_model_and_tokenizer(model_path, model_base)
 
-
-    # Data
-    # av_dataset.py의 전처리를 사용하기 위해 data_args 구성
+    # Dataset — VS2+ LazySupervisedDataset 사용
+    print(f"[GDPO] Loading dataset from {dataset_path}")
     from dataclasses import dataclass
+    from qwenvl.data.image_processing_qwen2_vl_fast import Qwen2VLImageProcessorFast
+
     @dataclass
     class GDPODataArgs:
-        video_fps: int = 1
-        max_time: int = 60
-        audio_processor: str = "openai/whisper-large-v3"
+        dataset_use: str = ""
+        model_type: str = "qwen2.5vl"
+        video_max_frames: int = 8
+        video_min_frames: int = 4
+        base_interval: float = 2
+        max_pixels: int = 28 * 28 * 576
+        min_pixels: int = 28 * 28 * 16
+        video_max_frame_pixels: int = 32 * 28 * 28
+        video_min_frame_pixels: int = 4 * 28 * 28
+        video_max_total_pixels: int = 1664 * 28 * 28
+        video_min_total_pixels: int = 256 * 28 * 28
+        run_test: bool = False
+        do_sample: bool = False
+        num_sample: int = 1
+        train_type: str = "sft"
+        feature_size: int = 128
+        chunk_length: int = 30
+        hop_length: int = 160
+        sampling_rate: int = 16000
         image_processor: object = None
-        use_timestamps_crop: bool = False
-        is_multimodal: bool = True
-        mm_use_im_start_end: bool = False
-        image_aspect_ratio: str = "square"
-        image_grid_pinpoints: str = None
-        image_crop_resolution: int = 224
-        image_split_resolution: int = 224
 
     data_args = GDPODataArgs()
+    data_args.dataset_use = dataset_path
+    data_args.image_processor = Qwen2VLImageProcessorFast.from_pretrained(model_base)
 
-    # SigLIP image processor 로드
-    from transformers import AutoImageProcessor
-    data_args.image_processor = AutoImageProcessor.from_pretrained(
-        "google/siglip-so400m-patch14-384"
-    )
-
-    print(f"[GDPO] Loading dataset from {dataset_path}")
-    dataset = LazyAVSupervisedDataset(
-        data_path=dataset_path,
+    dataset = LazySupervisedDataset(
         tokenizer=tokenizer,
         data_args=data_args,
-        is_test=False,
     )
     print(f"[GDPO] Dataset size: {len(dataset)}")
 
-
-    # Reward Function
+    # Reward
     reward_funcs = make_reward_functions()
     print(f"[GDPO] Reward weights: {reward_weights}")
-
 
     # GRPOConfig
     grpo_args = GRPOConfig(
@@ -952,7 +784,6 @@ def main():
         remove_unused_columns=False,
     )
 
-
     # Trainer
     trainer = GDPOTrainer(
         model=model,
@@ -962,7 +793,6 @@ def main():
         processing_class=tokenizer,
         reward_weights=reward_weights,
     )
-
 
     # Train
     print("[GDPO] Starting training...")
@@ -974,4 +804,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
