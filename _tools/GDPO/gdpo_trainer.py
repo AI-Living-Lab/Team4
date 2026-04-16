@@ -586,7 +586,7 @@ def load_model_and_tokenizer(model_path, model_base):
     # 토크나이저 로드
     tok_path = model_path if os.path.isdir(model_path) and os.path.exists(os.path.join(model_path, "tokenizer.json")) else model_base
     print(f"[GDPO] Loading tokenizer from: {tok_path}")
-    tokenizer = AutoTokenizer.from_pretrained(tok_path, model_max_length=4096, padding_side="left")
+    tokenizer = AutoTokenizer.from_pretrained(tok_path, model_max_length=6000, padding_side="left")
 
     # 모델 로드
     print(f"[GDPO] Loading base model from: {model_base}")
@@ -598,11 +598,14 @@ def load_model_and_tokenizer(model_path, model_base):
     model.resize_token_embeddings(len(tokenizer))
     model = model.to(torch.bfloat16)
 
-    # LoRA
+    # LoRA 로드 — audio.layers 분리 필요 (SFT train_qwen.py와 동일 패턴)
     adapter_config_path = os.path.join(model_path, "adapter_config.json")
     if os.path.isdir(model_path) and os.path.exists(adapter_config_path):
         print(f"[GDPO] Loading LoRA adapter: {model_path}")
+        audio_layers = model.audio.layers
+        del model.audio.layers
         model = PeftModel.from_pretrained(model, model_path, is_trainable=True)
+        model.model.audio.layers = audio_layers
     else:
         print("[GDPO] No LoRA adapter found, using base model")
     
@@ -723,17 +726,19 @@ def main():
     from dataclasses import dataclass
     from qwenvl.data.image_processing_qwen2_vl_fast import Qwen2VLImageProcessorFast
 
+    from transformers import WhisperFeatureExtractor
+
     @dataclass
     class GDPODataArgs:
         dataset_use: str = ""
         model_type: str = "qwen2.5vl"
-        video_max_frames: int = 8
+        video_max_frames: int = 128         # SFT와 동일
         video_min_frames: int = 4
         base_interval: float = 2
-        max_pixels: int = 28 * 28 * 576
-        min_pixels: int = 28 * 28 * 16
-        video_max_frame_pixels: int = 32 * 28 * 28
-        video_min_frame_pixels: int = 4 * 28 * 28
+        max_pixels: int = 176400            # SFT와 동일 (28*28*225)
+        min_pixels: int = 784               # SFT와 동일 (28*28)
+        video_max_frame_pixels: int = 25088 # SFT와 동일
+        video_min_frame_pixels: int = 3136  # SFT와 동일
         video_max_total_pixels: int = 1664 * 28 * 28
         video_min_total_pixels: int = 256 * 28 * 28
         run_test: bool = False
@@ -745,10 +750,17 @@ def main():
         hop_length: int = 160
         sampling_rate: int = 16000
         image_processor: object = None
+        audio_processor: object = None      # SFT에서 필요
 
     data_args = GDPODataArgs()
     data_args.dataset_use = dataset_path
     data_args.image_processor = Qwen2VLImageProcessorFast.from_pretrained(model_base)
+    data_args.audio_processor = WhisperFeatureExtractor(
+        feature_size=data_args.feature_size,
+        sampling_rate=data_args.sampling_rate,
+        hop_length=data_args.hop_length,
+        chunk_length=data_args.chunk_length,
+    )
 
     dataset = LazySupervisedDataset(
         tokenizer=tokenizer,

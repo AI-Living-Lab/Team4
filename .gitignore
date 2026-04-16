@@ -211,3 +211,7 @@ cookies_*.txt
 # local notes / conversation logs
 *.md
 !README.md
+
+# 구버전 GDPO.
+_tools/GDPO(OLD)/
+_tools/GDPO(OLD2)/
