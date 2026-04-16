@@ -1,23 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR=$(cd $(dirname $0); pwd)
-if [ -f "$SCRIPT_DIR/../paths.env" ]; then
-    source "$SCRIPT_DIR/../paths.env"
-else
-    echo "[WARNING] paths.env not found. Copy paths.env.example to paths.env and fill in the paths."
-fi
-
-export PYTHONPATH=${BASE_DIR}:$PYTHONPATH
+export PYTHONPATH=/home/aix23102/audiolm/vS2_eunji:$PYTHONPATH
 export CUDA_VISIBLE_DEVICES=5
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:64
 
 MASTER_PORT_TRAIN=29501
 MASTER_PORT_TEST=29502
 
-BASE=${BASE_DIR}
-MODEL_BASE=${BASE_MODEL}
-BASE_CKPT=${SALMONN2_CKPT}
+BASE=/home/aix23102/audiolm/vS2_eunji
+MODEL_BASE=/home/aix23102/audiolm/video-SALMONN-2/checkpoints/llava_onevision_qwen2_7b_ov
+BASE_CKPT=/home/aix23102/audiolm/video-SALMONN-2/checkpoints/video_salmonn2_hf
 
 TRAIN_JSON=$BASE/data/unav100_train_dense.json
 TEST_JSON=$BASE/data/unav100_test_dense_5.json

@@ -398,119 +398,64 @@ class LLaVATrainer(Trainer):
                 m = m.module
             return m
 
-        # ---- call parent (this runs backward inside HF Trainer) ----
-        loss = super().training_step(model, inputs)
+        # ---- Keep frozen modules in eval mode ----
+        base = _unwrap(model)
+        if hasattr(base, 'speech_encoder'):
+            base.speech_encoder.eval()
+        if hasattr(base, 'speech_Qformer'):
+            base.speech_Qformer.eval()
 
-        # ---- debug only first few steps on rank0 ----
-        if self.state.global_step < 2 and _is_rank0():
-            try:
-                base = _unwrap(model)
+        # ---- OOM-safe distributed training step ----
+        oom_flag = torch.zeros(1, dtype=torch.int32, device=model.device)
+        try:
+            loss = super().training_step(model, inputs)
+        except torch.cuda.OutOfMemoryError:
+            oom_flag.fill_(1)
+            torch.cuda.empty_cache()
 
-                # 1) returned loss (detached)
-                litem = loss.item() if torch.is_tensor(loss) else float(loss)
-                print(f"[DBG][LLaVATrainer] step={self.state.global_step} returned_loss={litem}", flush=True)
+        # Sync OOM flag across all ranks so everyone skips together
+        if dist.is_available() and dist.is_initialized():
+            dist.all_reduce(oom_flag, op=dist.ReduceOp.MAX)
 
-                # 2) LoRA grad check (q/k/v, first 3 hits)
-                hit = 0
-                for n, p in model.named_parameters():  # keep names with module.* prefix for clarity
-                    ln = n.lower()
-                    if ("lora" in ln) and (("q_proj" in ln) or ("k_proj" in ln) or ("v_proj" in ln)) and p.requires_grad:
-                        g = p.grad
-                        print(f"[DBG][LORA] {n} grad_is_none={g is None}", flush=True)
-                        if g is not None:
-                            absmax = g.detach().abs().max().item()
-                            norm = g.detach().float().norm().item()
-                            print(f"[DBG][LORA] absmax={absmax:.6e} norm={norm:.6e}", flush=True)
-                        hit += 1
-                        if hit >= 3:
-                            break
-                if hit == 0:
-                    print("[DBG][LORA] no trainable LoRA q/k/v params found.", flush=True)
+        if oom_flag.item() > 0:
+            if _is_rank0():
+                print("[OOM] CUDA out of memory on some rank — all ranks skipping this batch")
+            torch.cuda.empty_cache()
+            return torch.tensor(0.0, device=model.device, requires_grad=False)
 
-                # 3) time token <t0> grad check (input emb + output emb/lm_head)
-                tok = getattr(self, "tokenizer", None)
-                if tok is None:
-                    print("[DBG][TIME] self.tokenizer is None", flush=True)
-                else:
-                    t0_id = tok.convert_tokens_to_ids("<t0>")
-                    print(f"[DBG][TIME] <t0> id={t0_id}", flush=True)
-
-                    # ---- 핵심: PEFT/LLM 본체까지 최대한 unwrap ----
-                    core = base
-                    # PeftModel이면 get_base_model()이 있음
-                    if hasattr(core, "get_base_model"):
-                        try:
-                            core = core.get_base_model()
-                        except Exception:
-                            pass
-                    # 일부 구조에서 base_model 속성으로 한 번 더 들어가야 함
-                    if hasattr(core, "base_model"):
-                        try:
-                            # PEFT base_model이 nn.Module일 때
-                            bm = getattr(core, "base_model", None)
-                            if bm is not None and hasattr(bm, "get_input_embeddings"):
-                                core = bm
-                        except Exception:
-                            pass
-
-                    # ---- helper: optimizer param group 포함 여부 체크 ----
-                    def _in_optimizer(p):
-                        try:
-                            if p is None or self.optimizer is None:
-                                return None
-                            pid = id(p)
-                            for g in self.optimizer.param_groups:
-                                for pp in g.get("params", []):
-                                    if id(pp) == pid:
-                                        return True
-                            return False
-                        except Exception:
-                            return None
-
-                    # ---- input embedding ----
-                    emb = core.get_input_embeddings() if hasattr(core, "get_input_embeddings") else None
-                    if emb is None or not hasattr(emb, "weight") or emb.weight is None:
-                        print("[DBG][t0][emb] missing get_input_embeddings()", flush=True)
-                    else:
-                        print(f"[DBG][t0][emb] requires_grad={emb.weight.requires_grad} in_optim={_in_optimizer(emb.weight)}",
-                              flush=True)
-                        eg = emb.weight.grad
-                        print(f"[DBG][t0][emb] grad_is_none={eg is None}", flush=True)
-                        if eg is not None and 0 <= t0_id < eg.shape[0]:
-                            row = eg[t0_id].detach()
-                            print(f"[DBG][t0][emb] absmax={row.abs().max().item():.6e} norm={row.float().norm().item():.6e}",
-                                  flush=True)
-
-                    # ---- output embedding / lm_head ----
-                    out_emb = core.get_output_embeddings() if hasattr(core, "get_output_embeddings") else None
-                    if out_emb is None or not hasattr(out_emb, "weight") or out_emb.weight is None:
-                        # fallback: lm_head 직접 접근
-                        lm_head = getattr(core, "lm_head", None)
-                        if lm_head is not None and hasattr(lm_head, "weight") and lm_head.weight is not None:
-                            print(f"[DBG][t0][lm_head] requires_grad={lm_head.weight.requires_grad} in_optim={_in_optimizer(lm_head.weight)}",
-                                  flush=True)
-                            og = lm_head.weight.grad
-                            print(f"[DBG][t0][lm_head] grad_is_none={og is None}", flush=True)
-                            if og is not None and 0 <= t0_id < og.shape[0]:
-                                row = og[t0_id].detach()
-                                print(f"[DBG][t0][lm_head] absmax={row.abs().max().item():.6e} norm={row.float().norm().item():.6e}",
-                                      flush=True)
-                        else:
-                            print("[DBG][t0][lm_head] missing get_output_embeddings() and lm_head.weight", flush=True)
-                    else:
-                        print(f"[DBG][t0][lm_head] requires_grad={out_emb.weight.requires_grad} in_optim={_in_optimizer(out_emb.weight)}",
-                              flush=True)
-                        og = out_emb.weight.grad
-                        print(f"[DBG][t0][lm_head] grad_is_none={og is None}", flush=True)
-                        if og is not None and 0 <= t0_id < og.shape[0]:
-                            row = og[t0_id].detach()
-                            print(f"[DBG][t0][lm_head] absmax={row.abs().max().item():.6e} norm={row.float().norm().item():.6e}",
-                                  flush=True)
-
-            except Exception as e:
-                print("[DBG][LLaVATrainer] debug exception:", repr(e), flush=True)
+        # DeepSpeed 호환 time token gradient masking:
+        # backward 후, optimizer.step() 전에 non-time-token gradient를 zeroing
+        time_ids = getattr(self, "time_token_ids", None)
+        if time_ids:
+            self._zero_non_time_token_grads(base, time_ids)
 
         return loss
+
+    def _zero_non_time_token_grads(self, model, time_ids):
+        """embed_tokens/lm_head의 non-time-token 행 gradient를 0으로 설정."""
+        time_id_set = set(time_ids)
+
+        m = model
+        if hasattr(m, "get_base_model"):
+            try:
+                m = m.get_base_model()
+            except Exception:
+                pass
+
+        for emb_getter in [m.get_input_embeddings, m.get_output_embeddings]:
+            try:
+                emb = emb_getter()
+            except Exception:
+                continue
+            if emb is None or not hasattr(emb, "weight"):
+                continue
+            w = emb.weight
+            if w.grad is None:
+                continue
+            mask = torch.ones(w.grad.size(0), device=w.grad.device, dtype=torch.bool)
+            idx = torch.tensor(sorted(time_id_set), device=w.grad.device, dtype=torch.long)
+            mask[idx] = False  # time token은 유지
+            w.grad[mask] = 0
 
     def _get_train_sampler(self, train_dataset=None) -> Optional[torch.utils.data.Sampler]:
         train_dataset = train_dataset if train_dataset is not None else self.train_dataset
@@ -653,10 +598,6 @@ class LLaVATrainer(Trainer):
         if getattr(self.args, "save_strategy", None) == "no":
             return
 
-        # 2) only rank0 saves
-        if dist.get_rank() != 0:
-            return
-
         from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 
         run_dir = self._get_output_dir(trial=trial)
@@ -665,18 +606,32 @@ class LLaVATrainer(Trainer):
         output_dir = os.path.join(run_dir, checkpoint_folder)
         os.makedirs(output_dir, exist_ok=True)
 
-        # 3) save in HF format
+        # DeepSpeed state 저장 (resume에 필요, 모든 rank에서 호출해야 함)
+        if self.is_deepspeed_enabled:
+            self.model_wrapped.save_checkpoint(output_dir)
+
+        # 이하 rank0만 수행
+        if dist.is_initialized() and dist.get_rank() != 0:
+            return
+
+        # trainer state 저장 (step, epoch 등 resume에 필요) — 가장 먼저 저장
+        self.state.save_to_json(os.path.join(output_dir, "trainer_state.json"))
+
+        # save in HF format
         # - If model is PeftModel (LoRA), save_pretrained stores adapters only (good).
         # - If not, it stores full model weights (may be large).
-        to_save = model.module if hasattr(model, "module") else model
-        to_save.config.save_pretrained(output_dir)
-        to_save.save_pretrained(output_dir)
+        try:
+            to_save = model.module if hasattr(model, "module") else model
+            to_save.config.save_pretrained(output_dir)
+            to_save.save_pretrained(output_dir)
+        except Exception as e:
+            print(f"[SAVE] WARNING: save_pretrained failed: {e}", flush=True)
 
-        # (선택) tokenizer도 같이 저장하면 test가 더 안정적입니다.
+        # tokenizer도 같이 저장
         if hasattr(self, "tokenizer") and self.tokenizer is not None:
             self.tokenizer.save_pretrained(output_dir)
 
-        print(f"[SAVE] Saved HF checkpoint at {output_dir}")
+        print(f"[SAVE] Saved HF + DeepSpeed checkpoint at {output_dir}")
 
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
         super(LLaVATrainer, self)._save(output_dir, state_dict)
@@ -849,9 +804,27 @@ class LLaVATrainer(Trainer):
         # ckpt loading
         if resume_from_checkpoint is not None:
             if self.is_deepspeed_enabled:
-                deepspeed_load_checkpoint(
-                    self.model_wrapped, resume_from_checkpoint, load_module_strict=not _is_peft_model(self.model)
-                )
+                try:
+                    deepspeed_load_checkpoint(
+                        self.model_wrapped, resume_from_checkpoint, load_module_strict=not _is_peft_model(self.model)
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"[RESUME] DeepSpeed checkpoint load failed: {e}\n"
+                        f"  → Loading LoRA adapter weights manually (optimizer will reinitialize).\n"
+                        f"  → LR schedule will be restored from scheduler.pt / trainer_state.json."
+                    )
+                    adapter_path = os.path.join(resume_from_checkpoint, "adapter_model.safetensors")
+                    if os.path.exists(adapter_path):
+                        from peft import set_peft_model_state_dict
+                        from safetensors.torch import load_file
+                        adapter_state = load_file(adapter_path)
+                        # unwrap DeepSpeed/DDP to get the actual PeftModel
+                        inner_model = self.model_wrapped.module if hasattr(self.model_wrapped, "module") else self.model_wrapped
+                        set_peft_model_state_dict(inner_model, adapter_state)
+                        print(f"[RESUME] Loaded LoRA adapter from {adapter_path}", flush=True)
+                    else:
+                        print(f"[RESUME] WARNING: No adapter_model.safetensors found at {resume_from_checkpoint}", flush=True)
             elif is_sagemaker_mp_enabled() or self.is_fsdp_enabled:
                 self._load_from_checkpoint(resume_from_checkpoint, self.model_wrapped)
 
@@ -887,6 +860,13 @@ class LLaVATrainer(Trainer):
             os.path.join(resume_from_checkpoint, TRAINER_STATE_NAME)
         ):
             self.state = TrainerState.load_from_json(os.path.join(resume_from_checkpoint, TRAINER_STATE_NAME))
+            # Re-apply current args so they are not overwritten by stale values in the checkpoint
+            if args.save_steps is not None:
+                self.state.save_steps = math.ceil(max_steps * args.save_steps) if args.save_steps < 1 else args.save_steps
+            if args.logging_steps is not None:
+                self.state.logging_steps = math.ceil(max_steps * args.logging_steps) if args.logging_steps < 1 else args.logging_steps
+            if args.eval_steps is not None:
+                self.state.eval_steps = math.ceil(max_steps * args.eval_steps) if args.eval_steps < 1 else args.eval_steps
             epochs_trained = self.state.global_step // num_update_steps_per_epoch
             if not args.ignore_data_skip:
                 steps_trained_in_current_epoch = self.state.global_step % (num_update_steps_per_epoch)
@@ -1300,7 +1280,7 @@ class LLaVATrainer(Trainer):
 
         model.eval()
         results = []
-        if dist.get_rank() == 0:
+        if not dist.is_initialized() or dist.get_rank() == 0:
             for inputs in tqdm(dataloader):
                 ids = inputs['ids']
                 ids = [eval(it) for it in ids]

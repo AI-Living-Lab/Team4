@@ -86,6 +86,13 @@ def _unwrap_model(m):
 def unfreeze_embeddings_and_lm_head(model):
     m = _unwrap_model(model)
 
+    # PeftModel을 완전히 unwrap
+    if hasattr(m, "get_base_model"):
+        try:
+            m = m.get_base_model()
+        except Exception:
+            pass
+
     in_emb = m.get_input_embeddings()
     if in_emb is not None:
         for p in in_emb.parameters():
@@ -98,6 +105,14 @@ def unfreeze_embeddings_and_lm_head(model):
     elif hasattr(m, "lm_head"):
         for p in m.lm_head.parameters():
             p.requires_grad_(True)
+
+    # fallback: PeftModel 구조에서 lm_head 직접 탐색
+    if out_emb is None and not hasattr(m, "lm_head"):
+        for name, mod in model.named_modules():
+            if name.endswith("lm_head"):
+                for p in mod.parameters():
+                    p.requires_grad_(True)
+                break
 
     return model
 
@@ -526,11 +541,32 @@ def simple_predict_generate(
             txt = txt.replace("<|im_start|>", "").replace("<|im_end|>", "").strip()
             raw_txt = txt.strip()
 
-            results.append({
+            # ── Compute mean token log-probability as confidence score ──
+            gen_score = None
+            if hasattr(out, "scores") and out.scores and gen_only.numel() > 0:
+                try:
+                    import torch.nn.functional as _F
+                    log_probs = []
+                    n_gen = min(len(out.scores), gen_only.numel())
+                    for t_idx in range(n_gen):
+                        logits_t = out.scores[t_idx][0]          # (vocab_size,)
+                        token_id = gen_only[t_idx].item()
+                        lp = _F.log_softmax(logits_t, dim=-1)[token_id].item()
+                        log_probs.append(lp)
+                    if log_probs:
+                        import math
+                        gen_score = math.exp(sum(log_probs) / len(log_probs))
+                except Exception:
+                    gen_score = None
+
+            result_item = {
                 "id": ids,
                 "prompt": prompts,
                 "pred": raw_txt,
-            })
+            }
+            if gen_score is not None:
+                result_item["score"] = round(gen_score, 6)
+            results.append(result_item)
 
     return results
 
@@ -726,7 +762,6 @@ class ModelArguments:
     freeze_final_linear: bool = False
     add_time_token: bool = False
     freeze_mm_projector: bool = True        # visual aligner freeze 여부 (default: freeze)
-    freeze_speech_qformer: bool = True      # audio aligner freeze 여부 (default: freeze)
     temporal_supervised: bool = False
     # temporal_num_bins 제거: VTG-LLM 방식은 11개 고정 (VTG_TIME_TOKENS)
     temporal_loss_weight: float = 1.0
@@ -794,6 +829,8 @@ class TrainingArguments(transformers.TrainingArguments):
     pretrain_weight: str = None
     load_full: bool = False
     merge_and_new_lora: bool = False
+    new_lora_path: str = None
+    freeze_embed_lm_head: bool = False
     dpo_train: bool = False
     loss_type: str = "sigmoid"
     ce_loss_weight: float = 0.1
@@ -1361,6 +1398,21 @@ def train():
                     model = get_peft_model(model, lora_config)
                     if v_flag:
                         model.model.model.vision_tower = vision_tower
+
+            # Load stage4 (new) LoRA weights after merge if specified
+            if training_args.new_lora_path is not None:
+                from peft import set_peft_model_state_dict
+                import safetensors.torch
+                adapter_path = os.path.join(training_args.new_lora_path, "adapter_model.safetensors")
+                if os.path.exists(adapter_path):
+                    print(f"[MERGE+LOAD] Loading new LoRA weights from {adapter_path}")
+                    adapter_state = safetensors.torch.load_file(adapter_path)
+                    result = set_peft_model_state_dict(model, adapter_state)
+                    print(f"[MERGE+LOAD] set_peft_model_state_dict done "
+                          f"(loaded {len(adapter_state)} tensors)")
+                    _load_time_rows_if_exist(model, training_args.new_lora_path)
+                else:
+                    print(f"[WARN] new_lora_path set but {adapter_path} not found")
         else:
             print("Not merging LoRA")
 
@@ -1447,9 +1499,8 @@ def train():
         for n, p in model.named_parameters():
             if "lora" in n.lower():
                 p.requires_grad_(True)
-        if model_args.add_time_token:
+        if model_args.add_time_token and not training_args.freeze_embed_lm_head:
             unfreeze_embeddings_and_lm_head(model)
-            apply_time_token_grad_mask(model, tokenizer, only_time_tokens=False)
     else:
         if model_args.freeze_backbone:
             model.model.requires_grad_(False)
@@ -1459,10 +1510,18 @@ def train():
             model.model.requires_grad_(True)
             if hasattr(model, "lm_head") and model.lm_head is not None:
                 model.lm_head.requires_grad_(True)
-        if model_args.add_time_token:
+        if model_args.add_time_token and not training_args.freeze_embed_lm_head:
             unfreeze_embeddings_and_lm_head(model)
-            apply_time_token_grad_mask(model, tokenizer, only_time_tokens=False)
     # =========================
+
+    # Re-register input_require_grads hook after all embedding resizes and freeze policies
+    if training_args.gradient_checkpointing:
+        if hasattr(model, "enable_input_require_grads"):
+            model.enable_input_require_grads()
+        else:
+            def make_inputs_require_grad(module, input, output):
+                output.requires_grad_(True)
+            model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
 
     if model_args.audio_visual:
         if not model_args.freeze_whisper:
@@ -1476,12 +1535,20 @@ def train():
             for p in model.ln_speech.parameters():
                 p.requires_grad = False
             model.speech_encoder.eval()
+            # Disable gradient checkpointing for frozen Whisper to avoid hang
+            if hasattr(model.speech_encoder, 'gradient_checkpointing'):
+                model.speech_encoder.gradient_checkpointing = False
+            if hasattr(model.speech_encoder, '_set_gradient_checkpointing'):
+                model.speech_encoder._set_gradient_checkpointing(False)
 
-        if model_args.freeze_speech_qformer:
+        if model_args.freeze_speech_QFormer:
             for name, param in model.speech_Qformer.named_parameters():
                 param.requires_grad = False
             model.speech_Qformer.eval()
             model.speech_query_tokens.requires_grad = False
+            # Disable gradient checkpointing for frozen Qformer
+            if hasattr(model.speech_Qformer, 'config'):
+                model.speech_Qformer.config.gradient_checkpointing = False
             print("[INFO] speech_Qformer FROZEN.")
         else:
             for name, param in model.speech_Qformer.named_parameters():
@@ -1751,9 +1818,6 @@ def train():
         else:
             model.tokenizer = tokenizer
 
-        if model_args.add_time_token:
-            apply_time_token_grad_mask(model, tokenizer, only_time_tokens=False)
-
         if training_args.dpo_train:
             training_args.gradient_checkpointing_kwargs = {"use_reentrant": False}
             trainer = LLaVADPOTrainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
@@ -1761,6 +1825,16 @@ def train():
         else:
             trainer = LLaVATrainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
             trainer.add_callback(SaveTrainerStatePerCheckpointCallback())
+
+            # time token gradient masking (DeepSpeed 호환: hook 대신 trainer에서 처리)
+            if model_args.add_time_token and not training_args.freeze_embed_lm_head:
+                time_ids = [tokenizer.convert_tokens_to_ids(t) for t in VTG_TIME_TOKENS]
+                time_ids = [i for i in time_ids if i is not None and i >= 0 and i != tokenizer.unk_token_id]
+                trainer.time_token_ids = sorted(set(time_ids))
+                rank = dist.get_rank() if dist.is_available() and dist.is_initialized() else 0
+                if rank == 0:
+                    print(f"[TIME_GRAD] Will mask non-time-token gradients in trainer. "
+                          f"time_token_ids count={len(trainer.time_token_ids)}")
 
             if model_args.add_time_token:
                 # VTG-LLM 방식: num_bins 인자 없음
@@ -1862,13 +1936,10 @@ def train():
                 b["spectrogram"] = b["spectrogram"].to(torch.bfloat16).cuda(non_blocking=True)
 
             lab   = b["labels"]
-            print("[DBG][LABEL] dtype:", lab.dtype, "min/max:", int(lab.min()), int(lab.max()), flush=True)
-            valid = (lab != -100).sum().item()
-            print("[DBG][LABEL] #valid(!=-100):", valid, " / total:", lab.numel(), flush=True)
-            print("[DBG][LABEL] tail raw:", lab[0, -60:].tolist(), flush=True)
 
         ckpts = sorted(
-            glob.glob(os.path.join(training_args.output_dir, "checkpoint-*")),
+            glob.glob(os.path.join(training_args.output_dir, "checkpoint-*"))
+            + glob.glob(os.path.join(training_args.output_dir, "kept-checkpoint-*")),
             key=lambda p: int(os.path.basename(p).split("-")[-1])
         )
 

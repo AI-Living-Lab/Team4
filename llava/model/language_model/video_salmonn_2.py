@@ -346,7 +346,7 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                 )
 
         if torch.cuda.current_device() == 0:
-            pass # # print('>>> [RANK0 PRINT] | modalities in batch:', modalities)
+            print('>>> [RANK0 PRINT] | modalities in batch:', modalities)
 
         if isinstance(modalities, str):
             modalities = [modalities]
@@ -447,7 +447,10 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                                     frame_per_time = real_time[image_idx] / num_frames
                                     time_idx = [str(round(frame_per_time * f_idx, 1)) for f_idx in range(1, num_frames + 1)]
                                     time_tokens = [self.tokenizer(t_idx, return_tensors='pt')["input_ids"].to(image_feature.device) for t_idx in time_idx]
-                                    time_embeds = [self.get_model().embed_tokens(t_tok.to(next(self.get_model().embed_tokens.parameters()).device)).squeeze() for t_tok in time_tokens]
+                                    # 직접 weight 인덱싱: embed_tokens() 모듈 forward를 중복 호출하면
+                                    # DeepSpeed ZeRO-2에서 gradient double-reduce 에러 발생
+                                    _emb_weight = self.get_model().embed_tokens.weight
+                                    time_embeds = [_emb_weight[t_tok.to(_emb_weight.device).squeeze()] for t_tok in time_tokens]
                                     padded_time_embeds = pad_sequence(time_embeds, batch_first=True).to(image_feature.device)
                                     image_feature = image_feature.view(num_frames, -1, image_feature.size(-1))
                                     image_feature = torch.cat((image_feature, padded_time_embeds), dim=1)
@@ -613,7 +616,7 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
             }
             default_len = int(modality_max_length[2])
 
-
+            # ✅ 핵심: 원본을 덮어쓰지 말고, 새 리스트에 담기
             sliced_input_embeds = []
             sliced_labels = []
 
@@ -674,7 +677,7 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
             position_ids = None
 
         if torch.cuda.current_device() == 0:
-            pass # print('>>> [RANK0 PRINT] | batch new_input_embeds\' shape:', new_input_embeds.shape)
+            print('>>> [RANK0 PRINT] | batch new_input_embeds\' shape:', new_input_embeds.shape)
         
         return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels
 
@@ -838,13 +841,11 @@ class VideoSALMONN2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
     ) -> Union[GenerateOutput, torch.LongTensor]:
         position_ids = kwargs.pop("position_ids", None)
         attention_mask = kwargs.pop("attention_mask", None)
-        inputs_embeds = kwargs.pop("inputs_embeds", None)
+        if "inputs_embeds" in kwargs:
+            raise NotImplementedError("`inputs_embeds` is not supported")
 
-        if inputs_embeds is not None:
-            # 캐싱된 inputs_embeds가 직접 전달된 경우 → 인코딩 스킵
-            pass
-        elif images is not None or spectrogram is not None:
-            (_, position_ids, attention_mask, _, inputs_embeds, _) = self.prepare_inputs_labels_for_multimodal(input_ids, position_ids, attention_mask, None, None, images, modalities, spectrogram=spectrogram, org_groups=org_groups, real_time=real_time)
+        if images is not None or spectrogram is not None:
+            (inputs, position_ids, attention_mask, _, inputs_embeds, _) = self.prepare_inputs_labels_for_multimodal(input_ids, position_ids, attention_mask, None, None, images, modalities, spectrogram=spectrogram, org_groups=org_groups, real_time=real_time)
         else:
             inputs_embeds = self.get_model().embed_tokens(input_ids)
 

@@ -23,24 +23,19 @@ cd $PROJECT_ROOT
 cd ..
 export PYTHONPATH="$(pwd):$PYTHONPATH"
 
-# 경로 설정 로드 (paths.env가 없으면 경고만 출력)
-if [ -f ./paths.env ]; then
-    source ./paths.env
-else
-    echo "[WARNING] paths.env not found. Copy paths.env.example to paths.env and fill in the paths."
-fi
 
 # pip install -r requirements.txt
 
-TRAINING_DATA=${DATA_DIR}/training_data.json
-MODEL_ID=${BASE_MODEL}
-MODEL_BASE=${BASE_MODEL}
+TRAINING_DATA=/mnt/bn/tiktok-mm-4/aiic/users/tangchangli/preprocess_dataset/ytb0-62kCapHumanDimQa.json
+MODEL_ID=/mnt/bn/tiktok-mm-4/aiic/public/model/OV-Qwen2-7B-AM9
+MODEL_BASE=/mnt/bn/tiktok-mm-4/aiic/public/model/OV-Qwen2-7B-AM9
 SAVE_MODEL_NAME=debug # 
 LOAD_FROM_LORA=False # True # 
 EPOCHS=4 # 5
 TRAIN_BS=1 # 1 # 2
 ACCUM_STEPS=1
 SAVE_STEPS=1000 # 2000
+SAVE_STRATEGY=steps
 
 LR=2e-5
 MAX_TIME=30 # 30
@@ -60,11 +55,12 @@ PRETRAIN_WEIGHT=None
 MM_POOLING_POSITION=after
 LOAD_FULL=False
 MERGE_AND_NEW_LORA=False
+FREEZE_EMBED_LM_HEAD=False
 AUDIO_VISUAL=False
 
 DO_DEMO=False
 DO_TEST=False
-TEST_DATA_PATH=${DATA_DIR}/videomme_audioVisual_test.json
+TEST_DATA_PATH=/mnt/bn/tiktok-mm-4/aiic/users/tangchangli/preprocess_dataset/videomme_audioVisual_test.json
 TEST_ID=debug
 
 DPO_TRAIN=False
@@ -87,6 +83,7 @@ while [[ "$#" -gt 0 ]]; do
         --train_bs) TRAIN_BS="$2"; shift ;;
         --accum_steps) ACCUM_STEPS="$2"; shift ;;
         --save_steps) SAVE_STEPS="$2"; shift ;;
+        --save_strategy) SAVE_STRATEGY="$2"; shift ;;
         --lr) LR="$2"; shift ;;
         --max_time) MAX_TIME="$2"; shift ;;
         --fps) FPS="$2"; shift ;;
@@ -104,6 +101,10 @@ while [[ "$#" -gt 0 ]]; do
         --mm_pooling_position) MM_POOLING_POSITION="$2"; shift ;;
         --load_full) LOAD_FULL=True; ;;
         --merge_and_new_lora) MERGE_AND_NEW_LORA=True; ;;
+        --freeze_embed_lm_head) FREEZE_EMBED_LM_HEAD=True; ;;
+        --freeze_speech_QFormer) FREEZE_SPEECH_QFORMER=True; ;;
+        --unfreeze_mm_projector) FREEZE_MM_PROJECTOR=False; ;;
+        --mm_projector_lr) MM_PROJECTOR_LR="$2"; shift ;;
         --audio_visual) AUDIO_VISUAL=True; ;;
         --do_demo) DO_DEMO=True; ;;
         --do_test) DO_TEST=True; ;;
@@ -114,32 +115,37 @@ while [[ "$#" -gt 0 ]]; do
         --with_ce_loss) WITH_CE_LOSS=True; ;;
         --second_per_window) SECOND_PER_WINDOW="$2"; shift ;;
         --second_stride) SECOND_STRIDE="$2"; shift ;;
+        --resume_from_checkpoint) RESUME_FROM_CHECKPOINT="$2"; shift ;;
+        --lora_path) LORA_PATH="$2"; shift ;;
+        --save_total_limit) SAVE_TOTAL_LIMIT="$2"; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
 done
 
-SAVE_DIR=output
+SAVE_DIR=${SAVE_DIR:-output}
 TEST_OUTPUT_DIR=output/test/$TEST_ID
 
 MODEL=$MODEL_ID
 echo "BASE CKPT: $MODEL"
 
-MODEL_MAX_LENGTH=4096
+MODEL_MAX_LENGTH=${MODEL_MAX_LENGTH:-4096}
 VISION_ENCODER=google/siglip-so400m-patch14-384
 
 FRAMES_UPBOUND=16
 POOLING_STYLE=max
-POOLING_STRIDE=2
+POOLING_STRIDE=${POOLING_STRIDE:-2}
 NEW_LINE_POSITION=grid
 IMAGE_ASPECT_RATIO=anyres
 
 WHISPER_PATH=openai/whisper-large-v3
-FREEZE_SPEECH_QFORMER=False
+FREEZE_SPEECH_QFORMER=${FREEZE_SPEECH_QFORMER:-False}
+FREEZE_MM_PROJECTOR=${FREEZE_MM_PROJECTOR:-True}
+MM_PROJECTOR_LR=${MM_PROJECTOR_LR:-2e-5}
 FREEZE_FINAL_LINEAR=False
 USE_FINAL_LINEAR=False
 
-export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
+export HF_HOME="/home/aix23102/.cache/huggingface"
 
 if [[ "$DO_DEMO" = "True" ]]; then
     GPU_NUM=1
@@ -149,13 +155,25 @@ fi
 
 # ${ARNOLD_WORKER_GPU}
 GPU_NUM=${GPU_NUM:-1}
-torchrun --standalone --nproc_per_node=$GPU_NUM \
+DEEPSPEED_ARG=""
+if [[ "$DEEPSPEED_TYPE" != "none" ]]; then
+    DEEPSPEED_ARG="--deepspeed ./scripts/$DEEPSPEED_TYPE.json"
+fi
+
+if [[ "$GPU_NUM" -eq 1 ]]; then
+    LAUNCHER="python"
+else
+    LAUNCHER="torchrun --standalone --nproc_per_node=$GPU_NUM"
+fi
+
+$LAUNCHER \
     llava/train/train_mem.py \
         --ckpt $MODEL \
-        --deepspeed ./scripts/$DEEPSPEED_TYPE.json \
+        $DEEPSPEED_ARG \
         --max_time $MAX_TIME \
         --load_from_lora $LOAD_FROM_LORA \
-        --lora_enable $LORA_ENABLE --lora_r $LORA_R --lora_alpha $LORA_ALPHA --lora_dropout $LORA_DROPOUT --mm_projector_lr 2e-5 \
+        --lora_enable $LORA_ENABLE --lora_r $LORA_R --lora_alpha $LORA_ALPHA --lora_dropout $LORA_DROPOUT --mm_projector_lr $MM_PROJECTOR_LR \
+        --freeze_mm_projector $FREEZE_MM_PROJECTOR \
         --audio_visual $AUDIO_VISUAL \
         --whisper_path $WHISPER_PATH \
         --audio_processor $WHISPER_PATH \
@@ -181,9 +199,9 @@ torchrun --standalone --nproc_per_node=$GPU_NUM \
         --per_device_eval_batch_size $TRAIN_BS \
         --gradient_accumulation_steps $ACCUM_STEPS \
         --evaluation_strategy "no" \
-        --save_strategy "steps" \
-        --save_steps $SAVE_STEPS \
-        --save_total_limit 100 \
+        --save_strategy "$SAVE_STRATEGY" \
+        $([ "$SAVE_STRATEGY" = "steps" ] && echo "--save_steps $SAVE_STEPS") \
+        --save_total_limit ${SAVE_TOTAL_LIMIT:-5} \
         --learning_rate $LR \
         --weight_decay 0. \
         --warmup_ratio 0.03 \
@@ -209,11 +227,14 @@ torchrun --standalone --nproc_per_node=$GPU_NUM \
         --pretrain_weight $PRETRAIN_WEIGHT \
         --mm_pooling_position $MM_POOLING_POSITION \
         --load_full $LOAD_FULL \
+        ${LORA_PATH:+--lora_path $LORA_PATH} \
         --merge_and_new_lora $MERGE_AND_NEW_LORA \
+        --freeze_embed_lm_head $FREEZE_EMBED_LM_HEAD \
         --do_demo $DO_DEMO \
         --do_test $DO_TEST \
         --test_data_path $TEST_DATA_PATH \
         --test_output_dir $TEST_OUTPUT_DIR \
         --dpo_train $DPO_TRAIN \
         --ce_loss_weight $CE_LOSS_WEIGHT \
-        --with_ce_loss $WITH_CE_LOSS;
+        --with_ce_loss $WITH_CE_LOSS \
+        ${RESUME_FROM_CHECKPOINT:+--resume_from_checkpoint $RESUME_FROM_CHECKPOINT};

@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:swift.readthedocs.io)",
+      "Bash(gh api:*)",
+      "Bash(where gh:*)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/aim-uofa/Omni-R1/main/src/omni_r1/trainer/grpo_trainer.py\" -o /tmp/grpo_trainer.py)",
+      "Read(//tmp/**)",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/aim-uofa/Omni-R1/main/src/omni_r1/trainer/grpo_trainer.py\")",
+      "Bash(pip show:*)",
+      "Bash(python -c \":*)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/huggingface/transformers/v4.46.0/src/transformers/trainer.py\")",
+      "Bash(curl -sL https://raw.githubusercontent.com/xiaomi-research/time-r1/main/src/time_r1/rl/timer1_trainer.py)",
+      "Bash(ls -la \"d:/code/Team4/_tools/GDPO_v2\\(revised\\)/\")",
+      "Bash(ls \"d:/code/Team4/_tools/GDPO_v2\\(revised\\)/\")"
+    ]
+  }
+}

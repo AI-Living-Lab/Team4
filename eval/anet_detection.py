@@ -1,1 +1,0 @@
-# CCNet에서 복사해온 ANETdetection

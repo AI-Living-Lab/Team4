@@ -10,6 +10,7 @@ PU-VALOR pseudo-untrimmed 비디오를 합성하고 학습용 JSON을 생성하�
         --valor_dir    /data0/aix23102/VALOR-32K/raid/datasets/audioset/valor_videos \
         --output_dir   /data0/aix23102/PU-VALOR \
         --workers      8 \
+        [--gpu_ids 4 5 6]  # GPU NVENC 인코딩 사용 (선택)
         [--dry_run]    # 실제 ffmpeg 실행 없이 매핑만 검증할 때
 """
 
@@ -51,13 +52,17 @@ OUT_FPS = 25
 _VALOR_INDEX = {}
 _VIDEO_DIR   = ""
 _DRY_RUN     = False
+_GPU_IDS     = []       # 비어있으면 CPU 인코딩
+_FFMPEG_BIN  = "ffmpeg"
 
 
-def worker_init(valor_index, video_dir, dry_run):
-    global _VALOR_INDEX, _VIDEO_DIR, _DRY_RUN
+def worker_init(valor_index, video_dir, dry_run, gpu_ids, ffmpeg_bin):
+    global _VALOR_INDEX, _VIDEO_DIR, _DRY_RUN, _GPU_IDS, _FFMPEG_BIN
     _VALOR_INDEX = valor_index
     _VIDEO_DIR   = video_dir
     _DRY_RUN     = dry_run
+    _GPU_IDS     = gpu_ids
+    _FFMPEG_BIN  = ffmpeg_bin
 
 
 # ────────────────────────────────────────────────
@@ -79,12 +84,14 @@ def build_valor_index(valor_dir: str) -> dict:
 # ────────────────────────────────────────────────
 # ffmpeg: scale + 해상도/fps 통일 + concat 한 번에
 # ────────────────────────────────────────────────
-def build_pseudo_video(clip_paths: list, scales: list, output_path: str) -> tuple:
+def build_pseudo_video(clip_paths: list, scales: list, output_path: str,
+                       gpu_id: int = -1) -> tuple:
     """
     여러 클립을 ffmpeg filter_complex로 한 번에 처리:
       - 각 클립: 해상도 통일(scale+pad) + fps 통일 + 속도 조정(setpts/atempo)
       - 전체: concat filter로 이어붙임
     재인코딩 1회로 화질 손실 최소화, 깨짐 없음.
+    gpu_id >= 0 이면 NVENC 하드웨어 인코딩 사용.
     """
     n = len(clip_paths)
 
@@ -99,16 +106,19 @@ def build_pseudo_video(clip_paths: list, scales: list, output_path: str) -> tupl
     for i, scale in enumerate(scales):
         vl = f"v{i}"
         al = f"a{i}"
+        # scale은 duration 배율: scale=2.0 → 2배 길어짐(0.5배속)
         filter_parts.append(
             f"[{i}:v]"
             f"scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=decrease,"
             f"pad={OUT_W}:{OUT_H}:(ow-iw)/2:(oh-ih)/2,setsar=1,"
             f"fps={OUT_FPS},"
-            f"setpts=PTS/{scale}"
+            f"setpts=PTS*{scale}"
             f"[{vl}]"
         )
+        # atempo는 속도 배율이므로 1/scale (범위 제한: 0.5~2.0)
+        atempo = 1.0 / scale
         filter_parts.append(
-            f"[{i}:a]atempo={scale}[{al}]"
+            f"[{i}:a]atempo={atempo:.4f}[{al}]"
         )
         v_labels.append(f"[{vl}]")
         a_labels.append(f"[{al}]")
@@ -120,13 +130,20 @@ def build_pseudo_video(clip_paths: list, scales: list, output_path: str) -> tupl
 
     filter_complex = ";".join(filter_parts)
 
+    # 인코딩 옵션: GPU 사용 가능하면 NVENC, 아니면 CPU mpeg4
+    if gpu_id >= 0:
+        enc_args = ["-c:v", "h264_nvenc", "-gpu", str(gpu_id),
+                    "-preset", "p4", "-cq", "23"]
+    else:
+        enc_args = ["-c:v", "mpeg4", "-q:v", "5"]
+
     cmd = [
-        "ffmpeg", "-y",
+        _FFMPEG_BIN, "-y",
         *input_args,
         "-filter_complex", filter_complex,
         "-map", "[outv]",
         "-map", "[outa]",
-        "-c:v", "mpeg4", "-q:v", "5",
+        *enc_args,
         "-c:a", "aac", "-b:a", "128k",
         "-loglevel", "error",
         output_path,
@@ -138,7 +155,8 @@ def build_pseudo_video(clip_paths: list, scales: list, output_path: str) -> tupl
 # ────────────────────────────────────────────────
 # 단일 샘플 처리 함수 (worker)
 # ────────────────────────────────────────────────
-def process_sample(sample):
+def process_sample(args):
+    sample, worker_idx = args
     try:
         sample_id  = sample["id"]
         sub_videos = sample["meta"]["sub_videos"]
@@ -164,7 +182,11 @@ def process_sample(sample):
         if _DRY_RUN:
             return {"status": "dry_run_ok", "id": sample_id}
 
-        ok, stderr = build_pseudo_video(clip_paths, scales, output_path)
+        # GPU 라운드로빈 배정
+        gpu_id = _GPU_IDS[worker_idx % len(_GPU_IDS)] if _GPU_IDS else -1
+
+        ok, stderr = build_pseudo_video(clip_paths, scales, output_path,
+                                        gpu_id=gpu_id)
         if not ok:
             return {
                 "status": "ffmpeg_error",
@@ -191,8 +213,15 @@ def main():
     parser.add_argument("--valor_dir",   required=True)
     parser.add_argument("--output_dir",  required=True)
     parser.add_argument("--workers",     type=int, default=8)
+    parser.add_argument("--gpu_ids",     type=int, nargs="*", default=[],
+                        help="NVENC 인코딩에 사용할 GPU ID (예: 4 5 6)")
+    parser.add_argument("--ffmpeg_bin",  default="ffmpeg",
+                        help="ffmpeg 바이너리 경로")
     parser.add_argument("--dry_run",     action="store_true")
     args = parser.parse_args()
+
+    if args.gpu_ids:
+        logger.info(f"GPU NVENC 인코딩 활성화: GPU {args.gpu_ids}")
 
     video_dir = os.path.join(args.output_dir, "videos")
     anno_dir  = os.path.join(args.output_dir, "annotations")
@@ -214,13 +243,17 @@ def main():
     }
     failed_samples = []
 
+    # (sample, worker_idx) 페어 생성
+    sample_args = [(s, i) for i, s in enumerate(pv_samples)]
+
     with Pool(
         processes=args.workers,
         initializer=worker_init,
-        initargs=(valor_index, video_dir, args.dry_run),
+        initargs=(valor_index, video_dir, args.dry_run,
+                  args.gpu_ids, args.ffmpeg_bin),
     ) as pool:
         for res in tqdm(
-            pool.imap_unordered(process_sample, pv_samples, chunksize=4),
+            pool.imap_unordered(process_sample, sample_args, chunksize=4),
             total=len(pv_samples),
             desc="합성 진행",
         ):

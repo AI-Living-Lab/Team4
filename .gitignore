@@ -180,9 +180,6 @@ youtube_cookies.txt
 www.youtube.com_cookies*
 *.cookies
 
-# local path configuration
-paths.env
-
 # random local files
 -4.38.0
 =4.38.0
@@ -205,10 +202,12 @@ events.out.tfevents.*
 *.tfevents.*
 # large local data
 data/stage3.json
+data/pu_valor_train.json
+data/pu_valor_train_salmonn2plus.json
 
-# 클로드 설정 파일
-.claude/
+# cookies (all patterns)
+cookies_*.txt
 
-# 구버전 GDPO
-_tools/GDPO(OLD)/
-_tools/GDPO(OLD2)/
+# local notes / conversation logs
+*.md
+!README.md
