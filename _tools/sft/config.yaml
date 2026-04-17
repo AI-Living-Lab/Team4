@@ -1,0 +1,61 @@
+# ============================================================
+# SFT training config for SALMONN2+ (UnAV-100 baseline)
+#
+# Sourced by train_salmonn2plus_unav100.sh.
+# Only hyperparameters live here — RUN_NAME / DATASET_NAME /
+# BASE_MODEL_NAME / GPUS are passed as CLI args.
+#
+# Flat KEY: VALUE format only (no nested maps / lists).
+# Inline comments with "#" are allowed.
+# ============================================================
+
+# ---- DeepSpeed ----
+DEEPSPEED_CONFIG: scripts/zero3_offload.json
+
+# ---- Trainable modules ----
+TUNE_MM_VISION: False
+TUNE_MM_MLP: False
+TUNE_MM_LLM: False
+TUNE_MM_AUDIO: False
+TUNE_MM_QFORMER: False
+TUNE_LM_HEAD: True
+
+# ---- LoRA ----
+USE_LORA: True
+LORA_R: 128
+LORA_ALPHA: 256
+LORA_DROPOUT: 0.05
+
+# ---- Optimizer / schedule ----
+NUM_TRAIN_EPOCHS: 1
+PER_DEVICE_TRAIN_BATCH_SIZE: 1
+GRADIENT_ACCUMULATION_STEPS: 2
+LEARNING_RATE: 5e-5
+WEIGHT_DECAY: 0
+WARMUP_RATIO: 0.03
+MAX_GRAD_NORM: 1
+LR_SCHEDULER_TYPE: cosine
+
+# ---- Logging / checkpointing ----
+EVAL_STRATEGY: "no"
+SAVE_STRATEGY: steps
+SAVE_STEPS: 500
+SAVE_TOTAL_LIMIT: 5
+LOGGING_STEPS: 1
+MODEL_MAX_LENGTH: 100000
+GRADIENT_CHECKPOINTING: True
+DATALOADER_NUM_WORKERS: 4
+REPORT_TO: wandb
+
+# ---- Image / video resolution ----
+MAX_PIXELS: 176400
+MIN_PIXELS: 784
+VIDEO_MAX_FRAME_PIXELS: 28224
+VIDEO_MIN_FRAME_PIXELS: 784
+VIDEO_MIN_FRAMES: 64
+VIDEO_MAX_FRAMES: 128
+BASE_INTERVAL: 0.2
+
+# ---- Misc ----
+TRAIN_TYPE: sft
+NO_AUDIO: False
