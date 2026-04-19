@@ -1,7 +1,11 @@
 #!/bin/bash
 # ============================================================
-# SALMONN2+ Eval 런처 
-#   - 학습된 LoRA 체크포인트 또는 베이스 모델 단독으로 추론 → mIoU/R@k 평가
+# SALMONN2+ Eval 런처
+#   - 학습된 LoRA 체크포인트 또는 베이스 모델 단독으로 추론
+#   - 평가 지표: Union-IoU 기반 mIoU + Recall@{0.3,0.5,0.7} + FP_rate
+#     · mIoU(union)  : GT 하나당 겹치는 pred 합집합과의 IoU 평균 (쪼개기 손해 방지)
+#     · Recall@θ     : Union-IoU ≥ θ 인 GT segment 비율
+#     · FP_rate      : GT와 전혀 겹치지 않는 pred 비율 (과잉/무관 예측 페널티)
 #   - 하이퍼파라미터는 config.yaml 에서 관리 (CONFIG=... 으로 교체 가능)
 #
 # 사용법 (모든 인자 선택, KEY=VALUE 형식):
