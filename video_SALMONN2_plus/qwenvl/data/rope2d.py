@@ -63,11 +63,15 @@ def get_rope_index_25(
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Calculate the 3D rope index based on image and video's temporal, height and width in LLM.
+    이미지와 비디오의 시간(temporal), 높이(height), 너비(width)를 기반으로 LLM에서 3D RoPE 인덱스를 계산한다.
 
     Explanation:
         Each embedding sequence contains vision embedding and text embedding or just contains text embedding.
+        각 임베딩 시퀀스는 비전 임베딩과 텍스트 임베딩을 함께 포함하거나, 또는 텍스트 임베딩만 포함할 수 있다.
 
         For pure text embedding sequence, the rotary position embedding has no difference with modern LLMs.
+        텍스트 임베딩만 있는 경우, rotary position embedding은 일반적인 최신 LLM들과 차이가 없다.
+
         Examples:
             input_ids: [T T T T T], here T is for text.
             temporal position_ids: [0, 1, 2, 3, 4]
@@ -76,36 +80,58 @@ def get_rope_index_25(
 
         For vision and text embedding sequence, we calculate 3D rotary position embedding for vision part
         and 1D rotary position embedding for text part.
+
+        비전과 텍스트 임베딩이 함께 있는 경우, 비전 부분에는 3D rotary position embedding을 적용하고,텍스트 부분에는 1D rotary position embedding을 적용한다.
+
         Examples:
-            Temporal (Time): 3 patches, representing different segments of the video in time.
-            Height: 2 patches, dividing each frame vertically.
-            Width: 2 patches, dividing each frame horizontally.
+            Temporal (Time): 
+                3 patches, representing different segments of the video in time. 시간 축에서 서로 다른 비디오 구간을 나타냄
+            Height: 
+                2 patches, dividing each frame vertically. 각 프레임을 세로로 나눔
+            Width: 
+                2 patches, dividing each frame horizontally.각 프레임을 가로로 나눔
             We also have some important parameters:
-            fps (Frames Per Second): The video's frame rate, set to 1. This means one frame is processed each second.
-            tokens_per_second: This is a crucial parameter. It dictates how many "time-steps" or "temporal tokens" are conceptually packed into a one-second interval of the video. In this case, we have 25 tokens per second. So each second of the video will be represented with 25 separate time points. It essentially defines the temporal granularity.
-            temporal_patch_size: The number of frames that compose one temporal patch. Here, it's 2 frames.
-            interval: The step size for the temporal position IDs, calculated as tokens_per_second * temporal_patch_size / fps. In this case, 25 * 2 / 1 = 50. This means that each temporal patch will be have a difference of 50 in the temporal position IDs.
-            input_ids: [V V V V V V V V V V V V T T T T T], here V is for vision.
-            vision temporal position_ids: [0, 0, 0, 0, 50, 50, 50, 50, 100, 100, 100, 100]
-            vision height position_ids: [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1]
-            vision width position_ids: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
-            text temporal position_ids: [101, 102, 103, 104, 105]
-            text height position_ids: [101, 102, 103 104, 105]
-            text width position_ids: [101, 102, 103, 104, 105]
-            Here we calculate the text start position_ids as the max vision position_ids plus 1.
+            fps (Frames Per Second): 
+                The video's frame rate, set to 1. This means one frame is processed each second. 비디오의 프레임 레이트, 여기서는 1로 설정됨 → 1초당 1프레임 처리
+            tokens_per_second: 
+                This is a crucial parameter. It dictates how many "time-steps" or "temporal tokens" are conceptually packed into a one-second interval of the video. In this case, we have 25 tokens per second. So each second of the video will be represented with 25 separate time points. It essentially defines the temporal granularity.
+                매우 중요한 파라미터로, 1초 구간에 몇 개의 "시간 토큰"을 할당할지 결정한다. 여기서는 1초당 25토큰 → 1초가 25개의 시간 포인트로 표현됨 → 시간 해상도를 정의
+            temporal_patch_size: 
+                The number of frames that compose one temporal patch. Here, it's 2 frames. 하나의 temporal patch를 구성하는 프레임 수. 여기서는 2프레임이 하나의 temporal patch를 구성
+            interval: 
+                The step size for the temporal position IDs, calculated as tokens_per_second * temporal_patch_size / fps. In this case, 25 * 2 / 1 = 50. This means that each temporal patch will be have a difference of 50 in the temporal position IDs.
+                temporal position ID의 증가 간격으로, tokens_per_second * temporal_patch_size / fps로 계산된다. 여기서는 25 * 2 / 1 = 50 → 각 temporal patch마다 temporal position ID가 50씩 증가
+            
+            input_ids: 
+                [V V V V V V V V V V V V T T T T T], here V is for vision.
+            vision position_ids:
+                vision temporal position_ids: 
+                    [0, 0, 0, 0, 50, 50, 50, 50, 100, 100, 100, 100]
+                vision height position_ids: 
+                    [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1]
+                vision width position_ids: 
+                    [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+            text position_ids:
+                text temporal position_ids: 
+                    [101, 102, 103, 104, 105]
+                text height position_ids: 
+                    [101, 102, 103 104, 105]
+                text width position_ids: 
+                    [101, 102, 103, 104, 105]
+            Here we calculate the text start position_ids as the max vision position_ids plus 1. 여기서 텍스트의 시작 position_id는 비전 position_id의 최대값 + 1 로 설정한다.
 
     Args:
         input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
             Indices of input sequence tokens in the vocabulary. Padding will be ignored by default should you provide
-            it.
+            it. 입력 시퀀스 토큰의 인덱스. 패딩이 포함된 경우 기본적으로 무시된다.
         image_grid_thw (`torch.LongTensor` of shape `(num_images, 3)`, *optional*):
-            The temporal, height and width of feature shape of each image in LLM.
+            The temporal, height and width of feature shape of each image in LLM. 각 이미지의 temporal, height, width feature 크기
         video_grid_thw (`torch.LongTensor` of shape `(num_videos, 3)`, *optional*):
-            The temporal, height and width of feature shape of each video in LLM.
+            The temporal, height and width of feature shape of each video in LLM.각 비디오의 temporal, height, width feature 크기
         second_per_grid_ts (`torch.Tensor` of shape `(num_videos)`, *optional*):
-            The time interval (in seconds) for each grid along the temporal dimension in the 3D position IDs.
+            The time interval (in seconds) for each grid along the temporal dimension in the 3D position IDs. temporal 축에서 각 grid가 차지하는 시간 간격(초 단위)
         attention_mask (`torch.Tensor` of shape `(batch_size, sequence_length)`, *optional*):
-            Mask to avoid performing attention on padding token indices. Mask values selected in `[0, 1]`:
+            Mask to avoid performing attention on padding token indices. Mask values selected in `[0, 1]`: padding 토큰에 attention이 가지 않도록 하는 마스크
 
             - 1 for tokens that are **not masked**,
             - 0 for tokens that are **masked**.
