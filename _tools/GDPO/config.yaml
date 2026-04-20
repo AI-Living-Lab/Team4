@@ -17,9 +17,9 @@ data:
 
 # GDPO 설정
 gdpo:
-  num_generations: 8
-  max_completion_length: 512
-  beta: 0.04
+  num_generations: 8                      # 8
+  max_completion_length: 256              # 512
+  beta: 0.04                               # 0.04
   temperature: 1.0
   reward_weights: [1.0, 1.0]           # [format, iou]
 

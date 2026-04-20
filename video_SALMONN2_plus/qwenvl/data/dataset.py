@@ -34,7 +34,15 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
-from torchcodec.decoders import VideoDecoder, AudioDecoder
+try:
+    from torchcodec.decoders import VideoDecoder, AudioDecoder
+except (ImportError, RuntimeError) as _e:
+    # torchcodec이 PyTorch ABI/FFmpeg과 안 맞아 로드 실패 시
+    # VideoDecoder 경로는 decord로 자동 fallback되고,
+    # AudioDecoder는 process_audio에서 torchaudio로 대체됐으므로 None으로 둬도 무해.
+    print(f"[dataset] torchcodec unavailable ({type(_e).__name__}); falling back to decord/torchaudio")
+    VideoDecoder = None
+    AudioDecoder = None
 import transformers
 
 from .rope2d import get_rope_index_25, get_rope_index_2
@@ -367,6 +375,16 @@ class LazySupervisedDataset(Dataset):
             print("No pre-calculated length available.")
             return np.array([1] * len(self.list_data_dict))
 
+    def _load_audio_numpy(self, audio_file, sr):
+        """torchaudio로 오디오 파일을 mono + 지정 SR로 로드 → np.float32 1D array."""
+        import torchaudio
+        waveform, orig_sr = torchaudio.load(audio_file)
+        if waveform.shape[0] > 1:  # stereo → mono
+            waveform = waveform.mean(dim=0, keepdim=True)
+        if orig_sr != sr:
+            waveform = torchaudio.functional.resample(waveform, orig_sr, sr)
+        return waveform.squeeze(0).to(torch.float32).numpy()
+
     def process_audio(self, audio_file):
         try:
             audio_kwargs = {
@@ -375,36 +393,28 @@ class LazySupervisedDataset(Dataset):
                 "return_attention_mask": False,
             }
             processor = copy.deepcopy(self.data_args.audio_processor)
+            sr = audio_kwargs["sampling_rate"]
             if isinstance(audio_file, list):
-                audio_data = []
-                for file in audio_file:
-                    decoder = AudioDecoder(
-                        file,
-                        sample_rate=audio_kwargs["sampling_rate"],
-                        num_channels=1,
-                    )
-                    audio = decoder.get_all_samples()
-                    audio_data.append(audio.data.numpy().squeeze(0))
+                audio_data = [self._load_audio_numpy(f, sr) for f in audio_file]
             else:
-                decoder = AudioDecoder(
-                    audio_file,
-                    sample_rate=audio_kwargs["sampling_rate"],
-                    num_channels=1,
-                )
-                audio = decoder.get_all_samples()
-                audio_data = [audio.data.numpy().squeeze(0)]
+                audio_data = [self._load_audio_numpy(audio_file, sr)]
             audio_inputs = []
             audio_lengths = []
             for idx in range(len(audio_data)):
-                if audio_data[idx].shape[0] < audio_kwargs["sampling_rate"]:
-                    padding = audio_kwargs["sampling_rate"] - audio_data[idx].shape[0]
+                if audio_data[idx].shape[0] < sr:
+                    padding = sr - audio_data[idx].shape[0]
                     audio_data[idx] = np.pad(audio_data[idx], (0, padding), mode="constant", constant_values=0)
-                audio_lst = [audio_data[idx][k: k + 30 * audio_kwargs["sampling_rate"]] for k in range(0, len(audio_data[idx]), 30 * audio_kwargs["sampling_rate"])]
-                spectrogram_lst = [processor(a, sampling_rate=audio_kwargs["sampling_rate"], return_tensors="pt")["input_features"].squeeze() for a in audio_lst]
+                audio_lst = [audio_data[idx][k: k + 30 * sr] for k in range(0, len(audio_data[idx]), 30 * sr)]
+                spectrogram_lst = [processor(a, sampling_rate=sr, return_tensors="pt")["input_features"].squeeze() for a in audio_lst]
                 audio_inputs.append(torch.stack(spectrogram_lst, dim=0))
-                audio_lengths.append(math.ceil(len(audio_data[idx]) / (30 * audio_kwargs["sampling_rate"])) * 60)
+                audio_lengths.append(math.ceil(len(audio_data[idx]) / (30 * sr)) * 60)
             return audio_inputs, audio_lengths
-        except:
+        except Exception as e:
+            # 비디오 파일(.mp4 등)에서 오디오 로드 시도 실패는 정상 (뒤에 .wav로 재시도함).
+            # 진짜 오디오 파일이 실패한 경우만 로그 남김.
+            audio_ext = str(audio_file).lower() if not isinstance(audio_file, list) else str(audio_file[0]).lower()
+            if audio_ext.endswith(('.wav', '.flac', '.mp3', '.ogg', '.m4a')):
+                print(f"[process_audio] FAIL on {audio_file}: {type(e).__name__}: {e}")
             return None, None
 
 

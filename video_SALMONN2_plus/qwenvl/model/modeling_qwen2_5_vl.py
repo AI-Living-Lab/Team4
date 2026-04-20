@@ -1766,15 +1766,19 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
 
                     audio_len = audio_lengths[video_index]
 
-                    time_index_audio = torch.arange(audio_len, device=input_ids.device)
+                    # device 통일: 이 함수는 CPU 기반으로 동작하므로 audio도 CPU로 생성.
+                    # 마지막 llm_positions.to(position_ids.device) 에서 일괄 GPU 이동.
+                    time_index_audio = torch.arange(audio_len)
                     w_index_audio = time_index_audio
                     h_index_audio = torch.zeros_like(time_index_audio)
                     audio_pos = torch.stack([time_index_audio, h_index_audio, w_index_audio]) + st_idx + text_len
                     # llm_pos_ids_list.append(audio_pos)
+                    # input_ids[ed:st] 인덱스 비교도 CPU에서 하도록 CPU로 이동
+                    input_ids_cpu_slice = input_ids[ed:ed + llm_grid_t * llm_grid_h * llm_grid_w + audio_len].cpu()
                     audio_visual_pos = torch.zeros_like(torch.cat((video_pos, audio_pos), dim=1))
                     st = ed + llm_grid_t * llm_grid_h * llm_grid_w + audio_len
-                    audio_visual_pos[:, input_ids[ed:st] == audio_token_id] = audio_pos
-                    audio_visual_pos[:, input_ids[ed:st] == video_token_id] = video_pos
+                    audio_visual_pos[:, input_ids_cpu_slice == audio_token_id] = audio_pos
+                    audio_visual_pos[:, input_ids_cpu_slice == video_token_id] = video_pos
                     llm_pos_ids_list.append(audio_visual_pos)
                     video_index += 1
                     remain_videos -= 1
@@ -2039,8 +2043,6 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
             mask_expanded = mask_unsqueezed.expand_as(inputs_embeds)
             image_mask = mask_expanded.to(inputs_embeds.device)
             image_embeds = image_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
-            if torch.cuda.current_device() == 0:
-                print(f"RANK 0 image_embeds: {image_embeds.shape}")
             inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
             return inputs_embeds, image_embeds
         else:
@@ -2069,8 +2071,6 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
             mask_expanded = mask_unsqueezed.expand_as(inputs_embeds)
             video_mask = mask_expanded.to(inputs_embeds.device)
             video_embeds = video_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
-            if torch.cuda.current_device() == 0:
-                print(f"RANK 0 video_embeds: {video_embeds.shape}")
             inputs_embeds = inputs_embeds.masked_scatter(video_mask, video_embeds)
             return inputs_embeds, video_embeds
         else:
@@ -2099,8 +2099,6 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
             mask_expanded = mask_unsqueezed.expand_as(inputs_embeds)
             audio_mask = mask_expanded.to(inputs_embeds.device)
             audio_embeds = audio_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
-            if torch.cuda.current_device() == 0:
-                print(f"RANK 0 audio_embeds: {audio_embeds.shape}")
             inputs_embeds = inputs_embeds.masked_scatter(audio_mask, audio_embeds)
             return inputs_embeds, audio_embeds
         else:

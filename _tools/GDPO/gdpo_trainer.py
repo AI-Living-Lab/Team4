@@ -238,11 +238,19 @@ class GDPOTrainer(Trainer):
         pixel_values_videos=None, video_grid_thw=None,
         audio_feature=None, audio_lengths=None,
         position_ids=None, second_per_grid_ts=None,
+        inputs_embeds=None,
     ):
-        """VS2+의 sft_forward 
-        → logits 
-        → per-token log probability."""
-        # sft_forward 내부에서 inputs_embeds 분기를 처리
+        """VS2+의 sft_forward
+        → logits
+        → per-token log probability.
+
+        inputs_embeds가 주어지면 video/audio encoder 재실행 안 함 (캐싱된 embed 재사용).
+        rope_index 계산엔 input_ids/video_grid_thw/audio_lengths 필요하므로 여전히 전달.
+        """
+        # inputs_embeds가 있으면 pixel_values_videos/audio_feature 전달 안 함 → sft_forward가 재인코딩 스킵
+        if inputs_embeds is not None:
+            pixel_values_videos = None
+            audio_feature = None
         logits = model(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -252,6 +260,7 @@ class GDPOTrainer(Trainer):
             audio_feature=audio_feature,
             audio_lengths=audio_lengths,
             second_per_grid_ts=second_per_grid_ts,
+            inputs_embeds=inputs_embeds,
             train_type="sft",
             use_cache=False,
         ).logits
@@ -391,21 +400,36 @@ class GDPOTrainer(Trainer):
         # 일단 캐싱 구현 X
         # TODO : generate 반환에 따라 나중에
         # 캐싱 구현 가능성 있음
+        # non-None kwargs만 전달 (HF generate의 model_kwargs validation 통과용)
+        gen_kwargs = {
+            "input_ids": prompt_ids,
+            "attention_mask": prompt_mask,
+            "max_new_tokens": self.max_completion_length,
+            "do_sample": True,
+            "temperature": self.temperature,
+            "top_p": 0.9,
+        }
+        if pixel_values_videos is not None:
+            gen_kwargs["pixel_values_videos"] = pixel_values_videos
+        if video_grid_thw is not None:
+            gen_kwargs["video_grid_thw"] = video_grid_thw
+        if audio_feature is not None:
+            gen_kwargs["audio_feature"] = audio_feature
+        if audio_lengths is not None:
+            gen_kwargs["audio_lengths"] = audio_lengths
+
         with unwrap_model_for_generation(model, self.accelerator) as unwrapped_model:
+            # PEFT wrapper 한 겹 벗겨 실제 video_SALMONN2_plus 인스턴스로 generate.
+            # LoRA는 q/k/v Linear에 inline으로 붙어있어 base 직접 호출도 LoRA 적용됨.
+            raw_model = (
+                unwrapped_model.get_base_model()
+                if hasattr(unwrapped_model, "get_base_model")
+                else unwrapped_model
+            )
             for _ in range(self.num_generations):
-                gen_ids = unwrapped_model.generate(
-                    input_ids=prompt_ids,
-                    attention_mask=prompt_mask,
-                    pixel_values_videos=pixel_values_videos,
-                    video_grid_thw=video_grid_thw,
-                    audio_feature=audio_feature,
-                    audio_lengths=audio_lengths,
-                    max_new_tokens=self.max_completion_length,
-                    do_sample=True,
-                    temperature=self.temperature,
-                    top_p=0.9,
-                    min_new_tokens=30,
-                )
+                gen_ids = raw_model.generate(**gen_kwargs)
+                # HF generate는 [prompt+new_tokens] 전체를 반환 → new_tokens만 분리
+                gen_ids = gen_ids[:, prompt_length:]
                 all_completion_ids.append(gen_ids)
 
         # generate 끝나고 활성화
@@ -437,18 +461,66 @@ class GDPOTrainer(Trainer):
 
         comp_len = completion_ids.size(1)
 
+        # completion에서 비디오/오디오 placeholder 토큰 제거 (logprob 계산 시 feature 수 불일치 방지)
+        _VIDEO_TOKEN_ID = 151656
+        _AUDIO_TOKEN_ID = 151657 if hasattr(self, '_audio_token_id') else None
+        # VIDEO_TOKEN을 패딩으로 교체
+        completion_ids_clean = completion_ids.clone()
+        completion_ids_clean[completion_ids_clean == _VIDEO_TOKEN_ID] = pad_id
+        # 모델 config에서 audio_token_id 확인
+        if hasattr(model.config, 'audio_token_id'):
+            completion_ids_clean[completion_ids_clean == model.config.audio_token_id] = pad_id
+
         # ── Per-token log probs (policy) ──
+        # 원본 prompt(반복 전) + 각 completion을 개별 결합 (비디오 토큰 수 일치를 위해)
+        prompt_ids_single = prompt_ids[:1]  # 반복 전 원본 (1, P)
+        prompt_mask_single = prompt_mask[:1]
+
+        # ── Encoding cache (비디오/오디오 encoder는 frozen이므로 step당 1회만 인코딩) ──
+        raw_encode_model = model.get_base_model() if hasattr(model, "get_base_model") else model
+        cached_video_embeds = None
+        cached_audio_embeds = None
+        with torch.no_grad():
+            if pixel_values_videos is not None:
+                pv = pixel_values_videos.type(raw_encode_model.visual.dtype)
+                cached_video_embeds = raw_encode_model.visual(pv, grid_thw=video_grid_thw)
+            if audio_feature is not None:
+                af = audio_feature.type(raw_encode_model.audio.dtype)
+                cached_audio_embeds = raw_encode_model.audio(af).flatten(0, 1)
+
+        _AUDIO_TOKEN_ID_CFG = getattr(model.config, "audio_token_id", None)
+
+        def _build_cached_inputs_embeds(pc_ids):
+            """pc_ids에 대한 inputs_embeds 생성.
+            text 위치는 trainable embed_tokens (gradient 흐름),
+            video/audio 위치는 캐시된 frozen embeds (gradient 멈춤 — OK).
+            """
+            text_embeds = raw_encode_model.model.embed_tokens(pc_ids)
+            if cached_video_embeds is not None:
+                mask = (pc_ids == _VIDEO_TOKEN_ID)
+                mask_exp = mask.unsqueeze(-1).expand_as(text_embeds)
+                v = cached_video_embeds.to(text_embeds.device, text_embeds.dtype)
+                text_embeds = text_embeds.masked_scatter(mask_exp, v)
+            if cached_audio_embeds is not None and _AUDIO_TOKEN_ID_CFG is not None:
+                mask = (pc_ids == _AUDIO_TOKEN_ID_CFG)
+                mask_exp = mask.unsqueeze(-1).expand_as(text_embeds)
+                a = cached_audio_embeds.to(text_embeds.device, text_embeds.dtype)
+                text_embeds = text_embeds.masked_scatter(mask_exp, a)
+            return text_embeds
+
         all_per_token_logps = []
         for g in range(self.num_generations):
+            pc_ids = torch.cat([prompt_ids_single, completion_ids_clean[g:g+1]], dim=1)
+            pc_mask = torch.cat([prompt_mask_single, completion_mask[g:g+1]], dim=1)
+            pc_embeds = _build_cached_inputs_embeds(pc_ids)
             g_logps = self._get_per_token_logps(
                 model,
-                prompt_completion_ids[g:g+1],
-                attention_mask[g:g+1],
-                pixel_values_videos=pixel_values_videos,
-                video_grid_thw=video_grid_thw,
-                audio_feature=audio_feature,
-                audio_lengths=audio_lengths,
+                pc_ids,
+                pc_mask,
+                video_grid_thw=video_grid_thw,          # rope_index용 (재인코딩 X)
+                audio_lengths=audio_lengths,             # rope_index용
                 second_per_grid_ts=second_per_grid_ts,
+                inputs_embeds=pc_embeds,                 # 캐시된 embed 사용
             )
             g_logps = g_logps[:, -comp_len:] if comp_len > 0 else g_logps[:, :0]
             all_per_token_logps.append(g_logps)
@@ -459,28 +531,29 @@ class GDPOTrainer(Trainer):
             with torch.inference_mode():
                 all_ref_logps = []
                 for g in range(self.num_generations):
+                    pc_ids = torch.cat([prompt_ids_single, completion_ids_clean[g:g+1]], dim=1)
+                    pc_mask = torch.cat([prompt_mask_single, completion_mask[g:g+1]], dim=1)
+                    pc_embeds = _build_cached_inputs_embeds(pc_ids)
                     if self.ref_model is not None:
                         g_ref_logps = self._get_per_token_logps(
                             self.ref_model,
-                            prompt_completion_ids[g:g+1],
-                            attention_mask[g:g+1],
-                            pixel_values_videos=pixel_values_videos,
+                            pc_ids,
+                            pc_mask,
                             video_grid_thw=video_grid_thw,
-                            audio_feature=audio_feature,
                             audio_lengths=audio_lengths,
                             second_per_grid_ts=second_per_grid_ts,
+                            inputs_embeds=pc_embeds,
                         )
                     else:
                         with self.accelerator.unwrap_model(model).disable_adapter():
                             g_ref_logps = self._get_per_token_logps(
                                 model,
-                                prompt_completion_ids[g:g+1],
-                                attention_mask[g:g+1],
-                                pixel_values_videos=pixel_values_videos,
+                                pc_ids,
+                                pc_mask,
                                 video_grid_thw=video_grid_thw,
-                                audio_feature=audio_feature,
                                 audio_lengths=audio_lengths,
                                 second_per_grid_ts=second_per_grid_ts,
+                                inputs_embeds=pc_embeds,
                             )
                     g_ref_logps = g_ref_logps[:, -comp_len:] if comp_len > 0 else g_ref_logps[:, :0]
                     all_ref_logps.append(g_ref_logps)
@@ -595,10 +668,14 @@ def load_model_and_tokenizer(model_path, model_base):
         attn_implementation="sdpa",
         torch_dtype=torch.bfloat16,
     )
-    model.resize_token_embeddings(len(tokenizer))
+    # resize_token_embeddings 호출 금지 — base는 vocab_size=152064 (Qwen 패딩 포함)로
+    # 유지해야 SFT adapter의 modules_to_save(embed_tokens/lm_head, 152064 rows)와 맞음.
     model = model.to(torch.bfloat16)
 
     # LoRA 로드 — audio.layers 분리 필요 (SFT train_qwen.py와 동일 패턴)
+    # adapter_config의 base_model_name_or_path는 무시됨 (이미 로드된 model 객체를 넘기므로).
+    # modules_to_save=[model.embed_tokens, lm_head]는 PeftModel 로딩 시 자동 복원되므로
+    # time token 임베딩 수동 복원 불필요.
     adapter_config_path = os.path.join(model_path, "adapter_config.json")
     if os.path.isdir(model_path) and os.path.exists(adapter_config_path):
         print(f"[GDPO] Loading LoRA adapter: {model_path}")
@@ -608,25 +685,19 @@ def load_model_and_tokenizer(model_path, model_base):
         model.model.audio.layers = audio_layers
     else:
         print("[GDPO] No LoRA adapter found, using base model")
-    
 
-    # TODO : VS2+ SFT 체크포인트 확인 후 고쳐야함
-    # time token 임베딩 복원
-    _time_rows_path = os.path.join(model_path, "time_token_rows.pt")
-    if os.path.exists(_time_rows_path):
-        payload = torch.load(_time_rows_path, map_location="cpu")
-        time_ids = payload.get("time_ids", [])
-        if time_ids:
-            m = model.get_base_model() if hasattr(model, "get_base_model") else model
-            in_emb = m.get_input_embeddings()
-            out_emb = m.get_output_embeddings()
-            idx = torch.tensor(time_ids, dtype=torch.long, device=in_emb.weight.device)
-            in_emb.weight.data.index_copy_(0, idx, payload["input_emb_rows"].to(in_emb.weight.device))
-            if "output_emb_rows" in payload and out_emb is not None and hasattr(out_emb, "weight"):
-                out_emb.weight.data.index_copy_(0, idx, payload["output_emb_rows"].to(out_emb.weight.device))
-            print(f"[GDPO] Loaded time token embeddings ({len(time_ids)} tokens)")
-    else:
-        print(f"[GDPO] WARNING: time_token_rows.pt not found")
+    # gradient_checkpointing + 얼린 base 조합에서 grad가 흐르게 하려면
+    # 얼린 embedding 출력에 requires_grad=True가 필요.
+    if hasattr(model, "enable_input_require_grads"):
+        model.enable_input_require_grads()
+
+    # HF generate의 _validate_model_kwargs 우회 (monkey-patch).
+    # PEFT(LoraModel) wrapping 때문에 HF가 forward 시그니처를 inspect할 때
+    # `*args, **kwargs`만 보여서 pixel_values_videos / video_grid_thw /
+    # audio_feature / audio_lengths를 "unused"로 false-positive 판정함.
+    # 실제로는 base_model.forward / prepare_inputs_for_generation이 정상 처리함.
+    base = model.get_base_model() if hasattr(model, "get_base_model") else model
+    base._validate_model_kwargs = lambda *a, **kw: None
 
     # tokenizer 연결
     if not hasattr(model, "tokenizer"):
