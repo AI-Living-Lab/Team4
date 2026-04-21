@@ -51,6 +51,16 @@ DEFAULT_AUDIO_TOKEN = "<audio>"
 
 local_rank = None
 
+
+def sec_to_time_token_str(sec: float) -> str:
+    # 초 → XXXX.Y 포맷의 6개 타임토큰 문자열. 범위 0.0~9999.9, 정밀도 0.1초.
+    sec = max(0.0, min(9999.9, sec))
+    tenths = round(sec * 10)
+    i = tenths // 10
+    f = tenths % 10
+    d1, d2, d3, d4 = (i // 1000) % 10, (i // 100) % 10, (i // 10) % 10, i % 10
+    return f"<t{d1}><t{d2}><t{d3}><t{d4}><tdot><t{f}>"
+
 def rank0_print(*args):
     if local_rank == 0:
         print(*args)
@@ -163,9 +173,13 @@ def generate_id_target(
                         else:
                             per_timestep_audio_len = split_into_groups(audio_lengths, [grid_thw_video[i][0] for i in range(len(grid_thw_video))], [ts[0] for ts in second_per_grid_ts])
                         replacement = "<|vision_start|>"
+                        sec_per_grid_t = second_per_grid_ts[i][0] if second_per_grid_ts is not None else None
                         for timestep in range(grid_thw_video[i][0]):
+                            if sec_per_grid_t is not None:
+                                t_start_sec = timestep * sec_per_grid_t
+                                replacement += sec_to_time_token_str(t_start_sec)
                             replacement += (
-                                f"<|video_pad|>" 
+                                f"<|video_pad|>"
                                 * (grid_thw_video[i][1] * grid_thw_video[i][2] // merge_size**2)
                                 + f"<|audio_pad|>"
                                 * per_timestep_audio_len[i][timestep]
