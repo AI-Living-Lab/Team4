@@ -314,6 +314,16 @@ class LazySupervisedDataset(Dataset):
         else:
             self.get_rope_index = get_rope_index_2
 
+        # 타임토큰 ID 범위 [lo, hi] 계산 — <t0>와 <tdot>이 vocab에 등록된 경우에만 활성화.
+        # ID 11개는 pre-baked 체크포인트에서 연속으로 부여되므로 (lo, hi) 튜플로 충분.
+        t0_id = tokenizer.convert_tokens_to_ids("<t0>")
+        tdot_id = tokenizer.convert_tokens_to_ids("<tdot>")
+        unk = tokenizer.unk_token_id
+        if t0_id is not None and tdot_id is not None and t0_id != unk and tdot_id != unk:
+            self.time_token_id_range = (int(min(t0_id, tdot_id)), int(max(t0_id, tdot_id)))
+        else:
+            self.time_token_id_range = None
+
         list_data_dict = []
 
         for data in dataset_list:
@@ -618,6 +628,7 @@ class LazySupervisedDataset(Dataset):
                 ),
                 second_per_grid_ts=second_per_grid_ts if second_per_grid_ts else None,
                 audio_lengths=audio_lengths if audio_lengths else None,
+                time_token_id_range=self.time_token_id_range,
             )
             if data_dict["chosen_ids"] is not None:
                 chosen_position_ids, _ = self.get_rope_index(
@@ -629,6 +640,7 @@ class LazySupervisedDataset(Dataset):
                     ),
                     second_per_grid_ts=second_per_grid_ts if second_per_grid_ts else None,
                     audio_lengths=audio_lengths if audio_lengths else None,
+                    time_token_id_range=self.time_token_id_range,
                 )
             else:
                 chosen_position_ids = None
@@ -642,6 +654,7 @@ class LazySupervisedDataset(Dataset):
                     ),
                     second_per_grid_ts=second_per_grid_ts if second_per_grid_ts else None,
                     audio_lengths=audio_lengths if audio_lengths else None,
+                    time_token_id_range=self.time_token_id_range,
                 )
             else:
                 reject_position_ids = None

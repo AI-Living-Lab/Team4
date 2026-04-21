@@ -60,6 +60,7 @@ def get_rope_index_25(
     audio_lengths: Optional[list] = None,
     second_per_grid_ts: Optional[torch.Tensor] = None,
     attention_mask: Optional[torch.Tensor] = None,
+    time_token_id_range: Optional[Tuple[int, int]] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Calculate the 3D rope index based on image and video's temporal, height and width in LLM.
@@ -193,11 +194,20 @@ def get_rope_index_25(
 
             # vision_start 토큰 위치를 모두 찾고, 그 바로 다음 토큰이 무엇인지로
             # 이미지/비디오/오디오를 구분한다.
+            # 타임토큰 인터리빙이 켜지면 vision_start 바로 뒤 토큰이 video_pad 대신
+            # 첫 청크의 타임토큰(<t*> 중 하나)이 되므로, 그 범위도 비디오로 카운트한다.
             vision_start_indices = torch.argwhere(
                 input_ids == vision_start_token_id
             ).squeeze(1)
             vision_tokens = input_ids[vision_start_indices + 1]
-            video_nums = (vision_tokens == video_token_id).sum()  # 이 샘플의 비디오 수
+            if time_token_id_range is not None:
+                _lo, _hi = time_token_id_range
+                video_nums = (
+                    (vision_tokens == video_token_id)
+                    | ((vision_tokens >= _lo) & (vision_tokens <= _hi))
+                ).sum()
+            else:
+                video_nums = (vision_tokens == video_token_id).sum()  # 이 샘플의 비디오 수
 
             input_tokens = input_ids.tolist()
             llm_pos_ids_list: list = []   # 구간별 position id 블록을 모으는 리스트
@@ -223,7 +233,18 @@ def get_rope_index_25(
                     second_per_grid_t = second_per_grid_ts[video_index]
                 else:
                     second_per_grid_t = 1.0
+
+                # 타임토큰이 활성화된 경우, 비디오 블록의 "진짜 시작"은 첫 video_pad가 아니라
+                # 그 앞에 붙은 첫 청크의 첫 타임토큰 위치임. st~ed_video 범위에서 타임토큰
+                # 첫 등장 위치를 찾아 ed를 앞당긴다.
                 ed = ed_video
+                if time_token_id_range is not None and ed_video <= len(input_tokens):
+                    lo, hi = time_token_id_range
+                    prefix = input_ids[st:ed_video]
+                    time_mask_prefix = (prefix >= lo) & (prefix <= hi)
+                    first_time = torch.nonzero(time_mask_prefix, as_tuple=False)
+                    if first_time.numel() > 0:
+                        ed = st + first_time[0].item()
 
                 # LLM이 실제로 보게 되는 그리드 수:
                 # H/W는 spatial_merge_size 만큼 축소(merge) 된 값이 사용됨.
@@ -279,12 +300,42 @@ def get_rope_index_25(
                 audio_pos = torch.stack([time_index_audio, h_index_audio, w_index_audio]) + st_idx + text_len
 
                 # ------- 비디오·오디오 토큰이 섞인 구간의 position id 재배열 -------
-                # 실제 input_ids 에서 audio/video 토큰이 나오는 위치에 맞춰 채워 넣는다.
-                audio_visual_pos = torch.zeros_like(torch.cat((video_pos, audio_pos), dim=1))
-                st = ed + llm_grid_t * llm_grid_h * llm_grid_w + audio_len
-                audio_visual_pos[:, input_ids[ed:st] == audio_token_id] = audio_pos
-                audio_visual_pos[:, input_ids[ed:st] == video_token_id] = video_pos
-                llm_pos_ids_list.append(audio_visual_pos)
+                # 실제 input_ids 에서 audio/video/(타임) 토큰이 나오는 위치에 맞춰 채워 넣는다.
+                if time_token_id_range is not None:
+                    # 청크 k의 6개 타임토큰은 모두 동일 3D position을 가짐:
+                    #   t = w = k * second_per_grid_t * 2  (비디오 첫 프레임과 동일)
+                    #   h = 0
+                    # 6토큰 순서 구분은 토큰 ID로 충분하므로 RoPE에서는 축 분리 안 함.
+                    chunk_t_base = (
+                        torch.arange(llm_grid_t) * second_per_grid_t * 2
+                    ).long()                                           # (T,)
+                    time_t_flat = (
+                        chunk_t_base.unsqueeze(1).expand(-1, 6).flatten()
+                    )                                                  # (6T,)
+                    time_w_flat = time_t_flat.clone()
+                    time_h_flat = torch.zeros_like(time_t_flat)
+                    time_pos = (
+                        torch.stack([time_t_flat, time_h_flat, time_w_flat])
+                        + st_idx + text_len
+                    )
+
+                    # 블록 전체 크기 = 타임토큰 6*T + 비디오 T*H*W/merge² + 오디오 audio_len
+                    st = ed + 6 * llm_grid_t + llm_grid_t * llm_grid_h * llm_grid_w + audio_len
+                    block_ids = input_ids[ed:st]
+                    audio_visual_pos = torch.zeros_like(
+                        torch.cat((video_pos, audio_pos, time_pos), dim=1)
+                    )
+                    lo, hi = time_token_id_range
+                    audio_visual_pos[:, block_ids == audio_token_id] = audio_pos
+                    audio_visual_pos[:, block_ids == video_token_id] = video_pos
+                    audio_visual_pos[:, (block_ids >= lo) & (block_ids <= hi)] = time_pos
+                    llm_pos_ids_list.append(audio_visual_pos)
+                else:
+                    audio_visual_pos = torch.zeros_like(torch.cat((video_pos, audio_pos), dim=1))
+                    st = ed + llm_grid_t * llm_grid_h * llm_grid_w + audio_len
+                    audio_visual_pos[:, input_ids[ed:st] == audio_token_id] = audio_pos
+                    audio_visual_pos[:, input_ids[ed:st] == video_token_id] = video_pos
+                    llm_pos_ids_list.append(audio_visual_pos)
 
                 video_index += 1
                 remain_videos -= 1
@@ -814,6 +865,7 @@ def get_rope_index_2(
     video_grid_thw: Optional[torch.LongTensor] = None,
     second_per_grid_ts: Optional[torch.Tensor] = None,
     attention_mask: Optional[torch.Tensor] = None,
+    time_token_id_range: Optional[Tuple[int, int]] = None,  # API 호환용 (Qwen2-VL 경로는 타임토큰 미지원)
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Calculate the 3D rope index based on image and video's temporal, height and width in LLM.
