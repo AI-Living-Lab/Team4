@@ -77,6 +77,15 @@ def main():
                     out_embed[new_id] = out_embed[orig_id].clone()
                 print(f"  {new_tok} (id={new_id}) <- '{orig_char}' (id={orig_id})")
 
+    # 타임토큰 ID 구간을 config에 저장해, 모델 로드 시 rope2d의
+    # get_rope_index_25에 바로 전달할 수 있도록 한다.
+    # (tokenizer 없이도 config만으로 RoPE 계산이 가능하게 됨)
+    t0_id = tokenizer.convert_tokens_to_ids("<t0>")
+    tdot_id = tokenizer.convert_tokens_to_ids("<tdot>")
+    lo, hi = int(min(t0_id, tdot_id)), int(max(t0_id, tdot_id))
+    model.config.time_token_id_range = [lo, hi]
+    print(f"  config.time_token_id_range = [{lo}, {hi}]")
+
     print(f"[4/4] Saving to {args.output_path}")
     model.save_pretrained(args.output_path)
     tokenizer.save_pretrained(args.output_path)
