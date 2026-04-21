@@ -1,0 +1,37 @@
+# ============================================================
+# SALMONN2+ 평가용 하이퍼파라미터
+#
+# eval_salmonn2plus.sh 에서 source 하는 flat KEY: VALUE YAML.
+# STAGE / MODEL_ID / CKPT / BASE_MODEL_ID / DATASET_NAME / GPUS
+# 는 CLI 인자로 넘기고, 이 파일에는 추론/평가 설정만 둡니다.
+# ============================================================
+
+# ---- DeepSpeed ----
+DEEPSPEED_CONFIG: scripts/zero2.json
+
+# ---- 이미지/비디오 해상도 ----
+MAX_PIXELS: 176400
+MIN_PIXELS: 784
+VIDEO_MAX_FRAME_PIXELS: 28224
+VIDEO_MIN_FRAME_PIXELS: 784
+VIDEO_MIN_FRAMES: 64
+VIDEO_MAX_FRAMES: 128
+BASE_INTERVAL: 0.2
+
+# ---- 런타임 ----
+MODEL_MAX_LENGTH: 10000
+DATALOADER_NUM_WORKERS: 2
+GRADIENT_CHECKPOINTING: True
+NO_AUDIO: False
+
+# ---- Trainer 가 요구하지만 평가에서는 사실상 무의미한 값 ----
+PER_DEVICE_TRAIN_BATCH_SIZE: 1
+GRADIENT_ACCUMULATION_STEPS: 1
+LEARNING_RATE: 1e-5
+NUM_TRAIN_EPOCHS: 1
+EVAL_STRATEGY: "no"
+SAVE_STRATEGY: "no"
+REPORT_TO: none
+
+# ---- mIoU 평가 파라미터 (eval_miou_multiseg.py 로 전달) ----
+MAX_TIME: 60.0

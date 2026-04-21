@@ -14,6 +14,27 @@
 
 # Adopted from https://github.com/QwenLM/Qwen2.5-VL. The original license is located at 'third-party-license/qwenvl.txt'.
 
+# =============================================================================
+# [파일 개요]
+# 이 파일은 Qwen2.5-VL 기반의 멀티모달 모델 `video_SALMONN2_plus` 의 전체 구조를
+# 정의한다. 구성 요소는 크게 세 덩어리로 나뉜다.
+#
+#   1) 비전 인코더 (Qwen2_5_VisionTransformerPretrainedModel)
+#        - 이미지/비디오 픽셀을 패치(Patch) 단위로 쪼개 시각 토큰 임베딩을 생성
+#        - 2D RoPE, 윈도우 어텐션, full-attention 블록, patch merger 포함
+#
+#   2) 오디오 인코더 (WhisperEncoder, 외부 모듈)
+#        - 오디오 mel-spectrogram → 오디오 토큰 임베딩
+#
+#   3) 언어 모델 (Qwen2_5_VLModel + lm_head)
+#        - Qwen2-5 기반의 디코더 전용 LLM
+#        - 3D MRoPE(시간·높이·너비) 로 멀티모달 위치 정보 처리
+#        - 텍스트/이미지/비디오/오디오 토큰을 모두 포함한 통합 시퀀스를 처리
+#
+# 최상위 클래스 `video_SALMONN2_plus` 는 위 세 인코더를 묶고,
+# SFT(지도학습 파인튜닝) · DPO · GDPO 학습 모드를 지원하는 forward 를 제공한다.
+# =============================================================================
+
 import math
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -57,26 +78,33 @@ import torch
 import torch.nn.functional as F
 
 def pad_and_stack(t1, t2, pad_value=0.0):
-    # 判断是 2D 还是 3D 输入
+    """
+    [한글 설명]
+    두 개의 2D 혹은 3D 텐서 t1, t2 를 길이(두 번째 축)가 맞도록 pad 한 뒤
+    배치 축(0축)으로 이어 붙여 반환한다. DPO 학습에서 chosen/reject 두 시퀀스를
+    하나의 배치로 묶어 모델에 넣을 때 사용한다.
+    """
+    # 입력이 2D 인지 3D 인지 판단
     is_3d = t1.dim() == 3 and t2.dim() == 3
     is_2d = t1.dim() == 2 and t2.dim() == 2
 
-    assert is_2d or is_3d, "输入必须是 2D 或 3D 张量"
+    assert is_2d or is_3d, "입력은 반드시 2D 또는 3D 텐서여야 한다"
 
     if is_3d:
         B1, N1, D = t1.shape
         B2, N2, D = t2.shape
-        assert B1 == 1 and B2 == 1, "Batch size 必须为 1"
+        assert B1 == 1 and B2 == 1, "배치 크기는 반드시 1 이어야 한다"
     elif is_2d:
         B1, N1 = t1.shape
         B2, N2 = t2.shape
-        assert B1 == 1 and B2 == 1, "Batch size 必须为 1"
+        assert B1 == 1 and B2 == 1, "배치 크기는 반드시 1 이어야 한다"
 
-    max_len = max(N1, N2)
+    max_len = max(N1, N2)  # 더 긴 쪽 길이에 맞춰 pad
 
     def pad_tensor(t, max_len):
         length = t.size(1)
         if length < max_len:
+            # 3D면 (dim1, dim2) 마지막 축 먼저, 2D면 1축만 pad
             pad_size = (0, 0, 0, max_len - length) if t.dim() == 3 else (0, max_len - length)
             t = F.pad(t, pad_size, "constant", pad_value)
         return t
@@ -84,10 +112,16 @@ def pad_and_stack(t1, t2, pad_value=0.0):
     t1_padded = pad_tensor(t1, max_len)
     t2_padded = pad_tensor(t2, max_len)
 
+    # 배치 축(0)으로 연결 → shape (2, max_len[, D])
     result = torch.cat([t1_padded, t2_padded], dim=0)
     return result
 
 
+# =============================================================================
+# Qwen2_5_VLMLP : Qwen2.5-VL의 기본 MLP(피드포워드) 블록
+#   - SwiGLU 변형: gate_proj 를 act_fn(SiLU)으로 통과시킨 뒤 up_proj 와 곱해서
+#     down_proj 로 원래 hidden_size 로 되돌린다.
+# =============================================================================
 class Qwen2_5_VLMLP(nn.Module):
     def __init__(self, config, bias: bool = False):
         super().__init__()
@@ -102,13 +136,19 @@ class Qwen2_5_VLMLP(nn.Module):
         return self.down_proj(self.act_fn(self.gate_proj(hidden_state)) * self.up_proj(hidden_state))
 
 
+# =============================================================================
+# Qwen2_5_VisionPatchEmbed
+#   - 이미지/비디오를 작은 시공간 패치(t=2, h=14, w=14) 단위로 쪼갠 뒤
+#     3D Conv 로 embed_dim 차원의 임베딩 벡터로 바꾼다.
+#   - stride == kernel_size 이므로 겹침 없이 잘라 선형 투영하는 효과.
+# =============================================================================
 class Qwen2_5_VisionPatchEmbed(nn.Module):
     def __init__(
         self,
-        patch_size: int = 14,
-        temporal_patch_size: int = 2,
-        in_channels: int = 3,
-        embed_dim: int = 1152,
+        patch_size: int = 14,            # 공간 패치 크기 (H,W)
+        temporal_patch_size: int = 2,    # 시간축 패치 크기 (T)
+        in_channels: int = 3,            # 입력 채널(RGB=3)
+        embed_dim: int = 1152,           # 출력 임베딩 차원
     ) -> None:
         super().__init__()
         self.patch_size = patch_size
@@ -116,50 +156,72 @@ class Qwen2_5_VisionPatchEmbed(nn.Module):
         self.in_channels = in_channels
         self.embed_dim = embed_dim
 
+        # (T, H, W) 3D 컨볼루션으로 패치 임베딩을 동시에 계산
         kernel_size = [temporal_patch_size, patch_size, patch_size]
         self.proj = nn.Conv3d(in_channels, embed_dim, kernel_size=kernel_size, stride=kernel_size, bias=False)
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         target_dtype = self.proj.weight.dtype
+        # 입력을 (N, C, T, H, W) 형태로 변환
         hidden_states = hidden_states.view(
             -1, self.in_channels, self.temporal_patch_size, self.patch_size, self.patch_size
         )
+        # Conv3d 통과 후 (N_patch, embed_dim) 으로 평탄화
         hidden_states = self.proj(hidden_states.to(dtype=target_dtype)).view(-1, self.embed_dim)
         return hidden_states
 
 
+# =============================================================================
+# Qwen2_5_VisionRotaryEmbedding
+#   - 비전 인코더용 1D RoPE 주파수 테이블(inv_freq)을 만들고, 주어진 시퀀스 길이에
+#     대해 position × inv_freq 를 계산해 반환한다.
+# =============================================================================
 class Qwen2_5_VisionRotaryEmbedding(nn.Module):
     def __init__(self, dim: int, theta: float = 10000.0) -> None:
         super().__init__()
+        # RoPE 논문 공식: 1 / theta^(2i/d)  i=0..d/2-1
         inv_freq = 1.0 / (theta ** (torch.arange(0, dim, 2, dtype=torch.float) / dim))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
 
     def forward(self, seqlen: int) -> torch.Tensor:
+        # position_i × inv_freq_j  (외적) → (seqlen, dim/2) 모양
         seq = torch.arange(seqlen, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
         freqs = torch.outer(seq, self.inv_freq)
         return freqs
 
 
+# =============================================================================
+# Qwen2RMSNorm
+#   - LayerNorm 대신 RMSNorm 사용 (T5 LayerNorm 과 동일).
+#   - 평균 빼기는 없고 RMS(루트 평균 제곱) 로 스케일만 보정 → 수치적으로 가볍다.
+# =============================================================================
 class Qwen2RMSNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-6):
         """
         Qwen2RMSNorm is equivalent to T5LayerNorm
         """
         super().__init__()
-        self.weight = nn.Parameter(torch.ones(hidden_size))
-        self.variance_epsilon = eps
+        self.weight = nn.Parameter(torch.ones(hidden_size))  # 학습 가능한 스케일
+        self.variance_epsilon = eps                           # 0-나눗셈 방지 epsilon
 
     def forward(self, hidden_states):
         input_dtype = hidden_states.dtype
+        # fp32 로 승격해서 수치 안정성 확보
         hidden_states = hidden_states.to(torch.float32)
-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)       # 분산(평균제곱)
         hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+        # 원래 dtype 으로 되돌리고 학습 가능한 가중치를 곱해 반환
         return self.weight * hidden_states.to(input_dtype)
 
     def extra_repr(self):
         return f"{tuple(self.weight.shape)}, eps={self.variance_epsilon}"
 
 
+# =============================================================================
+# Qwen2_5_VLPatchMerger
+#   - 비전 인코더의 마지막에서, 2x2 공간 패치를 하나로 합쳐 토큰 수를 1/4 로 줄인다.
+#   - LayerNorm → Linear → GELU → Linear 구조로 비전 임베딩을 LLM hidden size 로 투영.
+# =============================================================================
 class Qwen2_5_VLPatchMerger(nn.Module):
     def __init__(self, dim: int, context_dim: int, spatial_merge_size: int = 2) -> None:
         super().__init__()
@@ -176,16 +238,26 @@ class Qwen2_5_VLPatchMerger(nn.Module):
         return x
 
 
+# -----------------------------------------------------------------------------
+# FlashAttention 용 RoPE 적용 (비전 인코더 전용)
+#   - cos/sin 을 절반으로 자른 뒤 flash_attn의 apply_rotary_emb 호출.
+# -----------------------------------------------------------------------------
 def apply_rotary_pos_emb_flashatt(
     q: torch.Tensor, k: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    cos = cos.chunk(2, dim=-1)[0].contiguous()
+    cos = cos.chunk(2, dim=-1)[0].contiguous()   # 앞쪽 절반만 사용 (뒤 절반은 대칭이라 불필요)
     sin = sin.chunk(2, dim=-1)[0].contiguous()
     q_embed = apply_rotary_emb(q.float(), cos.float(), sin.float()).type_as(q)
     k_embed = apply_rotary_emb(k.float(), cos.float(), sin.float()).type_as(k)
     return q_embed, k_embed
 
 
+# =============================================================================
+# Qwen2_5_VLVisionFlashAttention2
+#   - 비전 인코더용 FlashAttention2 기반 Self-Attention.
+#   - qkv 를 한 번에 투영 후 RoPE 를 적용하고 flash_attn_varlen_func 로 계산.
+#   - cu_seqlens 로 배치 내 가변 길이 시퀀스를 efficient 하게 처리.
+# =============================================================================
 class Qwen2_5_VLVisionFlashAttention2(nn.Module):
     def __init__(self, dim: int, num_heads: int = 16) -> None:
         super().__init__()
@@ -227,7 +299,11 @@ class Qwen2_5_VLVisionFlashAttention2(nn.Module):
 
 
 def rotate_half(x):
-    """Rotates half the hidden dims of the input."""
+    """
+    [한글 설명]
+    마지막 차원을 절반으로 쪼개서 (x1, x2) → (-x2, x1) 로 뒤섞는다.
+    RoPE 공식 (q*cos) + (rotate_half(q)*sin) 의 핵심 연산이다.
+    """
     x1 = x[..., : x.shape[-1] // 2]
     x2 = x[..., x.shape[-1] // 2 :]
     return torch.cat((-x2, x1), dim=-1)
@@ -236,9 +312,16 @@ def rotate_half(x):
 def apply_rotary_pos_emb_vision(
     q: torch.Tensor, k: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor
 ) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    [한글 설명]
+    비전 인코더용 RoPE 적용 (eager/SDPA 구현).
+    q, k 각각에 (q*cos + rotate_half(q)*sin) 공식을 적용해 회전 임베딩을 입힌다.
+    계산은 fp32 로 올린 후 원래 dtype 으로 복귀시켜 정밀도를 보장한다.
+    """
     orig_q_dtype = q.dtype
     orig_k_dtype = k.dtype
     q, k = q.float(), k.float()
+    # head 축 브로드캐스트용 unsqueeze
     cos, sin = cos.unsqueeze(-2).float(), sin.unsqueeze(-2).float()
     q_embed = (q * cos) + (rotate_half(q) * sin)
     k_embed = (k * cos) + (rotate_half(k) * sin)
@@ -247,6 +330,12 @@ def apply_rotary_pos_emb_vision(
     return q_embed, k_embed
 
 
+# =============================================================================
+# Qwen2_5_VLVisionAttention
+#   - FlashAttention 이 없는 환경용 "eager" 구현 비전 어텐션.
+#   - attention mask 를 (cu_seqlens) 구간마다 0(=참여)/-inf(=차단)으로 만들고,
+#     softmax(qk/√d) · v 로 일반적 어텐션을 계산한다.
+# =============================================================================
 class Qwen2_5_VLVisionAttention(nn.Module):
     def __init__(self, dim: int, num_heads: int = 16) -> None:
         super().__init__()
@@ -297,6 +386,11 @@ class Qwen2_5_VLVisionAttention(nn.Module):
         return attn_output
 
 
+# =============================================================================
+# Qwen2_5_VLVisionSdpaAttention
+#   - PyTorch의 scaled_dot_product_attention (SDPA) 를 사용하는 비전 어텐션.
+#   - FlashAttention 이 없을 때 가장 효율적인 대체 구현이다.
+# =============================================================================
 class Qwen2_5_VLVisionSdpaAttention(nn.Module):
     def __init__(self, dim: int, num_heads: int = 16) -> None:
         super().__init__()
@@ -342,6 +436,7 @@ class Qwen2_5_VLVisionSdpaAttention(nn.Module):
         return attn_output
 
 
+# 비전 어텐션 백엔드 매핑 (config._attn_implementation 에 따라 선택)
 QWEN2_5_VL_VISION_ATTENTION_CLASSES = {
     "eager": Qwen2_5_VLVisionAttention,
     "flash_attention_2": Qwen2_5_VLVisionFlashAttention2,
@@ -349,6 +444,10 @@ QWEN2_5_VL_VISION_ATTENTION_CLASSES = {
 }
 
 
+# =============================================================================
+# Qwen2_5_VLVisionBlock
+#   - 비전 트랜스포머 한 블록 = RMSNorm → Attention → residual → RMSNorm → MLP → residual
+# =============================================================================
 class Qwen2_5_VLVisionBlock(nn.Module):
     def __init__(self, config, attn_implementation: str = "sdpa") -> None:
         super().__init__()
@@ -397,6 +496,13 @@ Qwen2_5_VL_START_DOCSTRING = r"""
     "The bare Qwen2_5_VL Model outputting raw hidden-states without any specific head on top.",
     Qwen2_5_VL_START_DOCSTRING,
 )
+# =============================================================================
+# Qwen2_5_VLPreTrainedModel
+#   - 모든 Qwen2_5_VL 계열 모델의 상위 클래스.
+#   - HuggingFace의 PreTrainedModel 을 상속하여 save/load/gradient checkpointing
+#     등 공통 기능을 제공한다.
+#   - _init_weights 에서 모든 파라미터를 정규분포로 초기화한다.
+# =============================================================================
 class Qwen2_5_VLPreTrainedModel(PreTrainedModel):
     config_class = Qwen2_5_VLConfig
     base_model_prefix = "model"
@@ -429,17 +535,24 @@ class Qwen2_5_VLPreTrainedModel(PreTrainedModel):
                 module.bias.data.zero_()
 
 
+# =============================================================================
+# Qwen2_5_VisionTransformerPretrainedModel
+#   - 이미지/비디오 픽셀 → 시각 토큰 임베딩을 만드는 비전 트랜스포머.
+#   - 내부 구성: PatchEmbed → (여러 VisionBlock, 일부는 윈도우 어텐션) → PatchMerger
+#   - get_window_index 로 윈도우 어텐션 블록의 토큰을 윈도우 단위로 재정렬하고,
+#     fullatt_block_indexes 블록에서는 전체 어텐션을 쓴다.
+# =============================================================================
 class Qwen2_5_VisionTransformerPretrainedModel(Qwen2_5_VLPreTrainedModel):
     config_class = Qwen2_5_VLVisionConfig
     _no_split_modules = ["Qwen2_5_VLVisionBlock"]
 
     def __init__(self, config, *inputs, **kwargs) -> None:
         super().__init__(config, *inputs, **kwargs)
-        self.spatial_merge_size = config.spatial_merge_size
-        self.patch_size = config.patch_size
-        self.fullatt_block_indexes = config.fullatt_block_indexes
-        self.window_size = config.window_size
-        self.spatial_merge_unit = self.spatial_merge_size * self.spatial_merge_size
+        self.spatial_merge_size = config.spatial_merge_size       # 보통 2 (2x2 merge)
+        self.patch_size = config.patch_size                       # 보통 14
+        self.fullatt_block_indexes = config.fullatt_block_indexes # full-attention을 쓰는 블록 index 들
+        self.window_size = config.window_size                     # 윈도우 어텐션 크기
+        self.spatial_merge_unit = self.spatial_merge_size * self.spatial_merge_size  # 4 (=2*2)
 
         self.patch_embed = Qwen2_5_VisionPatchEmbed(
             patch_size=config.patch_size,
@@ -462,6 +575,12 @@ class Qwen2_5_VisionTransformerPretrainedModel(Qwen2_5_VLPreTrainedModel):
         self.gradient_checkpointing = False
 
     def rot_pos_emb(self, grid_thw):
+        """
+        [한글 설명]
+        각 (T, H, W) 격자에 대해 (h_pos, w_pos) 쌍을 만들고, 이를 비전 RoPE
+        주파수 테이블로 인덱싱하여 최종 2D 회전 위치 임베딩을 만든다.
+        spatial_merge_size(보통 2) 단위로 블록 순서를 재배열하는 것이 핵심.
+        """
         pos_ids = []
         for t, h, w in grid_thw:
             hpos_ids = torch.arange(h).unsqueeze(1).expand(-1, w)
@@ -491,6 +610,13 @@ class Qwen2_5_VisionTransformerPretrainedModel(Qwen2_5_VLPreTrainedModel):
         return rotary_pos_emb
 
     def get_window_index(self, grid_thw):
+        """
+        [한글 설명]
+        비전 토큰을 '윈도우 어텐션' 블록에 맞게 재정렬하기 위해
+          - 각 이미지를 vit_merger_window_size 만큼의 윈도우로 분할
+          - 윈도우에서 벗어나는 영역은 -100 으로 padding 해 마스킹
+          - 윈도우 내부 토큰들만 모아 새로운 인덱스와 누적 시퀀스 길이(cu_window_seqlens) 를 리턴.
+        """
         window_index: list = []
         cu_window_seqlens: list = [0]
         window_index_id = 0
@@ -542,6 +668,11 @@ class Qwen2_5_VisionTransformerPretrainedModel(Qwen2_5_VLPreTrainedModel):
         Returns:
             `torch.Tensor`: hidden_states.
         """
+        # [한글 설명] 비전 트랜스포머 메인 forward:
+        # 1) 픽셀 → 패치 임베딩
+        # 2) RoPE 계산 + 윈도우 인덱스 계산
+        # 3) 블록 순회: full-att 블록은 전체 seq 기준, 아닌 블록은 window seq 기준
+        # 4) merger 로 2x2 병합, window 순서를 원래 순서로 되돌려 반환
         hidden_states = self.patch_embed(hidden_states)
         rotary_pos_emb = self.rot_pos_emb(grid_thw)
         window_index, cu_window_seqlens = self.get_window_index(grid_thw)
@@ -656,6 +787,12 @@ class Qwen2_5_VLModelOutputWithPast(ModelOutput):
     rope_deltas: Optional[torch.LongTensor] = None
 
 
+# =============================================================================
+# Qwen2_5_VLRotaryEmbedding
+#   - 언어모델(LLM) 단의 RoPE. 3축(시간/높이/너비) position_ids 를 받아
+#     shape (3, batch, seq_len) 을 확장한 inv_freq 와 곱해 cos, sin 을 만든다.
+#   - 비전쪽 RoPE(Qwen2_5_VisionRotaryEmbedding)와는 별개 모듈이다.
+# =============================================================================
 class Qwen2_5_VLRotaryEmbedding(nn.Module):
     def __init__(self, config: Qwen2_5_VLConfig, device=None):
         super().__init__()
@@ -677,8 +814,9 @@ class Qwen2_5_VLRotaryEmbedding(nn.Module):
     @torch.no_grad()
     @dynamic_rope_update  # power user: used with advanced RoPE types (e.g. dynamic rope)
     def forward(self, x, position_ids):
-        # In contrast to other models, Qwen2_5_VL has different position ids for the grids
-        # So we expand the inv_freq to shape (3, ...)
+        # [한글 설명]
+        # 다른 LLM과 달리 Qwen2_5_VL은 (시간, 높이, 너비) 3축 position_ids 를 쓰므로
+        # inv_freq 를 (3, ...) 모양으로 확장해 각 축 별로 cos/sin 을 계산한다.
         inv_freq_expanded = self.inv_freq[None, None, :, None].float().expand(3, position_ids.shape[1], -1, 1)
         position_ids_expanded = position_ids[:, :, None, :].float()  # shape (3, bs, 1, positions)
 
@@ -692,6 +830,10 @@ class Qwen2_5_VLRotaryEmbedding(nn.Module):
         return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype)
 
 
+# =============================================================================
+# Qwen2MLP : LLM 디코더의 MLP (bias 없음).
+#   - SwiGLU 구조로 Qwen2_5_VLMLP 와 거의 동일하나 bias 만 차이.
+# =============================================================================
 class Qwen2MLP(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -709,6 +851,13 @@ class Qwen2MLP(nn.Module):
 
 
 def apply_multimodal_rotary_pos_emb(q, k, cos, sin, mrope_section, unsqueeze_dim=1):
+    """
+    [한글 설명]
+    3D 멀티모달 RoPE(MRoPE) 를 query / key 에 적용한다.
+    channel 축을 mrope_section 비율(예: [16,24,24]) 로 3조각으로 나누고,
+    각각 시간/높이/너비용 cos,sin 을 차례로 붙여 하나의 cos,sin 으로 만든다.
+    이후 일반적인 RoPE 수식 q*cos + rotate_half(q)*sin 을 적용한다.
+    """
     """Applies Rotary Position Embedding with Multimodal Sections to the query and key tensors (https://qwenlm.github.io/blog/qwen2-vl/).
 
     Explanation:
@@ -740,7 +889,9 @@ def apply_multimodal_rotary_pos_emb(q, k, cos, sin, mrope_section, unsqueeze_dim
     Returns:
         `tuple(torch.Tensor)` comprising of the query and key tensors rotated using the Rotary Position Embedding.
     """
+    # mrope_section 은 cos/sin 기준으로 절반 크기라, 2 배 늘려 전체 dim 을 커버
     mrope_section = mrope_section * 2
+    # cos/sin 을 여러 조각으로 split 한 뒤 i%3 (0=t,1=h,2=w) 로 선택해 재조합
     cos = torch.cat([m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))], dim=-1).unsqueeze(
         unsqueeze_dim
     )
@@ -748,6 +899,7 @@ def apply_multimodal_rotary_pos_emb(q, k, cos, sin, mrope_section, unsqueeze_dim
         unsqueeze_dim
     )
 
+    # RoPE 공식 적용
     q_embed = (q * cos) + (rotate_half(q) * sin)
     k_embed = (k * cos) + (rotate_half(k) * sin)
     return q_embed, k_embed
@@ -755,8 +907,11 @@ def apply_multimodal_rotary_pos_emb(q, k, cos, sin, mrope_section, unsqueeze_dim
 
 def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
     """
-    This is the equivalent of torch.repeat_interleave(x, dim=1, repeats=n_rep). The hidden states go from (batch,
-    num_key_value_heads, seqlen, head_dim) to (batch, num_attention_heads, seqlen, head_dim)
+    [한글 설명]
+    Grouped-Query Attention(GQA) 에서 KV head 수(num_key_value_heads)가
+    Query head 수(num_attention_heads) 보다 적을 때,
+    KV 를 n_rep 배로 복제해 head 수를 맞춰준다.
+    (batch, num_kv_heads, seq, head_dim) → (batch, num_kv_heads*n_rep, seq, head_dim).
     """
     batch, num_key_value_heads, slen, head_dim = hidden_states.shape
     if n_rep == 1:
@@ -765,6 +920,10 @@ def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
     return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
 
 
+# =============================================================================
+# Qwen2_5_VLAttention  : LLM 디코더의 eager 어텐션
+#   - GQA 지원, 3D MRoPE 적용, sliding_window 지원, KV 캐시 지원
+# =============================================================================
 class Qwen2_5_VLAttention(nn.Module):
     """
     Multi-headed attention from 'Attention Is All You Need' paper. Modified to use sliding window attention: Longformer
@@ -872,11 +1031,10 @@ class Qwen2_5_VLAttention(nn.Module):
 
 class Qwen2_5_VLFlashAttention2(Qwen2_5_VLAttention):
     """
-    Qwen2_5_VL flash attention module, following Qwen2_5_VL attention module. This module inherits from `Qwen2_5_VLAttention`
-    as the weights of the module stays untouched. The only required change would be on the forward pass
-    where it needs to correctly call the public API of flash attention and deal with padding tokens
-    in case the input contains any of them. Additionally, for sliding window attention, we apply SWA only to the bottom
-    config.max_window_layers layers.
+    [한글 설명]
+    FlashAttention2 기반 디코더 어텐션. 가중치는 Qwen2_5_VLAttention 과 동일,
+    forward 만 flash_attn API 를 쓰도록 재작성된다.
+    Sliding Window Attention (SWA) 은 하위 max_window_layers 개 레이어에만 적용한다.
     """
 
     def __init__(self, *args, **kwargs):
@@ -983,9 +1141,10 @@ class Qwen2_5_VLFlashAttention2(Qwen2_5_VLAttention):
 
 class Qwen2_5_VLSdpaAttention(Qwen2_5_VLAttention):
     """
-    Qwen2 attention module using torch.nn.functional.scaled_dot_product_attention. This module inherits from
-    `Qwen2Attention` as the weights of the module stays untouched. The only changes are on the forward pass to adapt to
-    SDPA API.
+    [한글 설명]
+    torch.nn.functional.scaled_dot_product_attention(SDPA) 를 사용하는 디코더 어텐션.
+    가중치는 그대로이고 forward 만 SDPA 호출로 바뀐다. output_attentions=True 일 때는
+    부모 클래스의 eager forward 로 폴백한다.
     """
 
     # Adapted from Qwen2Attention.forward
@@ -1072,6 +1231,7 @@ class Qwen2_5_VLSdpaAttention(Qwen2_5_VLAttention):
         return attn_output, None, past_key_value
 
 
+# LLM 어텐션 백엔드 매핑 (config._attn_implementation 에 따라 선택)
 QWEN2_5_VL_ATTENTION_CLASSES = {
     "eager": Qwen2_5_VLAttention,
     "flash_attention_2": Qwen2_5_VLFlashAttention2,
@@ -1079,6 +1239,10 @@ QWEN2_5_VL_ATTENTION_CLASSES = {
 }
 
 
+# =============================================================================
+# Qwen2_5_VLDecoderLayer
+#   - LLM 디코더 한 레이어 = RMSNorm → SelfAttention → residual → RMSNorm → MLP → residual
+# =============================================================================
 class Qwen2_5_VLDecoderLayer(nn.Module):
     def __init__(self, config: Qwen2_5_VLConfig, layer_idx: int):
         super().__init__()
@@ -1167,6 +1331,12 @@ class Qwen2_5_VLDecoderLayer(nn.Module):
     "The bare Qwen2_5_VL Model outputting raw hidden-states without any specific head on top.",
     Qwen2_5_VL_START_DOCSTRING,
 )
+# =============================================================================
+# Qwen2_5_VLModel : 순수 LLM 본체 (lm_head 없음).
+#   - embed_tokens → [DecoderLayer x N] → norm
+#   - forward 에서 멀티모달 3D RoPE cos/sin 을 한 번만 만들어 모든 레이어가 공유한다.
+#   - _update_causal_mask : causal + padding + sliding_window 마스크를 통합 생성.
+# =============================================================================
 class Qwen2_5_VLModel(Qwen2_5_VLPreTrainedModel):
     def __init__(self, config: Qwen2_5_VLConfig):
         super().__init__(config)
@@ -1226,28 +1396,32 @@ class Qwen2_5_VLModel(Qwen2_5_VLPreTrainedModel):
         if use_cache and past_key_values is None and not torch.jit.is_tracing():
             past_key_values = DynamicCache()
 
+        # 입력 토큰을 임베딩으로 변환 (inputs_embeds 가 직접 주어지면 그걸 사용)
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
 
+        # cache_position : KV 캐시 상의 위치 인덱스
         if cache_position is None:
             past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
             cache_position = torch.arange(
                 past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
             )
 
-        # the hard coded `3` is for temporal, height and width.
+        # position_ids 는 (3, batch, seq_len) = 시간/높이/너비 축을 의미
         if position_ids is None:
             position_ids = cache_position.view(1, 1, -1).expand(3, inputs_embeds.shape[0], -1)
         elif position_ids.dim() == 2:
+            # 2D로 들어오면 3축으로 복제
             position_ids = position_ids[None, ...].expand(3, position_ids.shape[0], -1)
 
+        # causal + padding + sliding_window 가 합쳐진 어텐션 마스크 생성
         causal_mask = self._update_causal_mask(
             attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
         )
 
         hidden_states = inputs_embeds
 
-        # create position embeddings to be shared across the decoder layers
+        # 모든 디코더 레이어가 공유할 3D RoPE cos/sin 을 한 번만 만든다
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
 
         # decoder layers
@@ -1579,6 +1753,22 @@ QWEN2_5_VL_INPUTS_DOCSTRING = r"""
 """
 
 
+# =============================================================================
+# video_SALMONN2_plus : 이 저장소의 최상위 멀티모달 모델 클래스.
+#
+# 구성:
+#   self.visual  : 이미지/비디오 인코더 (Qwen2_5 Vision Transformer)
+#   self.audio   : 오디오 인코더 (Whisper)
+#   self.model   : 언어 모델 본체 (Qwen2_5_VLModel)
+#   self.lm_head : 토큰 vocabulary 로 투영하는 마지막 linear
+#
+# forward 는 train_type 에 따라 다음 세 경로로 분기한다.
+#   - "sft" : 일반 지도학습 (sft_forward)
+#   - "dpo" : Direct Preference Optimization (dpo_forward, chosen vs reject)
+#   - "gdpo": DPO + 추가 SFT loss 를 동시에 계산
+#
+# rope_deltas 는 generation 시 cache 위치 보정을 위해 저장해두는 값.
+# =============================================================================
 class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
     _tied_weights_keys = ["lm_head.weight"]
     config_class = Qwen2_5_VLConfig
@@ -1586,6 +1776,7 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
 
     def __init__(self, config):
         super().__init__(config)
+        # 세 개의 주요 서브모듈(비전 / 오디오 / 언어) 생성
         self.visual = Qwen2_5_VisionTransformerPretrainedModel._from_config(config.vision_config)
         self.audio = WhisperEncoder._from_config(
             config.audio_config, attn_implementation=config._attn_implementation
@@ -1593,9 +1784,9 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
         self.model = Qwen2_5_VLModel(config)
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-        self.rope_deltas = None  # cache rope_deltas here
+        self.rope_deltas = None  # generation 중 재사용하기 위해 캐싱하는 RoPE delta
 
-        # Initialize weights and apply final processing
+        # 가중치 초기화 및 tied-weights 처리
         self.post_init()
 
     def get_input_embeddings(self):
@@ -1625,6 +1816,16 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
         second_per_grid_ts: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        [한글 설명]
+        멀티모달 3D RoPE 위치 인덱스를 계산한다.
+        rope2d.py 의 get_rope_index_25 와 동일한 로직이지만, 여기서는 모델의 config
+        값(spatial_merge_size, 각종 special token id 등)을 직접 사용한다는 점이 다르다.
+
+        반환값:
+          position_ids : shape (3, batch, seq_len). 축 0=시간, 1=높이, 2=너비
+          mrope_position_deltas : (batch, 1). generation 시 cache 보정용.
+        """
         """
         Calculate the 3D rope index based on image and video's temporal, height and width in LLM.
 
@@ -1678,16 +1879,19 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
             position_ids (`torch.LongTensor` of shape `(3, batch_size, sequence_length)`)
             mrope_position_deltas (`torch.Tensor` of shape `(batch_size)`)
         """
+        # config 로부터 필요한 하이퍼파라미터/토큰 ID 가져오기
         spatial_merge_size = self.config.vision_config.spatial_merge_size
         image_token_id = self.config.image_token_id
         video_token_id = self.config.video_token_id
         audio_token_id = self.config.audio_token_id
         vision_start_token_id = self.config.vision_start_token_id
         mrope_position_deltas = []
+
+        # ---------- CASE 1) 오디오+비디오 교차 입력 ----------
         if input_ids is not None and (
             audio_lengths is not None and video_grid_thw is not None
         ):
-            # 处理音视频交织输入的情况
+            # 음성-영상이 섞여 있는 경우 처리 (자세한 로직은 rope2d.py 주석 참고)
             total_input_ids = input_ids
             if attention_mask is None:
                 attention_mask = torch.ones_like(total_input_ids)
@@ -1781,7 +1985,7 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
 
                 if st < len(input_tokens):
                     if len(llm_pos_ids_list) > 0:
-                        # 取最后一个音频块的time维度（第0维）的最大值
+                        # 마지막 오디오 블록의 time 축(0번 축) 최대값을 구함
                         last_time_max = llm_pos_ids_list[-1][0].max()
                         st_idx = last_time_max + 1
                     else:
@@ -1802,6 +2006,7 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
                 mrope_position_deltas, device=input_ids.device
             ).unsqueeze(1)
             return position_ids, mrope_position_deltas
+        # ---------- CASE 2) 이미지 또는 비디오만 있는 입력 (오디오 없음) ----------
         elif input_ids is not None and (
             image_grid_thw is not None or video_grid_thw is not None
         ):
@@ -1820,6 +2025,7 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
             for i, input_ids in enumerate(total_input_ids):
                 input_ids = input_ids[attention_mask[i] == 1]
                 image_nums, video_nums = 0, 0
+                # vision_start 다음 토큰으로 이미지/비디오 개수 카운트
                 vision_start_indices = torch.argwhere(
                     input_ids == vision_start_token_id
                 ).squeeze(1)
@@ -1831,6 +2037,7 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
                 st = 0
                 remain_images, remain_videos = image_nums, video_nums
                 for _ in range(image_nums + video_nums):
+                    # 다음 이미지 / 비디오 블록 중 먼저 오는 것을 처리
                     if image_token_id in input_tokens and remain_images > 0:
                         ed_image = input_tokens.index(image_token_id, st)
                     else:
@@ -1922,6 +2129,7 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
                 mrope_position_deltas, device=input_ids.device
             ).unsqueeze(1)
             return position_ids, mrope_position_deltas
+        # ---------- CASE 3) 오디오만 있는 입력 ----------
         elif input_ids is not None and audio_lengths is not None:
             total_input_ids = input_ids
             if attention_mask is None:
@@ -1938,7 +2146,7 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
             for i, input_ids in enumerate(total_input_ids):
                 input_ids = input_ids[attention_mask[i] == 1]
                 audio_nums = 0
-                # 定位音频起始位置（与视觉使用相同的起始token）
+                # 오디오 시작 위치 탐색 (비전과 같은 vision_start 토큰 사용)
                 vision_start_indices = torch.argwhere(
                     input_ids == vision_start_token_id
                 ).squeeze(1)
@@ -1949,37 +2157,37 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
                 st = 0
                 remain_audios = audio_nums
                 for _ in range(audio_nums):
-                    # 查找当前音频结束位置
+                    # 현재 오디오 블록의 시작 위치 탐색
                     if audio_token_id in input_tokens and remain_audios > 0:
                         ed_audio = input_tokens.index(audio_token_id, st)
                     else:
                         ed_audio = len(input_tokens) + 1
                     ed = ed_audio
-                    
-                    # 直接使用audio_lengths作为时间维度token数（用户说明是token个数）
-                    llm_grid_t = audio_lengths[audio_index]  # 时间维度token数（已直接是token个数）
-                    llm_grid_h = 1  # 音频无高度维度，固定为1
-                    llm_grid_w = 1  # 音频无宽度维度，固定为1
-                    
+
+                    # audio_lengths 를 그대로 시간 축 토큰 수로 사용 (토큰 개수 단위 가정)
+                    llm_grid_t = audio_lengths[audio_index]  # 시간 축 토큰 수 (이미 token 개수)
+                    llm_grid_h = 1  # 오디오는 높이 개념이 없어 1로 고정
+                    llm_grid_w = 1  # 오디오는 너비 개념이 없어 1로 고정
+
                     text_len = ed - st
                     st_idx = (llm_pos_ids_list[-1].max() + 1 if len(llm_pos_ids_list) > 0 else 0)
                     llm_pos_ids_list.append(
                         torch.arange(text_len).view(1, -1).expand(3, -1) + st_idx
                     )
                     time_index = torch.arange(llm_grid_t, device=input_ids.device)
-                    h_index = time_index  
-                    w_index = torch.zeros_like(time_index)  
+                    h_index = time_index
+                    w_index = torch.zeros_like(time_index)
                     audio_pos = torch.stack([time_index, h_index, w_index]) + st_idx + text_len
                     llm_pos_ids_list.append(audio_pos)
-                    
-                    st = ed + llm_grid_t 
+
+                    st = ed + llm_grid_t
                     audio_index += 1
                     remain_audios -= 1
-                
-                # 处理剩余文本部分（关键修复部分）
+
+                # 남은 꼬리 텍스트 처리 (중요한 버그 수정 구간)
                 if st < len(input_tokens):
                     if len(llm_pos_ids_list) > 0:
-                        # 取最后一个音频块的time维度（第0维）的最大值
+                        # 마지막 오디오 블록의 time 축(0번 축) 최대값
                         last_time_max = llm_pos_ids_list[-1][0].max()
                         st_idx = last_time_max + 1
                     else:
@@ -1988,8 +2196,8 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
                     llm_pos_ids_list.append(
                         torch.arange(text_len).view(1, -1).expand(3, -1) + st_idx
                     )
-                
-                # 组合所有位置ID
+
+                # 모든 구간의 position id 를 결합
                 llm_positions = torch.cat(llm_pos_ids_list, dim=1).reshape(3, -1)
                 position_ids[..., i, attention_mask[i] == 1] = llm_positions.to(position_ids.device)
                 mrope_position_deltas.append(llm_positions.max() + 1 - len(total_input_ids[i]))
@@ -2023,6 +2231,16 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
 
             return position_ids, mrope_position_deltas
 
+    # -------------------------------------------------------------------------
+    # [한글 설명] 멀티모달 임베딩 주입 헬퍼들
+    #
+    # get_image_embeds / get_video_embeds / get_audio_embeds 는 각각
+    #   1) 비전·오디오 인코더를 통해 해당 모달의 임베딩을 생성하고
+    #   2) input_ids 안의 "이미지/비디오/오디오 토큰" 자리에 masked_scatter 로 주입
+    # 해서 최종적으로 LLM이 쓸 inputs_embeds 를 완성한다.
+    # original_*_embeds 가 주어지면 재계산하지 않고 기존 임베딩을 재사용한다.
+    # (DPO 학습에서 chosen/reject 두 번 계산을 피하기 위함)
+    # -------------------------------------------------------------------------
     def get_image_embeds(self, pixel_values, image_grid_thw, input_ids, inputs_embeds, original_image_embeds=None):
         if original_image_embeds is None:
             pixel_values = pixel_values.type(self.visual.dtype)
@@ -2114,8 +2332,17 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
 
 
 
+    # -------------------------------------------------------------------------
+    # sft_forward
+    #   - 일반 지도학습(SFT) 경로.
+    #   - 1) 텍스트 임베딩 생성 → 이미지/비디오/오디오 임베딩을 제자리에 대체 주입
+    #     2) position_ids 가 없으면 get_rope_index 로 3D MRoPE 계산
+    #     3) LLM(self.model) 통과 → hidden_states
+    #     4) 학습 중이면 LigerForCausalLMLoss (메모리 효율 CE),
+    #        추론이면 lm_head 로 logits 계산
+    # -------------------------------------------------------------------------
     def sft_forward(
-        self, 
+        self,
         input_ids: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
@@ -2245,6 +2472,14 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
             rope_deltas=self.rope_deltas,
         )
 
+    # -------------------------------------------------------------------------
+    # dpo_forward
+    #   - DPO (Direct Preference Optimization) / GDPO 용 forward.
+    #   - chosen_ids (선호) 와 reject_ids (비선호) 두 시퀀스를 각각 LLM에 태워
+    #     hidden_states 를 얻고, 응답 구간만 잘라 loss 계산 층에 전달한다.
+    #   - train_type=="gdpo" 인 경우 추가로 입력 전체에 대한 SFT loss 도 계산.
+    #   - 반환 포맷: (chosen·reject 히든스택, 라벨스택[, sft_loss])
+    # -------------------------------------------------------------------------
     def dpo_forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
@@ -2418,6 +2653,10 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
         audio_lengths: Optional[list] = None,
         **loss_kwargs,
     ) -> Union[Tuple, Qwen2_5_VLCausalLMOutputWithPast]:
+        # [한글 설명]
+        # train_type 값에 따라 SFT / DPO / GDPO 경로로 분기한다.
+        # - "sft"           : 일반 지도학습
+        # - "dpo" / "gdpo"  : 선호학습 (DPO; GDPO는 SFT loss 까지 추가)
         if train_type == "sft":
             return self.sft_forward(
                 input_ids=input_ids,
@@ -2476,6 +2715,12 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
         else:
             raise NotImplementedError
 
+    # -------------------------------------------------------------------------
+    # prepare_inputs_for_generation
+    #   - HuggingFace generate 과정 각 스텝에서 호출되어 forward 에 넘길 inputs 구성.
+    #   - position_ids 는 매 step forward 안에서 rope_deltas 로 재계산하므로 None 처리.
+    #   - pre-fill 이후(cache_position[0] != 0) 에는 픽셀/오디오 입력을 다시 보내지 않음.
+    # -------------------------------------------------------------------------
     def prepare_inputs_for_generation(
         self,
         input_ids,
@@ -2493,7 +2738,7 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
         audio_feature=None,
         **kwargs,
     ):
-        # Overwritten -- in specific circumstances we don't want to forward image inputs to the model
+        # 특정 상황에서는 이미지/비디오 입력을 다시 모델에 넘기지 않도록 override
         model_inputs = super().prepare_inputs_for_generation(
             input_ids,
             past_key_values=past_key_values,
@@ -2511,9 +2756,11 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
             **kwargs,
         )
 
-        # Qwen2-5-VL position_ids are prepareed with rope_deltas in forward
+        # position_ids 는 forward 안에서 rope_deltas 로 계산하므로 초기화
         model_inputs["position_ids"] = None
 
+        # 첫 스텝(prefill) 이후에는 이미 임베딩이 KV 캐시에 반영되었으므로
+        # pixel/audio 원본을 다시 내려보낼 필요가 없다.
         if cache_position[0] != 0:
             model_inputs["pixel_values"] = None
             model_inputs["pixel_values_videos"] = None
@@ -2521,6 +2768,11 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
 
         return model_inputs
 
+    # -------------------------------------------------------------------------
+    # _get_image_nums_and_video_nums
+    #   - 각 샘플에 포함된 이미지/비디오 개수를 세어준다.
+    #   - vision_start 토큰 직후가 이미지인지/비디오인지로 구분한다.
+    # -------------------------------------------------------------------------
     def _get_image_nums_and_video_nums(
         self,
         input_ids: Optional[torch.LongTensor],
@@ -2550,6 +2802,13 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
 
         return image_nums, video_nums
 
+    # -------------------------------------------------------------------------
+    # _expand_inputs_for_generation
+    #   - beam search 등에서 입력을 expand_size 배만큼 복제해야 할 때 사용.
+    #   - 일반 텐서는 repeat_interleave 로 충분하지만,
+    #     pixel_values / image_grid_thw 처럼 "배치 차원 없는" 텐서는 샘플 단위로 쪼개
+    #     각 샘플의 이미지/비디오 개수(lengths) 기준으로 복제한다.
+    # -------------------------------------------------------------------------
     def _expand_inputs_for_generation(
         self,
         expand_size: int = 1,
@@ -2557,10 +2816,10 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
         input_ids: Optional[torch.LongTensor] = None,
         **model_kwargs,
     ) -> Tuple[torch.LongTensor, Dict[str, Any]]:
-        # Overwritten -- Support for expanding tensors without a batch size dimension
-        # e.g., pixel_values, image_grid_thw, pixel_values_videos, video_grid_thw, second_per_grid_t
-        # pixel_values.shape[0] is sum(seqlen_images for samples)
-        # image_grid_thw.shape[0] is sum(num_images for samples)
+        # 배치 차원이 없는 시각 입력을 샘플 단위로 확장하기 위해 override
+        # 예: pixel_values, image_grid_thw, pixel_values_videos, video_grid_thw, second_per_grid_t
+        # pixel_values.shape[0] 는 "샘플별 이미지 seq_len 합"
+        # image_grid_thw.shape[0] 는 "샘플별 이미지 개수 합"
 
         if expand_size == 1:
             return input_ids, model_kwargs
