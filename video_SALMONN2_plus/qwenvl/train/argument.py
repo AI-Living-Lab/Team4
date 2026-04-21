@@ -38,6 +38,7 @@ class ModelArguments:
 @dataclass
 class DataArguments:
     dataset_use: str = field(default="")
+    eval_dataset_use: str = field(default="")
     video_max_frames: Optional[int] = field(default=8)
     video_min_frames: Optional[int] = field(default=4)
     base_interval: float = field(default=2)
@@ -59,6 +60,7 @@ class DataArguments:
 class TrainingArguments(transformers.TrainingArguments):
     cache_dir: Optional[str] = field(default=None)
     optim: str = field(default="adamw_torch")
+    early_stopping_patience: int = field(default=0)
     model_max_length: int = field(
         default=512,
         metadata={

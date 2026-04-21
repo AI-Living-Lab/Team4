@@ -930,9 +930,15 @@ def make_supervised_data_module(
 ) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     train_dataset = LazySupervisedDataset(tokenizer=tokenizer, data_args=data_args)
+    eval_dataset = None
+    eval_path = getattr(data_args, "eval_dataset_use", "") or ""
+    if eval_path:
+        eval_args = copy.copy(data_args)
+        eval_args.dataset_use = eval_path
+        eval_dataset = LazySupervisedDataset(tokenizer=tokenizer, data_args=eval_args)
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
     return dict(
-        train_dataset=train_dataset, eval_dataset=None, data_collator=data_collator
+        train_dataset=train_dataset, eval_dataset=eval_dataset, data_collator=data_collator
     )
 
 

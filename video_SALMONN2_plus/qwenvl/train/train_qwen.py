@@ -285,7 +285,12 @@ def train(attn_implementation="flash_attention_2"):
         trainer = QwenVLTrainer(
             model=model, processing_class=tokenizer, args=training_args, **data_module
         )
-        
+        if data_module.get("eval_dataset") is not None and getattr(training_args, "early_stopping_patience", 0) > 0:
+            from transformers import EarlyStoppingCallback
+            trainer.add_callback(EarlyStoppingCallback(
+                early_stopping_patience=int(training_args.early_stopping_patience)
+            ))
+
         if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
             logging.info("checkpoint found, resume training")
             trainer.train(resume_from_checkpoint=True)

@@ -19,13 +19,7 @@ from collections import defaultdict
 
 random.seed(42)
 
-TEMPLATES = [
-    "At what point in the video does {EVENT} occur in terms of both video and audio?",
-    "Can you identify the timestamps where {EVENT} happens in the video?",
-    "In which segments of the video do we find {EVENT} visually or audibly represented?",
-    "Where in the video can we detect {EVENT}, both in the visuals and in the audio track?",
-    "Which parts of the video showcase {EVENT} in both imagery and sound?",
-]
+TEMPLATE = "At what point in the video does {EVENT} occur in terms of both video and audio?"
 
 VIDEO_DIR = "/data0/aix23102/unav_100/videos"
 AUDIO_DIR = "/data0/aix23102/unav_100/audio"
@@ -79,8 +73,7 @@ def main():
                 # 시간순 정렬
                 segments = sorted(segments, key=lambda x: x[0])
 
-                template = random.choice(TEMPLATES)
-                question = template.replace("{EVENT}", label)
+                question = TEMPLATE.replace("{EVENT}", label)
                 response = make_response(segments, MAX_TIME)
 
                 sample = {
@@ -91,9 +84,9 @@ def main():
                         {"from": "human", "value": f"<video>\n{question}"},
                         {"from": "gpt", "value": response},
                     ],
+                    "event": label,
                 }
 
-                # test용 metadata
                 if split == "test":
                     sample["gt_label"] = label
                     sample["gt_segments"] = segments

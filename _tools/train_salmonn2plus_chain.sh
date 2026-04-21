@@ -1,20 +1,17 @@
 #!/bin/bash
 # ============================================================
-# PU-VALOR 학습 완료 대기 → UnAV-100 fine-tuning 자동 시작
+# PU-VALOR 0.5ep → UnAV-100 1ep → 전체 checkpoint eval
 # ============================================================
 set -eo pipefail
 
-PUVALOR_PID=$(ps aux | grep "train_qwen.py.*salmonn2plus_puvalor" | grep -v grep | head -1 | awk '{print $2}')
+echo "[INFO] $(date) Starting PU-VALOR 0.5ep training..."
+bash /home/aix23102/audiolm/vS2_eunji/_tools/train_salmonn2plus_puvalor.sh
+echo "[INFO] $(date) PU-VALOR training finished!"
 
-if [ -z "$PUVALOR_PID" ]; then
-    echo "[INFO] PU-VALOR training not running. Starting UnAV-100 directly."
-else
-    echo "[INFO] Waiting for PU-VALOR training (PID: $PUVALOR_PID) to finish..."
-    while kill -0 "$PUVALOR_PID" 2>/dev/null; do
-        sleep 60
-    done
-    echo "[INFO] PU-VALOR training finished!"
-fi
-
-echo "[INFO] Starting UnAV-100 fine-tuning..."
+echo "[INFO] $(date) Starting UnAV-100 1ep fine-tuning..."
 bash /home/aix23102/audiolm/vS2_eunji/_tools/train_salmonn2plus_unav100.sh
+echo "[INFO] $(date) UnAV-100 training finished!"
+
+echo "[INFO] $(date) Starting evaluation on all checkpoints..."
+bash /home/aix23102/audiolm/vS2_eunji/_tools/eval_all_checkpoints.sh
+echo "[INFO] $(date) All done!"

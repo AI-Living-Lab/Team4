@@ -1,17 +1,19 @@
 #!/bin/bash
 # ============================================================
 # SALMONN2+ UnAV-100 multi-segment fine-tuning
-#   - Base: PU-VALOR 0.3ep LoRA checkpoint (best)
+#   - Base: PU-VALOR 0.5ep LoRA + time token checkpoint
 #   - Data: UnAV-100 multi-segment QA
-#   - LoRA: r=128, alpha=256
-#   - GPU 5,7
+#   - LoRA: r=128, alpha=256 (q/k/v_proj)
+#   - time token embed_tokens + lm_head 학습 (modules_to_save)
+#   - Aligner freeze
+#   - GPU 4,5
 # ============================================================
 
 source /home/aix23102/anaconda3/etc/profile.d/conda.sh
 conda activate salmonn2plus
 
-export CUDA_VISIBLE_DEVICES=4,5,6
-export ARNOLD_WORKER_GPU=3
+export CUDA_VISIBLE_DEVICES=4,5
+export ARNOLD_WORKER_GPU=2
 export ARNOLD_WORKER_NUM=1
 export ARNOLD_ID=0
 export METIS_WORKER_0_HOST=localhost
@@ -21,11 +23,11 @@ cd /home/aix23102/audiolm/video-SALMONN-2/video_SALMONN2_plus
 MODEL=/data0/aix23102/checkpoints_open_aligner/video_salmonn2_plus_7B_time_tokens
 MODEL_BASE=/data0/aix23102/checkpoints_open_aligner/video_salmonn2_plus_7B_time_tokens
 DATASET=/home/aix23102/audiolm/vS2_eunji/data/unav100_train_multiseg_salmonn2plus.json
-OUTPUT_DIR=/data0/aix23102/checkpoints_open_aligner/salmonn2plus_unav100_multiseg
-RUN_NAME=salmonn2plus_unav100
+OUTPUT_DIR=/data0/aix23102/checkpoints_open_aligner/salmonn2plus_unav100_multiseg_lora_timetoken
+RUN_NAME=salmonn2plus_unav100_lora_timetoken
 
 # PU-VALOR best LoRA checkpoint 자동 탐색
-PUVALOR_DIR=/data0/aix23102/checkpoints_open_aligner/salmonn2plus_puvalor_0.3ep
+PUVALOR_DIR=/data0/aix23102/checkpoints_open_aligner/salmonn2plus_puvalor_0.3ep_lora_timetoken
 LORA_CKPT=$(ls -d "$PUVALOR_DIR"/checkpoint-* 2>/dev/null | sort -V | tail -n 1)
 if [ -z "$LORA_CKPT" ]; then
     echo "[ERROR] No PU-VALOR checkpoint found in $PUVALOR_DIR"
@@ -35,7 +37,7 @@ echo "Using PU-VALOR LoRA: $LORA_CKPT"
 
 # UnAV-100: 10358 samples, effective_batch=4 (bs=1, accum=2, gpu=2)
 # steps_per_epoch = 10358 / 4 = 2590
-# 1 epoch, save every 500 steps
+# 1 epoch, save every 0.1 epoch = 259 steps
 
 mkdir -p "$OUTPUT_DIR"
 
@@ -46,10 +48,10 @@ torchrun --standalone --nproc_per_node=$ARNOLD_WORKER_GPU \
     --model_base "$MODEL_BASE" \
     --dataset_use "$DATASET" \
     --tune_mm_vision False \
-    --tune_mm_mlp True \
+    --tune_mm_mlp False \
     --tune_mm_llm False \
     --tune_mm_audio False \
-    --tune_mm_qformer True \
+    --tune_mm_qformer False \
     --use_lora True \
     --lora_r 128 \
     --lora_alpha 256 \
@@ -66,8 +68,8 @@ torchrun --standalone --nproc_per_node=$ARNOLD_WORKER_GPU \
     --video_min_frame_pixels 3136 \
     --eval_strategy "no" \
     --save_strategy "steps" \
-    --save_steps 500 \
-    --save_total_limit 5 \
+    --save_steps 259 \
+    --save_total_limit 11 \
     --learning_rate 5e-5 \
     --weight_decay 0 \
     --warmup_ratio 0.03 \
