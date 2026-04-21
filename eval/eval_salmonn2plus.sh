@@ -36,29 +36,34 @@
 #   CONFIG        : 하이퍼파라미터 yaml 파일명 (스크립트와 같은 폴더 기준)
 #
 # 결과 저장 구조 예시:
+#   (testset 하위 폴더명 = TESTSET_FILE 에서 .json 만 제거)
 #   Team4/
 #   └── outputs/
 #       ├── sft/
 #       │   └── salmonn2p_7b_unav_baseline/              <- {CKPT_MODEL_ID}
-#       │       ├── checkpoint-00500/                 
-#       │       │   └── unav100_sub80/                
+#       │       ├── checkpoint-500/
+#       │       │   └── unav100_test_sub80/              <- {TESTSET_NAME}
 #       │       │       ├── eval_miou_summary.json
 #       │       │       ├── test_results_rank0.json
 #       │       │       └── inference.log
-#       │       └── checkpoint-01000/
+#       │       └── checkpoint-1000/
 #       ├── gdpo/
 #       │   └── salmonn2p_7b_unav_baseline/
-#       │       └── checkpoint-00500/
+#       │       └── checkpoint-500/
 #       │           └── unav100_test_full/
 #       │               ├── eval_miou_summary.json
 #       │               ├── test_results_rank0.json
 #       │               └── inference.log
-#       └── base/                                     <- CKPT_STEP=base 일 때
-#           └── video_salmonn2_plus_7B_time_tokens/   <- {BASE_MODEL_ID}
-#               └── unav100_sub80/
+#       └── base/                                         <- CKPT_STEP=base 일 때
+#           └── video_salmonn2_plus_7B_time_tokens/       <- {BASE_MODEL_ID}
+#               └── unav100_test_sub80/
 #                   ├── eval_miou_summary.json
 #                   ├── test_results_rank0.json
 #                   └── inference.log
+#
+# 참고: 업스트림 train_qwen.py 는 test_results_rank0.json 을
+#   os.path.join(output_dir, run_name, ...) 로 저장하기 때문에,
+#   flat 구조를 유지하려면 --run_name "." 로 넘겨야 합니다.
 # ============================================================
 
 set -e
@@ -134,7 +139,7 @@ export ARNOLD_WORKER_GPU=$NUM_GPUS
 
 # ---- 경로 조립 ----
 BASE_CODE="${BASE_DIR}/video_SALMONN2_plus"
-MODEL_BASE="${CKPT_DIR}/${BASE_MODEL_ID}"
+MODEL_BASE="${CKPT_DIR}/base/${BASE_MODEL_ID}"
 TEST_JSON="${BASE_DIR}/data/${TESTSET_FILE}"
 MODEL_DIR="${CKPT_DIR}/${STAGE}/${CKPT_MODEL_ID}"
 EVAL_SCRIPT="${BASE_DIR}/eval/eval_miou_multiseg.py"
@@ -201,6 +206,12 @@ echo "=================================================="
 
 mkdir -p "$OUT_DIR"
 
+# ---- 종료 시 merge된 임시 모델(generation_*) 자동 정리 ----
+# train_qwen.py 가 LoRA merge 결과를 $OUT_DIR/generation_0/ 에 ~15G 저장하는데
+# 평가 이후에는 불필요. 스크립트가 실패해도 정리되도록 trap 사용.
+cleanup_gen() { rm -rf "$OUT_DIR"/generation_* 2>/dev/null || true; }
+trap cleanup_gen EXIT
+
 cd "$BASE_CODE"
 
 # torchrun 포트 (GPUS 첫 id 로 충돌 회피)
@@ -231,7 +242,7 @@ torchrun --nproc_per_node=$NUM_GPUS --master_port=$MASTER_PORT \
     --model_max_length "$MODEL_MAX_LENGTH" \
     --gradient_checkpointing "$GRADIENT_CHECKPOINTING" \
     --dataloader_num_workers "$DATALOADER_NUM_WORKERS" \
-    --run_name "${STAGE}_${CKPT_MODEL_ID}_${CKPT_FOLDER}_${TESTSET_NAME}" \
+    --run_name "." \
     --report_to "$REPORT_TO" \
     --video_min_frames "$VIDEO_MIN_FRAMES" \
     --video_max_frames "$VIDEO_MAX_FRAMES" \
