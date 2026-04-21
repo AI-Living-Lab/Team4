@@ -1,0 +1,15 @@
+{
+  "mIoU_union_%": 19.2768,
+  "Recall": {
+    "0.3": 24.8136,
+    "0.5": 13.8305,
+    "0.7": 6.1186
+  },
+  "FP_rate_%": 26.3734,
+  "n_pred_segments": 5024,
+  "n_fp_segments": 1325,
+  "n_gt_segments": 5900,
+  "n_samples": 3455,
+  "parse_ok": 3452,
+  "parse_fail": 3
+}
