@@ -1,207 +1,368 @@
 [
   {
-    "video": "/data0/aix23102/unav_100/videos/-6v1PqgFrDk.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-6v1PqgFrDk.wav",
+    "video": "/data0/aix23102/unav_100/videos/-5-8Vij75C8.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/-5-8Vij75C8.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nWhich parts of the video showcase man speaking in both imagery and sound?"
+        "value": "<video>\nAt what point in the video does people laughing occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t0><t1><tdot><t0> to <t0><t0><t1><t0><tdot><t6>. From <t0><t0><t1><t9><tdot><t5> to <t0><t0><t4><t3><tdot><t0>."
+        "value": "From <t0><t0><t0><t8><tdot><t7> to <t0><t0><t1><t2><tdot><t3>."
       }
     ],
-    "gt_label": "man speaking",
+    "event": "people laughing",
+    "gt_label": "people laughing",
     "gt_segments": [
       [
-        1.00425,
-        10.61536
-      ],
-      [
-        19.504,
-        43.96721
+        8.73497,
+        12.33758
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/-6v1PqgFrDk.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-6v1PqgFrDk.wav",
+    "video": "/data0/aix23102/unav_100/videos/pJViq3cLeHc.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/pJViq3cLeHc.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nWhere in the video can we detect playing table tennis, both in the visuals and in the audio track?"
+        "value": "<video>\nAt what point in the video does sea waves occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t0><t4><tdot><t4> to <t0><t0><t1><t8><tdot><t8>. From <t0><t0><t2><t2><tdot><t8> to <t0><t0><t2><t4><tdot><t2>."
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t1><tdot><t2>. From <t0><t0><t1><t5><tdot><t0> to <t0><t0><t4><t7><tdot><t8>."
       }
     ],
-    "gt_label": "playing table tennis",
-    "gt_segments": [
-      [
-        4.393,
-        18.76351
-      ],
-      [
-        22.76351,
-        24.18944
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/-QWW4GPZYuU.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-QWW4GPZYuU.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nCan you identify the timestamps where playing accordion happens in the video?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t9><tdot><t0>."
-      }
-    ],
-    "gt_label": "playing accordion",
+    "event": "sea waves",
+    "gt_label": "sea waves",
     "gt_segments": [
       [
         0,
-        49
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/-TnDYy29pRA.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-TnDYy29pRA.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect engine knocking, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t1> to <t0><t0><t2><t6><tdot><t8>. From <t0><t0><t3><t0><tdot><t9> to <t0><t0><t5><t4><tdot><t5>."
-      }
-    ],
-    "gt_label": "engine knocking",
-    "gt_segments": [
-      [
-        0.08575,
-        26.77806
+        11.23497
       ],
       [
-        30.89344,
-        54.47037
+        15.013,
+        47.84608
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/-WVPBMV_qbY.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-WVPBMV_qbY.wav",
+    "video": "/data0/aix23102/unav_100/videos/--Bu2xe4OSo.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/--Bu2xe4OSo.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nCan you identify the timestamps where playing volleyball happens in the video?"
+        "value": "<video>\nAt what point in the video does wind noise occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t2><tdot><t9>. From <t0><t0><t1><t2><tdot><t8> to <t0><t0><t1><t7><tdot><t7>. From <t0><t0><t2><t5><tdot><t5> to <t0><t0><t2><t6><tdot><t5>. From <t0><t0><t3><t7><tdot><t6> to <t0><t0><t4><t4><tdot><t8>."
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t2><t0><tdot><t7>."
       }
     ],
-    "gt_label": "playing volleyball",
+    "event": "wind noise",
+    "gt_label": "wind noise",
     "gt_segments": [
       [
         0,
-        2.90164
-      ],
-      [
-        12.804,
-        17.67942
-      ],
-      [
-        25.537,
-        26.457
-      ],
-      [
-        37.579,
-        44.79053
+        20.66393
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/-WVPBMV_qbY.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-WVPBMV_qbY.wav",
+    "video": "/data0/aix23102/unav_100/videos/6ZVw4MY1bpA.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/6ZVw4MY1bpA.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nIn which segments of the video do we find people crowd visually or audibly represented?"
+        "value": "<video>\nAt what point in the video does people running occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t4><tdot><t8>."
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t8><tdot><t9>."
       }
     ],
-    "gt_label": "people crowd",
+    "event": "people running",
+    "gt_label": "people running",
     "gt_segments": [
       [
         0,
-        44.79053
+        38.90164
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/-WVPBMV_qbY.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-WVPBMV_qbY.wav",
+    "video": "/data0/aix23102/unav_100/videos/7XbMmBqRw88.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/7XbMmBqRw88.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nWhich parts of the video showcase people clapping in both imagery and sound?"
+        "value": "<video>\nAt what point in the video does dog howling occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t0><t2><tdot><t9> to <t0><t0><t0><t4><tdot><t5>."
+        "value": "From <t0><t0><t0><t2><tdot><t2> to <t0><t0><t0><t9><tdot><t0>."
       }
     ],
+    "event": "dog howling",
+    "gt_label": "dog howling",
+    "gt_segments": [
+      [
+        2.207,
+        9.98573
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/grygJyKvYgs.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/grygJyKvYgs.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does basketball bounce occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t6><tdot><t4> to <t0><t0><t0><t7><tdot><t4>. From <t0><t0><t1><t9><tdot><t5> to <t0><t0><t2><t0><tdot><t5>."
+      }
+    ],
+    "event": "basketball bounce",
+    "gt_label": "basketball bounce",
+    "gt_segments": [
+      [
+        6.42,
+        7.42
+      ],
+      [
+        19.46498,
+        20.466
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/4Vq6WDtxTt4.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/4Vq6WDtxTt4.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does ambulance siren occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t5><t1><tdot><t8> to <t0><t0><t5><t7><tdot><t8>."
+      }
+    ],
+    "event": "ambulance siren",
+    "gt_label": "ambulance siren",
+    "gt_segments": [
+      [
+        51.829,
+        57.82861
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/0SKchbYpXzA.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/0SKchbYpXzA.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people clapping occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t4><t0><tdot><t1> to <t0><t0><t4><t1><tdot><t6>."
+      }
+    ],
+    "event": "people clapping",
     "gt_label": "people clapping",
     "gt_segments": [
       [
-        2.902,
-        4.45719
+        40.08782,
+        41.58782
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/-XRd6yaBDEQ.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-XRd6yaBDEQ.wav",
+    "video": "/data0/aix23102/unav_100/videos/6ZH7vq_GLnc.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/6ZH7vq_GLnc.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nAt what point in the video does playing cornet occur in terms of both video and audio?"
+        "value": "<video>\nAt what point in the video does woman speaking occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t0><t1><tdot><t1> to <t0><t0><t4><t4><tdot><t0>."
+        "value": "From <t0><t0><t2><t2><tdot><t2> to <t0><t0><t3><t8><tdot><t0>."
       }
     ],
-    "gt_label": "playing cornet",
+    "event": "woman speaking",
+    "gt_label": "woman speaking",
     "gt_segments": [
       [
-        1.068,
-        44.95719
+        22.162,
+        38.97734
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/-XRd6yaBDEQ.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-XRd6yaBDEQ.wav",
+    "video": "/data0/aix23102/unav_100/videos/uEVID59IoHE.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/uEVID59IoHE.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing flute occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t6> to <t0><t0><t3><t2><tdot><t0>."
+      }
+    ],
+    "event": "playing flute",
+    "gt_label": "playing flute",
+    "gt_segments": [
+      [
+        0.551,
+        32.97432
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/8Uip3YiRu2g.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/8Uip3YiRu2g.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does machine gun shooting occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t5><tdot><t9> to <t0><t0><t0><t8><tdot><t0>. From <t0><t0><t0><t9><tdot><t9> to <t0><t0><t1><t1><tdot><t4>. From <t0><t0><t1><t8><tdot><t6> to <t0><t0><t2><t7><tdot><t6>."
+      }
+    ],
+    "event": "machine gun shooting",
+    "gt_label": "machine gun shooting",
+    "gt_segments": [
+      [
+        5.889,
+        8.00675
+      ],
+      [
+        9.919,
+        11.35969
+      ],
+      [
+        18.566,
+        27.56557
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/4tASCYb3ySA.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/4tASCYb3ySA.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does typing on computer keyboard occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t1><tdot><t0> to <t0><t0><t1><t5><tdot><t5>."
+      }
+    ],
+    "event": "typing on computer keyboard",
+    "gt_label": "typing on computer keyboard",
+    "gt_segments": [
+      [
+        1.00425,
+        15.47941
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/LX5Y1jcoUXE.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/LX5Y1jcoUXE.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does vehicle honking occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t8><tdot><t0> to <t0><t0><t1><t7><tdot><t8>."
+      }
+    ],
+    "event": "vehicle honking",
+    "gt_label": "vehicle honking",
+    "gt_segments": [
+      [
+        8.965,
+        17.78316
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/ZkQk_9V-1FU.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/ZkQk_9V-1FU.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people battle cry occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t3><t6><tdot><t5> to <t0><t0><t3><t7><tdot><t1>."
+      }
+    ],
+    "event": "people battle cry",
+    "gt_label": "people battle cry",
+    "gt_segments": [
+      [
+        36.51043,
+        37.10134
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/6E4rVpCjNjY.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/6E4rVpCjNjY.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing drum kit occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t5><tdot><t9>."
+      }
+    ],
+    "event": "playing drum kit",
+    "gt_label": "playing drum kit",
+    "gt_segments": [
+      [
+        0,
+        45.91952
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/4H0B29emtTE.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/4H0B29emtTE.wav",
     "use_audio": true,
     "conversations": [
       {
@@ -210,398 +371,694 @@
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t4><t4><tdot><t0> to <t0><t0><t4><t9><tdot><t0>."
+        "value": "From <t0><t0><t2><t4><tdot><t1> to <t0><t0><t3><t5><tdot><t7>. From <t0><t0><t3><t8><tdot><t6> to <t0><t0><t4><t2><tdot><t3>."
       }
     ],
+    "event": "man speaking",
     "gt_label": "man speaking",
     "gt_segments": [
       [
-        44.957,
-        49.95719
+        24.134,
+        35.69225
+      ],
+      [
+        38.647,
+        42.28316
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/-XrLFOaZxa0.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-XrLFOaZxa0.wav",
+    "video": "/data0/aix23102/unav_100/videos/4MVGtfwdaIM.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/4MVGtfwdaIM.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nIn which segments of the video do we find playing flute visually or audibly represented?"
+        "value": "<video>\nAt what point in the video does baby laughter occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t3><tdot><t4> to <t0><t0><t0><t9><tdot><t9>. From <t0><t0><t1><t2><tdot><t7> to <t0><t0><t1><t3><tdot><t4>. From <t0><t0><t1><t6><tdot><t3> to <t0><t0><t1><t7><tdot><t8>. From <t0><t0><t2><t4><tdot><t8> to <t0><t0><t3><t1><tdot><t0>. From <t0><t0><t3><t3><tdot><t0> to <t0><t0><t3><t8><tdot><t0>. From <t0><t0><t4><t5><tdot><t8> to <t0><t0><t4><t8><tdot><t1>. From <t0><t0><t5><t1><tdot><t6> to <t0><t0><t5><t4><tdot><t6>. From <t0><t0><t5><t7><tdot><t3> to <t0><t0><t5><t9><tdot><t0>."
+      }
+    ],
+    "event": "baby laughter",
+    "gt_label": "baby laughter",
+    "gt_segments": [
+      [
+        3.375,
+        9.89314
+      ],
+      [
+        12.671,
+        13.37462
+      ],
+      [
+        16.301,
+        17.81906
+      ],
+      [
+        24.819,
+        31.00425
+      ],
+      [
+        33.96721,
+        38.96721
+      ],
+      [
+        45.782,
+        48.11536
+      ],
+      [
+        51.55981,
+        54.63388
+      ],
+      [
+        57.301,
+        59.96721
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/0YIWrXgCjiM.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/0YIWrXgCjiM.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does man speaking occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t6><tdot><t3> to <t0><t0><t0><t7><tdot><t6>. From <t0><t0><t2><t8><tdot><t9> to <t0><t0><t3><t0><tdot><t6>."
+      }
+    ],
+    "event": "man speaking",
+    "gt_label": "man speaking",
+    "gt_segments": [
+      [
+        6.301,
+        7.59499
+      ],
+      [
+        28.948,
+        30.59499
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/0_g41wpPBTI.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/0_g41wpPBTI.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people clapping occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t7><tdot><t7>."
+      }
+    ],
+    "event": "people clapping",
+    "gt_label": "people clapping",
+    "gt_segments": [
+      [
+        0,
+        7.71263
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/1M3B1LtTeWQ.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/1M3B1LtTeWQ.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing volleyball occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t9><tdot><t7>. From <t0><t0><t2><t6><tdot><t0> to <t0><t0><t2><t7><tdot><t8>. From <t0><t0><t3><t0><tdot><t1> to <t0><t0><t3><t1><tdot><t1>. From <t0><t0><t3><t8><tdot><t7> to <t0><t0><t4><t9><tdot><t0>."
+      }
+    ],
+    "event": "playing volleyball",
+    "gt_label": "playing volleyball",
+    "gt_segments": [
+      [
+        0,
+        9.65925
+      ],
+      [
+        26.016,
+        27.80211
+      ],
+      [
+        30.088,
+        31.088
+      ],
+      [
+        38.671,
+        49
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/9XSE1pdHwSU.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/9XSE1pdHwSU.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people coughing occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t4><tdot><t9> to <t0><t0><t1><t4><tdot><t1>. From <t0><t0><t2><t0><tdot><t4> to <t0><t0><t2><t1><tdot><t7>. From <t0><t0><t2><t6><tdot><t7> to <t0><t0><t2><t7><tdot><t5>."
+      }
+    ],
+    "event": "people coughing",
+    "gt_label": "people coughing",
+    "gt_segments": [
+      [
+        4.92,
+        14.13388
+      ],
+      [
+        20.41166,
+        21.72647
+      ],
+      [
+        26.6524,
+        27.52277
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/CPcX7IBz0rs.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/CPcX7IBz0rs.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people coughing occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t4><t4><tdot><t3> to <t0><t0><t4><t8><tdot><t9>."
+      }
+    ],
+    "event": "people coughing",
+    "gt_label": "people coughing",
+    "gt_segments": [
+      [
+        44.302,
+        48.94496
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/EvIZC-vFO60.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/EvIZC-vFO60.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people clapping occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t3><t4><tdot><t9> to <t0><t0><t3><t5><tdot><t9>."
+      }
+    ],
+    "event": "people clapping",
+    "gt_label": "people clapping",
+    "gt_segments": [
+      [
+        34.874,
+        35.94496
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/2dPu7QirkbA.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/2dPu7QirkbA.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does kid speaking occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t1><tdot><t5> to <t0><t0><t0><t3><tdot><t0>. From <t0><t0><t0><t5><tdot><t5> to <t0><t0><t0><t7><tdot><t5>. From <t0><t0><t2><t4><tdot><t5> to <t0><t0><t2><t6><tdot><t7>. From <t0><t0><t3><t2><tdot><t0> to <t0><t0><t3><t3><tdot><t0>. From <t0><t0><t3><t6><tdot><t3> to <t0><t0><t4><t1><tdot><t1>. From <t0><t0><t4><t4><tdot><t4> to <t0><t0><t4><t6><tdot><t7>."
+      }
+    ],
+    "event": "kid speaking",
+    "gt_label": "kid speaking",
+    "gt_segments": [
+      [
+        1.547,
+        3.04729
+      ],
+      [
+        5.47,
+        7.54729
+      ],
+      [
+        24.509,
+        26.7396
+      ],
+      [
+        32.047,
+        33.047
+      ],
+      [
+        36.34,
+        41.10765
+      ],
+      [
+        44.355,
+        46.66267
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/1CZ-bybGzu4.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/1CZ-bybGzu4.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people battle cry occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t2><t2><tdot><t2>. From <t0><t0><t2><t7><tdot><t5> to <t0><t0><t3><t7><tdot><t0>."
+      }
+    ],
+    "event": "people battle cry",
+    "gt_label": "people battle cry",
+    "gt_segments": [
+      [
+        0,
+        22.24098
+      ],
+      [
+        27.54098,
+        37
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/-xQbyezhw_k.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/-xQbyezhw_k.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does hair dryer drying occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t1><t1><tdot><t8> to <t0><t0><t2><t7><tdot><t4>."
+      }
+    ],
+    "event": "hair dryer drying",
+    "gt_label": "hair dryer drying",
+    "gt_segments": [
+      [
+        11.785,
+        27.35498
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/4bYTxN0M6mg.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/4bYTxN0M6mg.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing trombone occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t1><tdot><t8> to <t0><t0><t4><t3><tdot><t7>."
+      }
+    ],
+    "event": "playing trombone",
+    "gt_label": "playing trombone",
+    "gt_segments": [
+      [
+        1.778,
+        43.70113
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/QP_ZCssCySw.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/QP_ZCssCySw.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does thunder occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t1><t0><tdot><t2> to <t0><t0><t2><t2><tdot><t2>."
+      }
+    ],
+    "event": "thunder",
+    "gt_label": "thunder",
+    "gt_segments": [
+      [
+        10.235,
+        22.17942
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/4yTEfEHwpDM.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/4yTEfEHwpDM.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does fire truck siren occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t1><t3><tdot><t3> to <t0><t0><t1><t6><tdot><t6>. From <t0><t0><t2><t2><tdot><t4> to <t0><t0><t3><t2><tdot><t7>. From <t0><t0><t4><t0><tdot><t0> to <t0><t0><t4><t5><tdot><t5>."
+      }
+    ],
+    "event": "fire truck siren",
+    "gt_label": "fire truck siren",
+    "gt_segments": [
+      [
+        13.329,
+        16.55589
+      ],
+      [
+        22.374,
+        32.7377
+      ],
+      [
+        40.965,
+        45.46498
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/fYGmtMujBDo.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/fYGmtMujBDo.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does woman speaking occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t9><tdot><t9> to <t0><t0><t1><t8><tdot><t1>."
+      }
+    ],
+    "event": "woman speaking",
+    "gt_label": "woman speaking",
+    "gt_segments": [
+      [
+        9.881,
+        18.14888
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/fYGmtMujBDo.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/fYGmtMujBDo.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does hair dryer drying occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t7><tdot><t4>. From <t0><t0><t2><t0><tdot><t6> to <t0><t0><t3><t8><tdot><t0>."
+      }
+    ],
+    "event": "hair dryer drying",
+    "gt_label": "hair dryer drying",
+    "gt_segments": [
+      [
+        0.016,
+        7.42161
+      ],
+      [
+        20.561,
+        38.96706
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/-2JomCd5zzY.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/-2JomCd5zzY.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does child singing occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t2><t6><tdot><t0>. From <t0><t0><t3><t5><tdot><t6> to <t0><t0><t5><t9><tdot><t0>."
+      }
+    ],
+    "event": "child singing",
+    "gt_label": "child singing",
+    "gt_segments": [
+      [
+        0,
+        26.04729
+      ],
+      [
+        35.552,
+        59.97037
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/059aDG_DaFE.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/059aDG_DaFE.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing trombone occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t7><tdot><t4>."
+      }
+    ],
+    "event": "playing trombone",
+    "gt_label": "playing trombone",
+    "gt_segments": [
+      [
+        0,
+        37.35498
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/5TFRPUlOnVE.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/5TFRPUlOnVE.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people shouting occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t1><t4><tdot><t6> to <t0><t0><t1><t5><tdot><t6>. From <t0><t0><t1><t8><tdot><t9> to <t0><t0><t2><t0><tdot><t4>."
+      }
+    ],
+    "event": "people shouting",
+    "gt_label": "people shouting",
+    "gt_segments": [
+      [
+        14.622,
+        15.622
+      ],
+      [
+        18.899,
+        20.37407
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/4_l3eimkuxA.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/4_l3eimkuxA.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does singing choir occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t2><t1><tdot><t4> to <t0><t0><t4><t7><tdot><t8>."
+      }
+    ],
+    "event": "singing choir",
+    "gt_label": "singing choir",
+    "gt_segments": [
+      [
+        21.42295,
+        47.82295
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/0Em6soMELS0.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/0Em6soMELS0.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does male singing occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
         "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t2><tdot><t9>."
       }
     ],
-    "gt_label": "playing flute",
-    "gt_segments": [
-      [
-        0,
-        42.90164
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/-j5tX4O3hh0.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-j5tX4O3hh0.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nCan you identify the timestamps where orchestra happens in the video?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t4><tdot><t9>."
-      }
-    ],
-    "gt_label": "orchestra",
-    "gt_segments": [
-      [
-        0,
-        44.87407
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/-lIxnqaPGzA.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-lIxnqaPGzA.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find playing synthesizer visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t2><t5><tdot><t5>."
-      }
-    ],
-    "gt_label": "playing synthesizer",
-    "gt_segments": [
-      [
-        0,
-        25.50883
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/-lIxnqaPGzA.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-lIxnqaPGzA.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect man speaking, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t2><t5><tdot><t9> to <t0><t0><t4><t2><tdot><t9>."
-      }
-    ],
-    "gt_label": "man speaking",
-    "gt_segments": [
-      [
-        25.932,
-        42.9319
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/-w1C_Fgk3Bk.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-w1C_Fgk3Bk.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect playing ukulele, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t1><tdot><t0>. From <t0><t0><t1><t9><tdot><t1> to <t0><t0><t5><t3><tdot><t8>."
-      }
-    ],
-    "gt_label": "playing ukulele",
-    "gt_segments": [
-      [
-        0,
-        1
-      ],
-      [
-        19.105,
-        53.84608
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/-w1C_Fgk3Bk.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-w1C_Fgk3Bk.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find kid speaking visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t3><tdot><t8> to <t0><t0><t0><t5><tdot><t2>. From <t0><t0><t0><t9><tdot><t9> to <t0><t0><t1><t8><tdot><t0>."
-      }
-    ],
-    "gt_label": "kid speaking",
-    "gt_segments": [
-      [
-        3.79053,
-        5.23497
-      ],
-      [
-        9.916,
-        18.95719
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/-w1C_Fgk3Bk.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/-w1C_Fgk3Bk.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase people crowd in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t5><tdot><t3> to <t0><t0><t1><t9><tdot><t1>."
-      }
-    ],
-    "gt_label": "people crowd",
-    "gt_segments": [
-      [
-        5.34608,
-        19.12386
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/07m3-FOJQ-Q.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/07m3-FOJQ-Q.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nCan you identify the timestamps where baby crying happens in the video?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t2><t8><tdot><t0>."
-      }
-    ],
-    "gt_label": "baby crying",
-    "gt_segments": [
-      [
-        0,
-        28
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0BeYHgtGmyc.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0BeYHgtGmyc.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect child singing, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t9><tdot><t1>."
-      }
-    ],
-    "gt_label": "child singing",
-    "gt_segments": [
-      [
-        0,
-        39.05589
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0EESEzTk150.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0EESEzTk150.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does auto racing occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t6><tdot><t3>."
-      }
-    ],
-    "gt_label": "auto racing",
-    "gt_segments": [
-      [
-        0,
-        46.29053
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0KweewGN-aY.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0KweewGN-aY.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find people whistling visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t1><tdot><t7> to <t0><t0><t3><t9><tdot><t9>."
-      }
-    ],
-    "gt_label": "people whistling",
-    "gt_segments": [
-      [
-        1.68457,
-        39.91986
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0M-hPUiNVks.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0M-hPUiNVks.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find woman speaking visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t2><t2><tdot><t1>. From <t0><t0><t4><t0><tdot><t4> to <t0><t0><t4><t2><tdot><t9>."
-      }
-    ],
-    "gt_label": "woman speaking",
-    "gt_segments": [
-      [
-        0,
-        22.12421
-      ],
-      [
-        40.355,
-        42.9319
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0SmZOjBjik8.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0SmZOjBjik8.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does playing harmonica occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t2><tdot><t2>."
-      }
-    ],
-    "gt_label": "playing harmonica",
-    "gt_segments": [
-      [
-        0,
-        32.2377
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0SmZOjBjik8.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0SmZOjBjik8.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect man speaking, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t3><t3><tdot><t4> to <t0><t0><t4><t1><tdot><t1>."
-      }
-    ],
-    "gt_label": "man speaking",
-    "gt_segments": [
-      [
-        33.408,
-        41.10134
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0Y2j3j5l8J0.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0Y2j3j5l8J0.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase child singing in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t1> to <t0><t0><t4><t8><tdot><t7>. From <t0><t0><t5><t7><tdot><t8> to <t0><t0><t5><t9><tdot><t9>."
-      }
-    ],
-    "gt_label": "child singing",
-    "gt_segments": [
-      [
-        0.1468,
-        48.7377
-      ],
-      [
-        57.759,
-        59.89344
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0Y2j3j5l8J0.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0Y2j3j5l8J0.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect male singing, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t3><tdot><t4> to <t0><t0><t0><t4><tdot><t4>. From <t0><t0><t0><t7><tdot><t7> to <t0><t0><t1><t1><tdot><t1>. From <t0><t0><t2><t0><tdot><t9> to <t0><t0><t2><t5><tdot><t2>. From <t0><t0><t2><t9><tdot><t0> to <t0><t0><t3><t1><tdot><t7>. From <t0><t0><t3><t6><tdot><t0> to <t0><t0><t4><t4><tdot><t0>."
-      }
-    ],
+    "event": "male singing",
     "gt_label": "male singing",
     "gt_segments": [
       [
-        3.445,
-        4.445
+        0,
+        42.91952
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/98u-MDTKAWU.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/98u-MDTKAWU.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing base guitar occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t1><t0><tdot><t1> to <t0><t0><t2><t0><tdot><t2>. From <t0><t0><t4><t2><tdot><t6> to <t0><t0><t4><t7><tdot><t9>."
+      }
+    ],
+    "event": "playing base guitar",
+    "gt_label": "playing base guitar",
+    "gt_segments": [
+      [
+        10.06,
+        20.22295
       ],
       [
-        7.67,
-        11.08575
-      ],
+        42.59,
+        47.92295
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/1qc1ocD52ao.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/1qc1ocD52ao.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does rope skipping occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t4><tdot><t7> to <t0><t0><t2><t1><tdot><t4>."
+      }
+    ],
+    "event": "rope skipping",
+    "gt_label": "rope skipping",
+    "gt_segments": [
       [
-        20.87407,
-        25.2377
-      ],
+        4.672,
+        21.39629
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/4yaiOxLXB78.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/4yaiOxLXB78.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing electronic organ occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t5><tdot><t9>."
+      }
+    ],
+    "event": "playing electronic organ",
+    "gt_label": "playing electronic organ",
+    "gt_segments": [
       [
-        29.031,
-        31.70113
-      ],
+        0,
+        45.91952
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/FN7OcEhMA7I.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/FN7OcEhMA7I.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing badminton occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t3><tdot><t0>."
+      }
+    ],
+    "event": "playing badminton",
+    "gt_label": "playing badminton",
+    "gt_segments": [
       [
-        36.01,
-        44.04729
+        0,
+        13.00425
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/7DGw1uCvyLw.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/7DGw1uCvyLw.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing base guitar occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t2><tdot><t9>."
+      }
+    ],
+    "event": "playing base guitar",
+    "gt_label": "playing base guitar",
+    "gt_segments": [
+      [
+        0,
+        42.9319
       ]
     ]
   },
@@ -612,13 +1069,14 @@
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nCan you identify the timestamps where people clapping happens in the video?"
+        "value": "<video>\nAt what point in the video does people clapping occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
         "value": "From <t0><t0><t3><t0><tdot><t2> to <t0><t0><t3><t2><tdot><t1>."
       }
     ],
+    "event": "people clapping",
     "gt_label": "people clapping",
     "gt_segments": [
       [
@@ -628,476 +1086,102 @@
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/0Y2j3j5l8J0.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0Y2j3j5l8J0.wav",
+    "video": "/data0/aix23102/unav_100/videos/2K5q89S_ELg.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/2K5q89S_ELg.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nIn which segments of the video do we find man speaking visually or audibly represented?"
+        "value": "<video>\nAt what point in the video does orchestra occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t4><t9><tdot><t9> to <t0><t0><t5><t2><tdot><t6>."
+        "value": "From <t0><t0><t1><t0><tdot><t4> to <t0><t0><t1><t8><tdot><t7>."
       }
     ],
-    "gt_label": "man speaking",
+    "event": "orchestra",
+    "gt_label": "orchestra",
     "gt_segments": [
       [
-        49.914,
-        52.62421
+        10.425,
+        18.73979
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/0Y2j3j5l8J0.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0Y2j3j5l8J0.wav",
+    "video": "/data0/aix23102/unav_100/videos/4xTGouBKGN4.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/4xTGouBKGN4.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nIn which segments of the video do we find kid speaking visually or audibly represented?"
+        "value": "<video>\nAt what point in the video does playing base guitar occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t4><t9><tdot><t9> to <t0><t0><t5><t2><tdot><t8>."
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t5><tdot><t9>."
       }
     ],
-    "gt_label": "kid speaking",
-    "gt_segments": [
-      [
-        49.9319,
-        52.77806
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0YuYPsGvGyM.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0YuYPsGvGyM.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase playing harmonica in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t1><tdot><t6> to <t0><t0><t3><t2><tdot><t2>."
-      }
-    ],
-    "gt_label": "playing harmonica",
-    "gt_segments": [
-      [
-        1.633,
-        32.17432
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0aMKV7qleFI.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0aMKV7qleFI.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nCan you identify the timestamps where playing base guitar happens in the video?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t2> to <t0><t0><t4><t5><tdot><t9>."
-      }
-    ],
+    "event": "playing base guitar",
     "gt_label": "playing base guitar",
     "gt_segments": [
       [
-        0.163,
-        45.85498
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0aMKV7qleFI.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0aMKV7qleFI.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect beat boxing, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t2> to <t0><t0><t4><t5><tdot><t9>."
-      }
-    ],
-    "gt_label": "beat boxing",
-    "gt_segments": [
-      [
-        0.163,
-        45.9319
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0fjrDsLr_aE.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0fjrDsLr_aE.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase chainsawing trees in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t5><t2><tdot><t9>."
-      }
-    ],
-    "gt_label": "chainsawing trees",
-    "gt_segments": [
-      [
         0,
-        52.92295
+        45.87407
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/0hu4RD8klFk.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0hu4RD8klFk.wav",
+    "video": "/data0/aix23102/unav_100/videos/Rtg1SUrxOPY.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/Rtg1SUrxOPY.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nIn which segments of the video do we find helicopter visually or audibly represented?"
+        "value": "<video>\nAt what point in the video does people sobbing occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t1><tdot><t0>."
+        "value": "From <t0><t0><t0><t3><tdot><t0> to <t0><t0><t0><t4><tdot><t9>. From <t0><t0><t0><t7><tdot><t7> to <t0><t0><t1><t1><tdot><t7>. From <t0><t0><t1><t4><tdot><t7> to <t0><t0><t1><t6><tdot><t0>. From <t0><t0><t2><t1><tdot><t8> to <t0><t0><t2><t5><tdot><t0>."
       }
     ],
-    "gt_label": "helicopter",
+    "event": "people sobbing",
+    "gt_label": "people sobbing",
     "gt_segments": [
       [
-        0,
-        31.97432
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0i7IsiodaBw.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0i7IsiodaBw.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase playing base guitar in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t2> to <t0><t0><t4><t8><tdot><t9>."
-      }
-    ],
-    "gt_label": "playing base guitar",
-    "gt_segments": [
-      [
-        0.201,
-        48.9319
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0wVUKsMohpU.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0wVUKsMohpU.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does man speaking occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t6><tdot><t3>. From <t0><t0><t4><t6><tdot><t7> to <t0><t0><t5><t1><tdot><t7>."
-      }
-    ],
-    "gt_label": "man speaking",
-    "gt_segments": [
-      [
-        0,
-        6.29053
+        3.004,
+        4.93018
       ],
       [
-        46.735,
-        51.73497
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0wVUKsMohpU.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0wVUKsMohpU.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase playing electronic organ in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t6><tdot><t3> to <t0><t0><t1><t6><tdot><t4>. From <t0><t0><t2><t2><tdot><t5> to <t0><t0><t4><t5><tdot><t5>."
-      }
-    ],
-    "gt_label": "playing electronic organ",
-    "gt_segments": [
-      [
-        6.291,
-        16.40164
+        7.689,
+        11.72647
       ],
       [
-        22.513,
-        45.45719
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/0wVUKsMohpU.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/0wVUKsMohpU.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect people laughing, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t1><t7><tdot><t1> to <t0><t0><t2><t2><tdot><t2>."
-      }
-    ],
-    "gt_label": "people laughing",
-    "gt_segments": [
-      [
-        17.124,
-        22.17942
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/1EUE2fs-hZA.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/1EUE2fs-hZA.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find man speaking visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t8><tdot><t6>. From <t0><t0><t3><t0><tdot><t7> to <t0><t0><t3><t1><tdot><t8>."
-      }
-    ],
-    "gt_label": "man speaking",
-    "gt_segments": [
-      [
-        0,
-        8.55589
+        14.70795,
+        16.98573
       ],
       [
-        30.654,
-        31.78316
+        21.838,
+        25.98573
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/1EUE2fs-hZA.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/1EUE2fs-hZA.wav",
+    "video": "/data0/aix23102/unav_100/videos/0Yyf20fbJrU.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/0Yyf20fbJrU.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nAt what point in the video does driving motorcycle occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t9><tdot><t3> to <t0><t0><t2><t9><tdot><t5>."
-      }
-    ],
-    "gt_label": "driving motorcycle",
-    "gt_segments": [
-      [
-        9.28316,
-        29.51043
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/1YwFK3VSPzU.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/1YwFK3VSPzU.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does child singing occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t5><t0><tdot><t6>."
-      }
-    ],
-    "gt_label": "child singing",
-    "gt_segments": [
-      [
-        0,
-        50.60765
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/1z6Wtc9OrMM.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/1z6Wtc9OrMM.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find people crowd visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t4><tdot><t0>."
-      }
-    ],
-    "gt_label": "people crowd",
-    "gt_segments": [
-      [
-        0,
-        34
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/24oYHGAu0mw.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/24oYHGAu0mw.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nCan you identify the timestamps where dog barking happens in the video?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t2><tdot><t9> to <t0><t0><t0><t9><tdot><t7>. From <t0><t0><t2><t0><tdot><t0> to <t0><t0><t2><t2><tdot><t2>."
-      }
-    ],
-    "gt_label": "dog barking",
-    "gt_segments": [
-      [
-        2.892,
-        9.68322
-      ],
-      [
-        20.014,
-        22.21263
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/2E0sZjZxzjg.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/2E0sZjZxzjg.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find playing zither visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t5><tdot><t9>."
-      }
-    ],
-    "gt_label": "playing zither",
-    "gt_segments": [
-      [
-        0,
-        35.8891
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/2Gr0eI5Y2X8.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/2Gr0eI5Y2X8.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nCan you identify the timestamps where water burbling happens in the video?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t4><tdot><t0> to <t0><t0><t5><t1><tdot><t0>."
-      }
-    ],
-    "gt_label": "water burbling",
-    "gt_segments": [
-      [
-        4.01,
-        51.0
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/2Gr0eI5Y2X8.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/2Gr0eI5Y2X8.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does raining occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t4><tdot><t1> to <t0><t0><t5><t1><tdot><t0>."
-      }
-    ],
-    "gt_label": "raining",
-    "gt_segments": [
-      [
-        4.07,
-        51.0
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/2Gr0eI5Y2X8.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/2Gr0eI5Y2X8.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does thunder occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t9><tdot><t0> to <t0><t0><t2><t4><tdot><t7>."
-      }
-    ],
-    "gt_label": "thunder",
-    "gt_segments": [
-      [
-        9.01043,
-        24.7377
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/2U7Xw0FIRIY.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/2U7Xw0FIRIY.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase playing electronic organ in both imagery and sound?"
+        "value": "<video>\nAt what point in the video does auto racing occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
         "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t1><tdot><t9>."
       }
     ],
-    "gt_label": "playing electronic organ",
+    "event": "auto racing",
+    "gt_label": "auto racing",
     "gt_segments": [
       [
         0,
@@ -1106,372 +1190,8 @@
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/32EfyIPDEYg.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/32EfyIPDEYg.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nCan you identify the timestamps where fire truck siren happens in the video?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t4><tdot><t9>."
-      }
-    ],
-    "gt_label": "fire truck siren",
-    "gt_segments": [
-      [
-        0,
-        44.9319
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/3Bt9Zpx8E4g.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/3Bt9Zpx8E4g.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does fireworks banging occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t7><tdot><t9>."
-      }
-    ],
-    "gt_label": "fireworks banging",
-    "gt_segments": [
-      [
-        0,
-        47.90164
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/3VoGxfa54y4.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/3VoGxfa54y4.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find sheep bleating visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t2><tdot><t7> to <t0><t0><t0><t3><tdot><t7>. From <t0><t0><t1><t0><tdot><t6> to <t0><t0><t1><t1><tdot><t8>. From <t0><t0><t1><t8><tdot><t3> to <t0><t0><t2><t9><tdot><t0>. From <t0><t0><t3><t8><tdot><t8> to <t0><t0><t3><t9><tdot><t8>."
-      }
-    ],
-    "gt_label": "sheep bleating",
-    "gt_segments": [
-      [
-        2.738,
-        3.738
-      ],
-      [
-        10.556,
-        11.82861
-      ],
-      [
-        18.329,
-        29.96498
-      ],
-      [
-        38.829,
-        39.829
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/3YTJE7tD4g4.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/3YTJE7tD4g4.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase playing table tennis in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t5><tdot><t0>. From <t0><t0><t2><t0><tdot><t1> to <t0><t0><t4><t7><tdot><t0>."
-      }
-    ],
-    "gt_label": "playing table tennis",
-    "gt_segments": [
-      [
-        0,
-        15.02277
-      ],
-      [
-        20.09684,
-        47.98573
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/3aFProJmJzY.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/3aFProJmJzY.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect people coughing, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t3><tdot><t3>."
-      }
-    ],
-    "gt_label": "people coughing",
-    "gt_segments": [
-      [
-        0.964,
-        3.31906
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/3exeRhxU-8c.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/3exeRhxU-8c.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find playing harp visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t1><tdot><t0>. From <t0><t0><t0><t4><tdot><t2> to <t0><t0><t1><t4><tdot><t9>. From <t0><t0><t1><t8><tdot><t1> to <t0><t0><t2><t3><tdot><t7>. From <t0><t0><t2><t6><tdot><t6> to <t0><t0><t4><t4><tdot><t0>."
-      }
-    ],
-    "gt_label": "playing harp",
-    "gt_segments": [
-      [
-        0,
-        1.96498
-      ],
-      [
-        4.19225,
-        14.87407
-      ],
-      [
-        18.1468,
-        23.69225
-      ],
-      [
-        26.60134,
-        44.96498
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/3nqELeTLYBs.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/3nqELeTLYBs.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does people eating occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t4><tdot><t6>. From <t0><t0><t1><t7><tdot><t6> to <t0><t0><t3><t2><tdot><t2>. From <t0><t0><t3><t5><tdot><t8> to <t0><t0><t4><t5><tdot><t0>."
-      }
-    ],
-    "gt_label": "people eating",
-    "gt_segments": [
-      [
-        0,
-        14.55589
-      ],
-      [
-        17.556,
-        32.19225
-      ],
-      [
-        35.829,
-        45.96498
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/3q0cl6qLihQ.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/3q0cl6qLihQ.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does playing drum kit occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t7><tdot><t4>. From <t0><t0><t0><t9><tdot><t6> to <t0><t0><t2><t2><tdot><t9>. From <t0><t0><t2><t8><tdot><t5> to <t0><t0><t5><t0><tdot><t0>."
-      }
-    ],
-    "gt_label": "playing drum kit",
-    "gt_segments": [
-      [
-        0,
-        7.3561
-      ],
-      [
-        9.634,
-        22.89314
-      ],
-      [
-        28.467,
-        50
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/3tKC-bW-hSc.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/3tKC-bW-hSc.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find playing drum kit visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t4><tdot><t0>. From <t0><t0><t4><t5><tdot><t9> to <t0><t0><t5><t2><tdot><t0>."
-      }
-    ],
-    "gt_label": "playing drum kit",
-    "gt_segments": [
-      [
-        0,
-        34.96721
-      ],
-      [
-        45.893,
-        52
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/3xaTX28NqHA.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/3xaTX28NqHA.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nCan you identify the timestamps where beat boxing happens in the video?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t9><tdot><t0>."
-      }
-    ],
-    "gt_label": "beat boxing",
-    "gt_segments": [
-      [
-        0,
-        39.97037
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/45wAIX6_eCo.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/45wAIX6_eCo.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does baby laughter occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t1> to <t0><t0><t0><t8><tdot><t1>. From <t0><t0><t2><t7><tdot><t1> to <t0><t0><t2><t9><tdot><t8>."
-      }
-    ],
-    "gt_label": "baby laughter",
-    "gt_segments": [
-      [
-        0.10134,
-        8.1468
-      ],
-      [
-        27.06,
-        29.78316
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/45wAIX6_eCo.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/45wAIX6_eCo.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect people shouting, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t1><t4><tdot><t9> to <t0><t0><t1><t9><tdot><t6>. From <t0><t0><t3><t3><tdot><t3> to <t0><t0><t3><t4><tdot><t3>."
-      }
-    ],
-    "gt_label": "people shouting",
-    "gt_segments": [
-      [
-        14.92,
-        19.6468
-      ],
-      [
-        33.283,
-        34.283
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/45wAIX6_eCo.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/45wAIX6_eCo.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find baby babbling visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t3><t7><tdot><t6> to <t0><t0><t3><t9><tdot><t8>."
-      }
-    ],
-    "gt_label": "baby babbling",
-    "gt_segments": [
-      [
-        37.647,
-        39.82861
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/48EbgWTH7qY.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/48EbgWTH7qY.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase auto racing in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t3><tdot><t0>."
-      }
-    ],
-    "gt_label": "auto racing",
-    "gt_segments": [
-      [
-        0,
-        43.95719
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/4CTAb1Is_XI.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/4CTAb1Is_XI.wav",
+    "video": "/data0/aix23102/unav_100/videos/4gPRrbIDOTY.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/4gPRrbIDOTY.wav",
     "use_audio": true,
     "conversations": [
       {
@@ -1480,1204 +1200,177 @@
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t1><tdot><t8>."
+        "value": "From <t0><t0><t2><t2><tdot><t7> to <t0><t0><t4><t6><tdot><t9>."
       }
     ],
+    "event": "wind noise",
     "gt_label": "wind noise",
     "gt_segments": [
       [
-        0,
-        1.78316
+        22.659,
+        46.94496
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/4CTAb1Is_XI.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/4CTAb1Is_XI.wav",
+    "video": "/data0/aix23102/unav_100/videos/0-fkDb9_MAo.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/0-fkDb9_MAo.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nAt what point in the video does chainsawing trees occur in terms of both video and audio?"
+        "value": "<video>\nAt what point in the video does man speaking occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t0><t1><tdot><t9> to <t0><t0><t1><t2><tdot><t3>."
+        "value": "From <t0><t0><t2><t1><tdot><t2> to <t0><t0><t2><t2><tdot><t2>. From <t0><t0><t2><t6><tdot><t2> to <t0><t0><t3><t1><tdot><t2>. From <t0><t0><t3><t3><tdot><t5> to <t0><t0><t3><t5><tdot><t8>."
       }
     ],
-    "gt_label": "chainsawing trees",
-    "gt_segments": [
-      [
-        1.864,
-        12.32861
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/4CTAb1Is_XI.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/4CTAb1Is_XI.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find man speaking visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t2><t1><tdot><t5> to <t0><t0><t2><t7><tdot><t3>."
-      }
-    ],
+    "event": "man speaking",
     "gt_label": "man speaking",
     "gt_segments": [
       [
-        21.465,
-        27.32861
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/4DehgF5MyHs.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/4DehgF5MyHs.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does people shouting occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t7><tdot><t1> to <t0><t0><t0><t9><tdot><t9>. From <t0><t0><t1><t2><tdot><t8> to <t0><t0><t1><t4><tdot><t3>. From <t0><t0><t1><t7><tdot><t0> to <t0><t0><t2><t0><tdot><t8>. From <t0><t0><t2><t2><tdot><t9> to <t0><t0><t2><t4><tdot><t8>. From <t0><t0><t2><t9><tdot><t2> to <t0><t0><t3><t1><tdot><t0>. From <t0><t0><t3><t7><tdot><t7> to <t0><t0><t3><t9><tdot><t8>."
-      }
-    ],
-    "gt_label": "people shouting",
-    "gt_segments": [
-      [
-        7.1468,
-        9.91952
+        21.223,
+        22.223
       ],
       [
-        12.809,
-        14.28316
+        26.223,
+        31.20113
       ],
       [
-        17.045,
-        20.78316
+        33.51,
+        35.78316
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/4wofX2FYpxo.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/4wofX2FYpxo.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does man speaking occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t1><t9><tdot><t5> to <t0><t0><t2><t1><tdot><t6>. From <t0><t0><t3><t9><tdot><t1> to <t0><t0><t4><t1><tdot><t3>."
+      }
+    ],
+    "event": "man speaking",
+    "gt_label": "man speaking",
+    "gt_segments": [
+      [
+        19.50883,
+        21.58575
       ],
       [
-        22.912,
-        24.78316
-      ],
-      [
-        29.2377,
-        31.96498
-      ],
-      [
-        37.732,
-        39.78316
+        39.1244,
+        41.333
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/4DehgF5MyHs.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/4DehgF5MyHs.wav",
+    "video": "/data0/aix23102/unav_100/videos/AP1hLlZTrKA.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/AP1hLlZTrKA.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nIn which segments of the video do we find car passing by visually or audibly represented?"
+        "value": "<video>\nAt what point in the video does people burping occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t2><t7><tdot><t8> to <t0><t0><t3><t2><tdot><t9>."
+        "value": "From <t0><t0><t0><t1><tdot><t8> to <t0><t0><t0><t2><tdot><t8>. From <t0><t0><t0><t8><tdot><t8> to <t0><t0><t0><t9><tdot><t8>."
       }
     ],
-    "gt_label": "car passing by",
-    "gt_segments": [
-      [
-        27.82861,
-        32.87407
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/4akwLXNv5ZM.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/4akwLXNv5ZM.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does bird chirping occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t5><tdot><t5> to <t0><t0><t4><t0><tdot><t9>."
-      }
-    ],
-    "gt_label": "bird chirping",
-    "gt_segments": [
-      [
-        5.549,
-        40.89344
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/4b3QVwKX9QA.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/4b3QVwKX9QA.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect typing on computer keyboard, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t1><t4><tdot><t2> to <t0><t0><t1><t7><tdot><t9>."
-      }
-    ],
-    "gt_label": "typing on computer keyboard",
-    "gt_segments": [
-      [
-        14.24204,
-        17.85969
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/59q9Cfz8CHw.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/59q9Cfz8CHw.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find fireworks banging visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t1><t2><tdot><t9> to <t0><t0><t2><t8><tdot><t3>."
-      }
-    ],
-    "gt_label": "fireworks banging",
-    "gt_segments": [
-      [
-        12.901,
-        28.32861
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/5Flb0uS6iyQ.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/5Flb0uS6iyQ.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect basketball bounce, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t4><tdot><t9> to <t0><t0><t1><t7><tdot><t2>. From <t0><t0><t2><t6><tdot><t7> to <t0><t0><t3><t4><tdot><t9>."
-      }
-    ],
-    "gt_label": "basketball bounce",
-    "gt_segments": [
-      [
-        4.887,
-        17.2396
-      ],
-      [
-        26.737,
-        34.89344
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/5IQGfpXGAbg.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/5IQGfpXGAbg.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does kid speaking occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t1><tdot><t8> to <t0><t0><t0><t2><tdot><t6>. From <t0><t0><t1><t6><tdot><t2> to <t0><t0><t1><t8><tdot><t7>. From <t0><t0><t2><t5><tdot><t9> to <t0><t0><t2><t7><tdot><t9>. From <t0><t0><t3><t2><tdot><t1> to <t0><t0><t3><t4><tdot><t9>."
-      }
-    ],
-    "gt_label": "kid speaking",
+    "event": "people burping",
+    "gt_label": "people burping",
     "gt_segments": [
       [
         1.802,
-        2.624
+        2.802
       ],
       [
-        16.24,
-        18.7396
+        8.778,
+        9.778
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/oyxhHkOel2I.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/oyxhHkOel2I.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people cheering occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t1><t7><tdot><t4> to <t0><t0><t2><t1><tdot><t3>. From <t0><t0><t3><t6><tdot><t2> to <t0><t0><t4><t8><tdot><t5>."
+      }
+    ],
+    "event": "people cheering",
+    "gt_label": "people cheering",
+    "gt_segments": [
+      [
+        17.374,
+        21.32861
       ],
       [
-        25.895,
-        27.89344
-      ],
-      [
-        32.052,
-        34.85498
+        36.238,
+        48.51043
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/5IQGfpXGAbg.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/5IQGfpXGAbg.wav",
+    "video": "/data0/aix23102/unav_100/videos/4jRSJjV-afY.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/4jRSJjV-afY.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nCan you identify the timestamps where people shouting happens in the video?"
+        "value": "<video>\nAt what point in the video does people laughing occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t1><t1><tdot><t5> to <t0><t0><t1><t5><tdot><t2>."
+        "value": "From <t0><t0><t3><t0><tdot><t4> to <t0><t0><t3><t4><tdot><t5>."
       }
     ],
-    "gt_label": "people shouting",
+    "event": "people laughing",
+    "gt_label": "people laughing",
     "gt_segments": [
       [
-        11.54729,
-        15.20113
+        30.441,
+        34.50765
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/5O_5DPVvtho.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/5O_5DPVvtho.wav",
+    "video": "/data0/aix23102/unav_100/videos/SZ7tgMo-QUY.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/SZ7tgMo-QUY.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nIn which segments of the video do we find playing cello visually or audibly represented?"
+        "value": "<video>\nAt what point in the video does thunder occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t5><t5><tdot><t9>."
+        "value": "From <t0><t0><t0><t7><tdot><t3> to <t0><t0><t0><t9><tdot><t9>. From <t0><t0><t1><t5><tdot><t2> to <t0><t0><t3><t1><tdot><t2>."
       }
     ],
-    "gt_label": "playing cello",
-    "gt_segments": [
-      [
-        0,
-        55.92161
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/5O_5DPVvtho.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/5O_5DPVvtho.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find playing piano visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t1> to <t0><t0><t5><t5><tdot><t0>."
-      }
-    ],
-    "gt_label": "playing piano",
-    "gt_segments": [
-      [
-        0.05797,
-        55.96706
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/5aEBWi9H0rg.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/5aEBWi9H0rg.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does church bell ringing occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t5><tdot><t3>. From <t0><t0><t1><t8><tdot><t4> to <t0><t0><t3><t4><tdot><t9>."
-      }
-    ],
-    "gt_label": "church bell ringing",
-    "gt_segments": [
-      [
-        0,
-        5.28316
-      ],
-      [
-        18.37407,
-        34.87407
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/5hRr39OVOds.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/5hRr39OVOds.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nCan you identify the timestamps where fire truck siren happens in the video?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t1><t0><tdot><t0> to <t0><t0><t2><t1><tdot><t2>."
-      }
-    ],
-    "gt_label": "fire truck siren",
-    "gt_segments": [
-      [
-        10.00425,
-        21.22647
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/5i39i-PyQxA.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/5i39i-PyQxA.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find engine knocking visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t5><tdot><t4>."
-      }
-    ],
-    "gt_label": "engine knocking",
-    "gt_segments": [
-      [
-        0,
-        45.35498
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/65MOD8EJD0A.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/65MOD8EJD0A.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find rope skipping visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t2><tdot><t6>. From <t0><t0><t2><t4><tdot><t9> to <t0><t0><t3><t5><tdot><t9>."
-      }
-    ],
-    "gt_label": "rope skipping",
-    "gt_segments": [
-      [
-        0.041,
-        12.64098
-      ],
-      [
-        24.862,
-        35.87432
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/65MOD8EJD0A.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/65MOD8EJD0A.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nCan you identify the timestamps where man speaking happens in the video?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t1><t3><tdot><t5> to <t0><t0><t2><t1><tdot><t4>. From <t0><t0><t3><t6><tdot><t9> to <t0><t0><t4><t0><tdot><t3>."
-      }
-    ],
-    "gt_label": "man speaking",
-    "gt_segments": [
-      [
-        13.512,
-        21.37432
-      ],
-      [
-        36.939,
-        40.30765
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/65MOD8EJD0A.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/65MOD8EJD0A.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase people clapping in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t2><t0><tdot><t8> to <t0><t0><t2><t4><tdot><t1>."
-      }
-    ],
-    "gt_label": "people clapping",
-    "gt_segments": [
-      [
-        20.769,
-        24.10765
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/65MOD8EJD0A.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/65MOD8EJD0A.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase people crowd in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t3><t6><tdot><t7> to <t0><t0><t4><t0><tdot><t5>."
-      }
-    ],
-    "gt_label": "people crowd",
-    "gt_segments": [
-      [
-        36.691,
-        40.50765
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/6C7nGqZkYbg.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/6C7nGqZkYbg.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find playing drum kit visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t1><tdot><t7>. From <t0><t0><t3><t4><tdot><t5> to <t0><t0><t4><t1><tdot><t2>."
-      }
-    ],
-    "gt_label": "playing drum kit",
-    "gt_segments": [
-      [
-        0,
-        31.72647
-      ],
-      [
-        34.467,
-        41.18944
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/76afhOA4dWI.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/76afhOA4dWI.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect lions roaring, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t2><tdot><t9>."
-      }
-    ],
-    "gt_label": "lions roaring",
-    "gt_segments": [
-      [
-        0,
-        32.90164
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/77cEgc4R1rs.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/77cEgc4R1rs.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does car passing by occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t0><tdot><t7>."
-      }
-    ],
-    "gt_label": "car passing by",
-    "gt_segments": [
-      [
-        0,
-        10.7377
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/77cEgc4R1rs.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/77cEgc4R1rs.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect people running, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t6><tdot><t3>. From <t0><t0><t1><t1><tdot><t6> to <t0><t0><t4><t0><tdot><t2>."
-      }
-    ],
-    "gt_label": "people running",
-    "gt_segments": [
-      [
-        0,
-        6.32861
-      ],
-      [
-        11.563,
-        40.19225
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/7TmKzUgWiRU.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/7TmKzUgWiRU.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect chainsawing trees, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t3><tdot><t5> to <t0><t0><t1><t1><tdot><t0>. From <t0><t0><t1><t5><tdot><t9> to <t0><t0><t2><t7><tdot><t2>. From <t0><t0><t3><t9><tdot><t6> to <t0><t0><t5><t5><tdot><t9>."
-      }
-    ],
-    "gt_label": "chainsawing trees",
-    "gt_segments": [
-      [
-        3.523,
-        11.02295
-      ],
-      [
-        15.92295,
-        27.22295
-      ],
-      [
-        39.638,
-        55.92295
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/7zPl1hU4BZ0.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/7zPl1hU4BZ0.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does people whispering occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t8><tdot><t3>. From <t0><t0><t1><t1><tdot><t3> to <t0><t0><t1><t4><tdot><t0>. From <t0><t0><t1><t6><tdot><t7> to <t0><t0><t3><t0><tdot><t2>. From <t0><t0><t3><t5><tdot><t2> to <t0><t0><t4><t0><tdot><t1>. From <t0><t0><t4><t2><tdot><t5> to <t0><t0><t4><t3><tdot><t0>."
-      }
-    ],
-    "gt_label": "people whispering",
-    "gt_segments": [
-      [
-        0,
-        8.34608
-      ],
-      [
-        11.346,
-        14.01275
-      ],
-      [
-        16.733,
-        30.17942
-      ],
-      [
-        35.17942,
-        40.06831
-      ],
-      [
-        42.488,
-        43
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/7zPl1hU4BZ0.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/7zPl1hU4BZ0.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does people eating occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t8><tdot><t3> to <t0><t0><t1><t1><tdot><t3>. From <t0><t0><t3><t0><tdot><t2> to <t0><t0><t3><t5><tdot><t0>."
-      }
-    ],
-    "gt_label": "people eating",
-    "gt_segments": [
-      [
-        8.346,
-        11.34608
-      ],
-      [
-        30.179,
-        35.01275
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/8ED2TBXHAcQ.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/8ED2TBXHAcQ.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does playing tabla occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t1><tdot><t0>."
-      }
-    ],
-    "gt_label": "playing tabla",
-    "gt_segments": [
-      [
-        0,
-        41
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/8PAopfvURIc.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/8PAopfvURIc.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find raining visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t9><tdot><t9>."
-      }
-    ],
-    "gt_label": "raining",
-    "gt_segments": [
-      [
-        0,
-        19.88642
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/8PAopfvURIc.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/8PAopfvURIc.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find thunder visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t9><tdot><t3> to <t0><t0><t1><t9><tdot><t8>."
-      }
-    ],
+    "event": "thunder",
     "gt_label": "thunder",
     "gt_segments": [
       [
-        9.32183,
-        19.84814
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/94-SYOFG3Ow.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/94-SYOFG3Ow.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect sailing, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t1><tdot><t0>."
-      }
-    ],
-    "gt_label": "sailing",
-    "gt_segments": [
-      [
-        0,
-        41.96721
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/94-SYOFG3Ow.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/94-SYOFG3Ow.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect wind noise, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t1><tdot><t0>."
-      }
-    ],
-    "gt_label": "wind noise",
-    "gt_segments": [
-      [
-        0.00425,
-        41.96721
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/94-SYOFG3Ow.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/94-SYOFG3Ow.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect sea waves, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t2> to <t0><t0><t4><t1><tdot><t0>."
-      }
-    ],
-    "gt_label": "sea waves",
-    "gt_segments": [
-      [
-        0.17942,
-        41.96721
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/9Gxke_nlcuw.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/9Gxke_nlcuw.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase playing snare drum in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t4><tdot><t0>. From <t0><t0><t2><t1><tdot><t2> to <t0><t0><t4><t1><tdot><t4>."
-      }
-    ],
-    "gt_label": "playing snare drum",
-    "gt_segments": [
-      [
-        0,
-        14.96721
+        7.28316,
+        9.87407
       ],
       [
-        21.18944,
-        41.44869
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/9VaWiRgVCA0.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/9VaWiRgVCA0.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find lions roaring visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t5><tdot><t7> to <t0><t0><t5><t5><tdot><t6>."
-      }
-    ],
-    "gt_label": "lions roaring",
-    "gt_segments": [
-      [
-        5.735,
-        55.56831
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/9o9gfEYfaPs.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/9o9gfEYfaPs.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does baby babbling occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t2><t1><tdot><t0>."
-      }
-    ],
-    "gt_label": "baby babbling",
-    "gt_segments": [
-      [
-        0,
-        21.97037
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/AD_lPXb5ivY.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/AD_lPXb5ivY.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nCan you identify the timestamps where playing ukulele happens in the video?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t0><tdot><t9>. From <t0><t0><t0><t7><tdot><t2> to <t0><t0><t1><t1><tdot><t6>. From <t0><t0><t1><t5><tdot><t7> to <t0><t0><t1><t9><tdot><t5>. From <t0><t0><t2><t3><tdot><t7> to <t0><t0><t2><t7><tdot><t1>. From <t0><t0><t3><t2><tdot><t2> to <t0><t0><t4><t2><tdot><t9>. From <t0><t0><t4><t9><tdot><t0> to <t0><t0><t5><t4><tdot><t9>."
-      }
-    ],
-    "gt_label": "playing ukulele",
-    "gt_segments": [
-      [
-        0,
-        0.90164
-      ],
-      [
-        7.179,
-        11.56831
-      ],
-      [
-        15.733,
-        19.45719
-      ],
-      [
-        23.735,
-        27.12386
-      ],
-      [
-        32.179,
-        42.90164
-      ],
-      [
-        49.012,
-        54.90164
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/AD_lPXb5ivY.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/AD_lPXb5ivY.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase man speaking in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t1><tdot><t3> to <t0><t0><t0><t7><tdot><t2>. From <t0><t0><t1><t2><tdot><t1> to <t0><t0><t1><t5><tdot><t8>. From <t0><t0><t1><t9><tdot><t8> to <t0><t0><t2><t4><tdot><t1>. From <t0><t0><t2><t7><tdot><t1> to <t0><t0><t3><t2><tdot><t4>. From <t0><t0><t3><t6><tdot><t1> to <t0><t0><t4><t0><tdot><t3>. From <t0><t0><t4><t6><tdot><t3> to <t0><t0><t4><t9><tdot><t3>. From <t0><t0><t5><t2><tdot><t7> to <t0><t0><t5><t3><tdot><t7>."
-      }
-    ],
-    "gt_label": "man speaking",
-    "gt_segments": [
-      [
-        1.29053,
-        7.23497
-      ],
-      [
-        12.068,
-        15.84608
-      ],
-      [
-        19.782,
-        24.12386
-      ],
-      [
-        27.06831,
-        32.40164
-      ],
-      [
-        36.144,
-        40.34608
-      ],
-      [
-        46.29,
-        49.34608
-      ],
-      [
-        52.667,
-        53.667
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/AnFLES8rJfw.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/AnFLES8rJfw.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does baby laughter occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t1><t0><tdot><t1> to <t0><t0><t1><t0><tdot><t9>."
-      }
-    ],
-    "gt_label": "baby laughter",
-    "gt_segments": [
-      [
-        10.13388,
-        10.93018
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/AnFLES8rJfw.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/AnFLES8rJfw.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does kid speaking occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t1><t5><tdot><t4> to <t0><t0><t1><t6><tdot><t4>."
-      }
-    ],
-    "gt_label": "kid speaking",
-    "gt_segments": [
-      [
-        15.449,
-        16.449
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/AppGYEImw-g.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/AppGYEImw-g.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase dog howling in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t9><tdot><t1> to <t0><t0><t2><t8><tdot><t4>."
-      }
-    ],
-    "gt_label": "dog howling",
-    "gt_segments": [
-      [
-        9.09,
-        28.41952
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/AsghD21CFr4.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/AsghD21CFr4.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nCan you identify the timestamps where lawn mowing happens in the video?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t3><tdot><t9>."
-      }
-    ],
-    "gt_label": "lawn mowing",
-    "gt_segments": [
-      [
-        0,
-        43.90164
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/CZRaMly8YLU.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/CZRaMly8YLU.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase people eating in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t2><tdot><t7>. From <t0><t0><t0><t7><tdot><t7> to <t0><t0><t1><t2><tdot><t0>. From <t0><t0><t1><t7><tdot><t6> to <t0><t0><t5><t1><tdot><t0>."
-      }
-    ],
-    "gt_label": "people eating",
-    "gt_segments": [
-      [
-        0,
-        2.68944
-      ],
-      [
-        7.68944,
-        12.00425
-      ],
-      [
-        17.56,
-        51
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/DDgT1J61hbU.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/DDgT1J61hbU.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase playing tennis in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t1><tdot><t7> to <t0><t0><t1><t7><tdot><t0>. From <t0><t0><t4><t1><tdot><t9> to <t0><t0><t4><t3><tdot><t5>."
-      }
-    ],
-    "gt_label": "playing tennis",
-    "gt_segments": [
-      [
-        1.663,
-        17.00883
-      ],
-      [
-        41.893,
-        43.50883
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/H3gIR06JwKo.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/H3gIR06JwKo.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nCan you identify the timestamps where people clapping happens in the video?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t1><t0><tdot><t0> to <t0><t0><t3><t8><tdot><t0>."
-      }
-    ],
-    "gt_label": "people clapping",
-    "gt_segments": [
-      [
-        10.029,
-        38.96498
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/H3gIR06JwKo.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/H3gIR06JwKo.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nAt what point in the video does people running occur in terms of both video and audio?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t1><t0><tdot><t4> to <t0><t0><t1><t6><tdot><t8>. From <t0><t0><t2><t3><tdot><t3> to <t0><t0><t3><t8><tdot><t8>."
-      }
-    ],
-    "gt_label": "people running",
-    "gt_segments": [
-      [
-        10.42,
-        16.78316
-      ],
-      [
-        23.283,
-        38.82861
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/I0Rj_topRmI.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/I0Rj_topRmI.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect telephone bell ringing, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t5><tdot><t7> to <t0><t0><t1><t5><tdot><t0>."
-      }
-    ],
-    "gt_label": "telephone bell ringing",
-    "gt_segments": [
-      [
-        5.661,
-        15.0212
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/I9vIozBjTOg.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/I9vIozBjTOg.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nIn which segments of the video do we find baby babbling visually or audibly represented?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t1><tdot><t9> to <t0><t0><t0><t6><tdot><t2>. From <t0><t0><t1><t4><tdot><t7> to <t0><t0><t1><t7><tdot><t5>. From <t0><t0><t3><t5><tdot><t9> to <t0><t0><t4><t0><tdot><t5>."
-      }
-    ],
-    "gt_label": "baby babbling",
-    "gt_segments": [
-      [
-        1.87407,
-        6.2377
-      ],
-      [
-        14.719,
-        17.51043
-      ],
-      [
-        35.864,
-        40.51043
+        15.213,
+        31.24204
       ]
     ]
   },
@@ -2688,13 +1381,14 @@
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nIn which segments of the video do we find playing violin visually or audibly represented?"
+        "value": "<video>\nAt what point in the video does playing violin occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
         "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t2><t5><tdot><t5>."
       }
     ],
+    "event": "playing violin",
     "gt_label": "playing violin",
     "gt_segments": [
       [
@@ -2704,224 +1398,708 @@
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/QAjepby044Q.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/QAjepby044Q.wav",
+    "video": "/data0/aix23102/unav_100/videos/CUL0UrnVfZI.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/CUL0UrnVfZI.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nWhere in the video can we detect man speaking, both in the visuals and in the audio track?"
+        "value": "<video>\nAt what point in the video does playing piano occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t2><t6><tdot><t7> to <t0><t0><t5><t1><tdot><t4>."
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t6><tdot><t9>."
       }
     ],
-    "gt_label": "man speaking",
+    "event": "playing piano",
+    "gt_label": "playing piano",
     "gt_segments": [
       [
-        26.7029,
-        51.434
+        0.019,
+        46.8891
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/RGWC7icTM_E.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/RGWC7icTM_E.wav",
+    "video": "/data0/aix23102/unav_100/videos/3PmJCmZHniw.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/3PmJCmZHniw.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nCan you identify the timestamps where male singing happens in the video?"
+        "value": "<video>\nAt what point in the video does driving buses occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t6><tdot><t4>. From <t0><t0><t1><t8><tdot><t4> to <t0><t0><t3><t9><tdot><t9>."
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t4><tdot><t5>. From <t0><t0><t2><t1><tdot><t2> to <t0><t0><t4><t5><tdot><t9>."
       }
     ],
-    "gt_label": "male singing",
+    "event": "driving buses",
+    "gt_label": "driving buses",
     "gt_segments": [
       [
         0,
-        16.35498
+        4.51043
       ],
       [
-        18.432,
-        39.9319
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/SOP4zO5Tk3w.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/SOP4zO5Tk3w.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase striking bowling in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t1><tdot><t9> to <t0><t0><t0><t2><tdot><t9>. From <t0><t0><t1><t6><tdot><t9> to <t0><t0><t1><t7><tdot><t9>. From <t0><t0><t3><t3><tdot><t9> to <t0><t0><t3><t4><tdot><t9>. From <t0><t0><t3><t6><tdot><t9> to <t0><t0><t4><t0><tdot><t0>."
-      }
-    ],
-    "gt_label": "striking bowling",
-    "gt_segments": [
-      [
-        1.876,
-        2.876
-      ],
-      [
-        16.938,
-        17.938
-      ],
-      [
-        33.885,
-        34.885
-      ],
-      [
-        36.945,
-        40.01639
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/STJ5zksfXGU.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/STJ5zksfXGU.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect people shouting, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t5><t4><tdot><t4>."
-      }
-    ],
-    "gt_label": "people shouting",
-    "gt_segments": [
-      [
-        0,
-        54.40164
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/TmLrqd7tm8A.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/TmLrqd7tm8A.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhere in the video can we detect sea waves, both in the visuals and in the audio track?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t5><tdot><t9>."
-      }
-    ],
-    "gt_label": "sea waves",
-    "gt_segments": [
-      [
-        0,
-        45.91952
-      ]
-    ]
-  },
-  {
-    "video": "/data0/aix23102/unav_100/videos/TmLrqd7tm8A.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/TmLrqd7tm8A.wav",
-    "use_audio": true,
-    "conversations": [
-      {
-        "from": "human",
-        "value": "<video>\nWhich parts of the video showcase wind noise in both imagery and sound?"
-      },
-      {
-        "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t5><tdot><t9>."
-      }
-    ],
-    "gt_label": "wind noise",
-    "gt_segments": [
-      [
-        0,
+        21.238,
         45.87407
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/gwAP-vfQyRU.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/gwAP-vfQyRU.wav",
+    "video": "/data0/aix23102/unav_100/videos/3yxCG4mxDkQ.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/3yxCG4mxDkQ.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nIn which segments of the video do we find fire truck siren visually or audibly represented?"
+        "value": "<video>\nAt what point in the video does playing badminton occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t2><tdot><t4>."
+        "value": "From <t0><t0><t0><t8><tdot><t2> to <t0><t0><t1><t4><tdot><t1>. From <t0><t0><t1><t7><tdot><t7> to <t0><t0><t1><t9><tdot><t5>. From <t0><t0><t2><t2><tdot><t6> to <t0><t0><t2><t5><tdot><t0>. From <t0><t0><t2><t8><tdot><t9> to <t0><t0><t4><t0><tdot><t2>."
       }
     ],
-    "gt_label": "fire truck siren",
+    "event": "playing badminton",
+    "gt_label": "playing badminton",
     "gt_segments": [
       [
-        0,
-        12.39344
+        8.23497,
+        14.12386
+      ],
+      [
+        17.657,
+        19.51275
+      ],
+      [
+        22.605,
+        25.95719
+      ],
+      [
+        28.943,
+        40.23497
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/kh77cZfsDvc.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/kh77cZfsDvc.wav",
+    "video": "/data0/aix23102/unav_100/videos/-2FKhYSw_zU.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/-2FKhYSw_zU.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nWhere in the video can we detect bull bellowing, both in the visuals and in the audio track?"
+        "value": "<video>\nAt what point in the video does singing choir occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t0><tdot><t9>."
+        "value": "From <t0><t0><t0><t0><tdot><t2> to <t0><t0><t1><t1><tdot><t8>. From <t0><t0><t2><t8><tdot><t9> to <t0><t0><t4><t5><tdot><t8>."
       }
     ],
-    "gt_label": "bull bellowing",
+    "event": "singing choir",
+    "gt_label": "singing choir",
     "gt_segments": [
       [
-        0,
-        40.90164
+        0.241,
+        11.77432
+      ],
+      [
+        28.878,
+        45.84098
       ]
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/kh77cZfsDvc.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/kh77cZfsDvc.wav",
+    "video": "/data0/aix23102/unav_100/videos/KqF-WZRVs-w.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/KqF-WZRVs-w.wav",
     "use_audio": true,
     "conversations": [
       {
         "from": "human",
-        "value": "<video>\nWhere in the video can we detect wind noise, both in the visuals and in the audio track?"
+        "value": "<video>\nAt what point in the video does kid speaking occur in terms of both video and audio?"
       },
       {
         "from": "gpt",
-        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t6><tdot><t2>. From <t0><t0><t1><t4><tdot><t6> to <t0><t0><t1><t7><tdot><t6>. From <t0><t0><t2><t3><tdot><t5> to <t0><t0><t4><t0><tdot><t0>."
+        "value": "From <t0><t0><t1><t3><tdot><t0> to <t0><t0><t1><t9><tdot><t9>. From <t0><t0><t2><t3><tdot><t5> to <t0><t0><t4><t4><tdot><t0>."
       }
     ],
+    "event": "kid speaking",
+    "gt_label": "kid speaking",
+    "gt_segments": [
+      [
+        13.008,
+        19.87432
+      ],
+      [
+        23.541,
+        44.97432
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/kOheqjodDmw.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/kOheqjodDmw.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does man speaking occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t4><tdot><t4>. From <t0><t0><t1><t1><tdot><t9> to <t0><t0><t1><t3><tdot><t8>. From <t0><t0><t2><t0><tdot><t0> to <t0><t0><t3><t5><tdot><t0>."
+      }
+    ],
+    "event": "man speaking",
+    "gt_label": "man speaking",
+    "gt_segments": [
+      [
+        0,
+        4.39314
+      ],
+      [
+        11.91166,
+        13.76351
+      ],
+      [
+        20.023,
+        35
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/TTaOTkBplYY.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/TTaOTkBplYY.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people slapping occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t1><t1><tdot><t2> to <t0><t0><t1><t2><tdot><t2>. From <t0><t0><t1><t5><tdot><t3> to <t0><t0><t1><t6><tdot><t3>. From <t0><t0><t2><t0><tdot><t3> to <t0><t0><t2><t1><tdot><t3>. From <t0><t0><t2><t7><tdot><t6> to <t0><t0><t3><t0><tdot><t8>. From <t0><t0><t3><t4><tdot><t3> to <t0><t0><t3><t5><tdot><t3>."
+      }
+    ],
+    "event": "people slapping",
+    "gt_label": "people slapping",
+    "gt_segments": [
+      [
+        11.165,
+        12.192
+      ],
+      [
+        15.326,
+        16.326
+      ],
+      [
+        20.298,
+        21.298
+      ],
+      [
+        27.6468,
+        30.78316
+      ],
+      [
+        34.323,
+        35.323
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/7DGw1uCvyLw.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/7DGw1uCvyLw.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing drum kit occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t1><t4><tdot><t8> to <t0><t0><t1><t5><tdot><t8>. From <t0><t0><t3><t8><tdot><t4> to <t0><t0><t4><t2><tdot><t9>."
+      }
+    ],
+    "event": "playing drum kit",
+    "gt_label": "playing drum kit",
+    "gt_segments": [
+      [
+        14.764,
+        15.764
+      ],
+      [
+        38.4319,
+        42.9319
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/6NOW0_HuUCQ.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/6NOW0_HuUCQ.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does chainsawing trees occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t5><t3><tdot><t5>."
+      }
+    ],
+    "event": "chainsawing trees",
+    "gt_label": "chainsawing trees",
+    "gt_segments": [
+      [
+        0,
+        53.51639
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/8VZs-wTEuCE.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/8VZs-wTEuCE.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does dog howling occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t2> to <t0><t0><t0><t3><tdot><t0>. From <t0><t0><t2><t2><tdot><t4> to <t0><t0><t2><t7><tdot><t4>. From <t0><t0><t4><t0><tdot><t5> to <t0><t0><t4><t3><tdot><t8>."
+      }
+    ],
+    "event": "dog howling",
+    "gt_label": "dog howling",
+    "gt_segments": [
+      [
+        0.16267,
+        3.04729
+      ],
+      [
+        22.35,
+        27.4319
+      ],
+      [
+        40.54729,
+        43.77
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/3XrXgd5NzcQ.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/3XrXgd5NzcQ.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does helicopter occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t3><tdot><t8>."
+      }
+    ],
+    "event": "helicopter",
+    "gt_label": "helicopter",
+    "gt_segments": [
+      [
+        0,
+        43.80211
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/7Zvzwzts2YQ.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/7Zvzwzts2YQ.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people coughing occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t2><t8><tdot><t3> to <t0><t0><t3><t0><tdot><t3>."
+      }
+    ],
+    "event": "people coughing",
+    "gt_label": "people coughing",
+    "gt_segments": [
+      [
+        28.328,
+        30.30765
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/0U7PeaSWk14.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/0U7PeaSWk14.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people eating occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t2><tdot><t7> to <t0><t0><t0><t8><tdot><t8>. From <t0><t0><t1><t3><tdot><t9> to <t0><t0><t1><t9><tdot><t8>. From <t0><t0><t2><t6><tdot><t6> to <t0><t0><t3><t8><tdot><t3>."
+      }
+    ],
+    "event": "people eating",
+    "gt_label": "people eating",
+    "gt_segments": [
+      [
+        2.735,
+        8.84608
+      ],
+      [
+        13.85969,
+        19.79053
+      ],
+      [
+        26.568,
+        38.29053
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/00ypc1aPiO4.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/00ypc1aPiO4.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing snare drum occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t1><tdot><t7>. From <t0><t0><t3><t4><tdot><t1> to <t0><t0><t3><t6><tdot><t0>."
+      }
+    ],
+    "event": "playing snare drum",
+    "gt_label": "playing snare drum",
+    "gt_segments": [
+      [
+        0,
+        31.68944
+      ],
+      [
+        34.11536,
+        36.02277
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/3O8GirGuUL4.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/3O8GirGuUL4.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does train wheels squealing occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t0><tdot><t0>. From <t0><t0><t2><t6><tdot><t9> to <t0><t0><t3><t6><tdot><t1>. From <t0><t0><t5><t4><tdot><t0> to <t0><t0><t5><t5><tdot><t0>."
+      }
+    ],
+    "event": "train wheels squealing",
+    "gt_label": "train wheels squealing",
+    "gt_segments": [
+      [
+        0,
+        10.95719
+      ],
+      [
+        26.945,
+        36.08782
+      ],
+      [
+        54.016,
+        55
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/2tF8E3WGxkk.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/2tF8E3WGxkk.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing cello occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t9><tdot><t0>."
+      }
+    ],
+    "event": "playing cello",
+    "gt_label": "playing cello",
+    "gt_segments": [
+      [
+        0,
+        39.97213
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/przrSPZgOkY.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/przrSPZgOkY.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does wind noise occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t2><tdot><t5>. From <t0><t0><t0><t8><tdot><t3> to <t0><t0><t0><t9><tdot><t3>."
+      }
+    ],
+    "event": "wind noise",
     "gt_label": "wind noise",
     "gt_segments": [
       [
         0,
-        6.23497
+        2.53616
       ],
       [
-        14.568,
-        17.56831
+        8.271,
+        9.271
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/0Ree10eqPN4.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/0Ree10eqPN4.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does car passing by occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t9><tdot><t0>."
+      }
+    ],
+    "event": "car passing by",
+    "gt_label": "car passing by",
+    "gt_segments": [
+      [
+        0,
+        49.97432
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/3YEeLvC6Xxo.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/3YEeLvC6Xxo.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does raining occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t5><t2><tdot><t0>."
+      }
+    ],
+    "event": "raining",
+    "gt_label": "raining",
+    "gt_segments": [
+      [
+        0,
+        52
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/dmHcDWrMH-8.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/dmHcDWrMH-8.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does female singing occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t1><t3><tdot><t3> to <t0><t0><t1><t7><tdot><t9>. From <t0><t0><t2><t1><tdot><t0> to <t0><t0><t2><t2><tdot><t0>. From <t0><t0><t2><t8><tdot><t7> to <t0><t0><t2><t9><tdot><t7>. From <t0><t0><t4><t4><tdot><t0> to <t0><t0><t5><t2><tdot><t0>."
+      }
+    ],
+    "event": "female singing",
+    "gt_label": "female singing",
+    "gt_segments": [
+      [
+        13.3307,
+        17.87615
       ],
       [
-        23.513,
-        40.95719
+        21.023,
+        22.023
+      ],
+      [
+        28.696,
+        29.696
+      ],
+      [
+        44.008,
+        52.01252
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/4dmBaDl584M.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/4dmBaDl584M.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does bird chirping occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t1><tdot><t2>. From <t0><t0><t2><t1><tdot><t6> to <t0><t0><t2><t2><tdot><t6>. From <t0><t0><t2><t7><tdot><t2> to <t0><t0><t2><t9><tdot><t2>. From <t0><t0><t3><t6><tdot><t4> to <t0><t0><t3><t8><tdot><t7>."
+      }
+    ],
+    "event": "bird chirping",
+    "gt_label": "bird chirping",
+    "gt_segments": [
+      [
+        0,
+        11.17942
+      ],
+      [
+        21.617,
+        22.617
+      ],
+      [
+        27.235,
+        29.23497
+      ],
+      [
+        36.363,
+        38.67942
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/3upmbZFpFvQ.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/3upmbZFpFvQ.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does driving motorcycle occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t7><tdot><t0>."
+      }
+    ],
+    "event": "driving motorcycle",
+    "gt_label": "driving motorcycle",
+    "gt_segments": [
+      [
+        0,
+        47
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/8OEVmhTudcs.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/8OEVmhTudcs.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing zither occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t1><t6><tdot><t7> to <t0><t0><t4><t4><tdot><t2>."
+      }
+    ],
+    "event": "playing zither",
+    "gt_label": "playing zither",
+    "gt_segments": [
+      [
+        16.678,
+        44.20765
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/FauOsBt_IFA.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/FauOsBt_IFA.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people clapping occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t9><tdot><t5> to <t0><t0><t1><t5><tdot><t3>."
+      }
+    ],
+    "event": "people clapping",
+    "gt_label": "people clapping",
+    "gt_segments": [
+      [
+        9.513,
+        15.34608
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/a23vS080B2E.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/a23vS080B2E.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does water burbling occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t0><tdot><t0>."
+      }
+    ],
+    "event": "water burbling",
+    "gt_label": "water burbling",
+    "gt_segments": [
+      [
+        0,
+        40.97734
+      ]
+    ]
+  },
+  {
+    "video": "/data0/aix23102/unav_100/videos/ov4fdnGwzWU.mp4",
+    "audio": "/data0/aix23102/unav_100/audio/ov4fdnGwzWU.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does playing trumpet occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t7><tdot><t1> to <t0><t0><t3><t4><tdot><t3>."
+      }
+    ],
+    "event": "playing trumpet",
+    "gt_label": "playing trumpet",
+    "gt_segments": [
+      [
+        7.056,
+        34.28316
       ]
     ]
   }

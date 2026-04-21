@@ -19,7 +19,7 @@ export ARNOLD_WORKER_NUM=1
 export ARNOLD_ID=0
 export METIS_WORKER_0_HOST=localhost
 
-cd /home/aix23102/audiolm/video-SALMONN-2/video_SALMONN2_plus
+cd /home/aix23102/audiolm/vS2_eunji/video_SALMONN2_plus
 
 MODEL=/data0/aix23102/checkpoints_open_aligner/video_salmonn2_plus_7B_time_tokens
 MODEL_BASE=/data0/aix23102/checkpoints_open_aligner/video_salmonn2_plus_7B_time_tokens

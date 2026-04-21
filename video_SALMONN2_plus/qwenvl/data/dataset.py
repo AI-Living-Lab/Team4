@@ -34,7 +34,11 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
-from torchcodec.decoders import VideoDecoder, AudioDecoder
+try:
+    from torchcodec.decoders import VideoDecoder, AudioDecoder
+except ImportError:
+    VideoDecoder = None
+    AudioDecoder = None
 import transformers
 
 from .rope2d import get_rope_index_25, get_rope_index_2

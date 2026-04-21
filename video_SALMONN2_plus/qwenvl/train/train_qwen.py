@@ -205,7 +205,7 @@ def train(attn_implementation="flash_attention_2"):
         data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
         # time.sleep(random.randint(0, 20))
         # print(f"RANK {dist.get_rank()} before barrier")
-        dist.barrier(device_ids=dist.get_rank())
+        dist.barrier(device_ids=[dist.get_rank()])
         # print(f"RANK {dist.get_rank()} after barrier")
         model = video_SALMONN2_plus.from_pretrained(
             model_args.model_name_or_path,
@@ -332,7 +332,7 @@ def train(attn_implementation="flash_attention_2"):
                     model.save_pretrained(os.path.join(training_args.output_dir, "generation"))
                 else:
                     model.save_pretrained(os.path.join(training_args.output_dir, f"generation_{pred_rank}"))
-            dist.barrier(device_ids=local_rank)
+            dist.barrier(device_ids=[local_rank])
             
 
         if torch.cuda.device_count() > 1:

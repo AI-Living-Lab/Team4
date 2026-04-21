@@ -204,6 +204,8 @@ events.out.tfevents.*
 data/stage3.json
 data/pu_valor_train.json
 data/pu_valor_train_salmonn2plus.json
+data/puvalor_*
+data/internvid2_*
 
 # cookies (all patterns)
 cookies_*.txt
