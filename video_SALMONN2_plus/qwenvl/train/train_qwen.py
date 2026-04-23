@@ -29,6 +29,14 @@ import torch
 import random
 import time
 
+# transformers' _load_rng_state forces weights_only=True, which rejects numpy dtypes
+# saved by older trainer versions. Our checkpoints are trusted, so allow full unpickle.
+_orig_torch_load = torch.load
+def _torch_load_trusted(*args, **kwargs):
+    kwargs["weights_only"] = False
+    return _orig_torch_load(*args, **kwargs)
+torch.load = _torch_load_trusted
+
 from torch.utils.data import DataLoader
 
 project_root = Path(__file__).parent.parent.parent
