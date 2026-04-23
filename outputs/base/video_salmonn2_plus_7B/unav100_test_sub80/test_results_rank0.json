@@ -1,0 +1,1549 @@
+[
+  {
+    "video": "/workspace/datasets/unav_100/videos/0aMKV7qleFI.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect beat boxing, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t2> to <t0><t0><t4><t5><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/0aMKV7qleFI.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The beat boxing is visible in the right side of the video where the man is playing the harmonica."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-QWW4GPZYuU.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where playing accordion happens in the video?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t9><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/-QWW4GPZYuU.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The event happens in 0.0 - 59.8 seconds."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-XRd6yaBDEQ.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does playing cornet occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t1><tdot><t1> to <t0><t0><t4><t4><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/-XRd6yaBDEQ.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The playing of the cornet occurs from 0:00 to 0:59 in the video, and it is accompanied by the man's voice explaining the first horn with the parana mouthpiece on it."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/3nqELeTLYBs.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does people eating occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t4><tdot><t6>. From <t0><t0><t1><t7><tdot><t6> to <t0><t0><t3><t2><tdot><t2>. From <t0><t0><t3><t5><tdot><t8> to <t0><t0><t4><t5><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/3nqELeTLYBs.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "People eating occurs from 0:00 to 0:15 in the video, and it is accompanied by chewing sounds in the audio."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/9o9gfEYfaPs.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does baby babbling occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t2><t1><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/9o9gfEYfaPs.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Baby babbling occurs from 0:00 to 0:15 in the video, and it is accompanied by the mother's voice throughout this time."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/3tKC-bW-hSc.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find playing drum kit visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t4><tdot><t0>. From <t0><t0><t4><t5><tdot><t9> to <t0><t0><t5><t2><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/3tKC-bW-hSc.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The playing of the drum kit is visually represented from 00:00:00 to 00:00:45 and audibly from 00:00:00 to 00:00:45."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/2E0sZjZxzjg.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find playing zither visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t5><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/2E0sZjZxzjg.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The woman is playing the zither from 0:00 to 1:30 in the video, and the music she plays can be heard throughout this time."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/9VaWiRgVCA0.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find lions roaring visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t5><tdot><t7> to <t0><t0><t5><t5><tdot><t6>.",
+    "audio": "/workspace/datasets/unav_100/audio/9VaWiRgVCA0.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The lions are visually and audibly represented from 0:04 to 1:28 in the video."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/2Gr0eI5Y2X8.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where water burbling happens in the video?"
+    },
+    "ref": "From <t0><t0><t0><t4><tdot><t0> to <t0><t0><t5><t1><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/2Gr0eI5Y2X8.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The water burbling occurs between 00:00:00 and 00:00:15."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/5O_5DPVvtho.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find playing piano visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t1> to <t0><t0><t5><t5><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/5O_5DPVvtho.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The piano is visually represented in the background, and it is also audible as the man plays the piano."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/07m3-FOJQ-Q.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where baby crying happens in the video?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t2><t8><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/07m3-FOJQ-Q.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The baby is crying from 0:00 to 0:29 and again from 0:31 to 0:58."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/65MOD8EJD0A.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase people crowd in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t3><t6><tdot><t7> to <t0><t0><t4><t0><tdot><t5>.",
+    "audio": "/workspace/datasets/unav_100/audio/65MOD8EJD0A.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video shows a crowd in the background during the jump rope exercise, with people cheering and clapping."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/45wAIX6_eCo.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does baby laughter occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t1> to <t0><t0><t0><t8><tdot><t1>. From <t0><t0><t2><t7><tdot><t1> to <t0><t0><t2><t9><tdot><t8>.",
+    "audio": "/workspace/datasets/unav_100/audio/45wAIX6_eCo.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Baby laughter occurs throughout the video, starting from 0:00 to 1:25."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/AsghD21CFr4.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where lawn mowing happens in the video?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t3><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/AsghD21CFr4.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The lawn mowing happens between 00:00:00 and 00:00:59."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-w1C_Fgk3Bk.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect playing ukulele, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t1><tdot><t0>. From <t0><t0><t1><t9><tdot><t1> to <t0><t0><t5><t3><tdot><t8>.",
+    "audio": "/workspace/datasets/unav_100/audio/-w1C_Fgk3Bk.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The person is playing the ukulele from 00:00:17 to 00:00:58."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/AD_lPXb5ivY.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where playing ukulele happens in the video?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t0><tdot><t9>. From <t0><t0><t0><t7><tdot><t2> to <t0><t0><t1><t1><tdot><t6>. From <t0><t0><t1><t5><tdot><t7> to <t0><t0><t1><t9><tdot><t5>. From <t0><t0><t2><t3><tdot><t7> to <t0><t0><t2><t7><tdot><t1>. From <t0><t0><t3><t2><tdot><t2> to <t0><t0><t4><t2><tdot><t9>. From <t0><t0><t4><t9><tdot><t0> to <t0><t0><t5><t4><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/AD_lPXb5ivY.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The ukulele playing starts from 0 seconds and ends at 51 seconds."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/1z6Wtc9OrMM.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find people crowd visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t4><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/1z6Wtc9OrMM.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The people crowd is visually represented from 0:00 to 0:59 in the video."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/8ED2TBXHAcQ.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does playing tabla occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t1><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/8ED2TBXHAcQ.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The tabla playing starts at 0:00 and continues throughout the video, with the audio of the tabla being played starting at 0:00 as well."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/94-SYOFG3Ow.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect sailing, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t1><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/94-SYOFG3Ow.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Sailing is visible from 0:00 to 0:59 in the video, and the sound of the sailboat cutting through the water is heard throughout this period."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/77cEgc4R1rs.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect people running, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t6><tdot><t3>. From <t0><t0><t1><t1><tdot><t6> to <t0><t0><t4><t0><tdot><t2>.",
+    "audio": "/workspace/datasets/unav_100/audio/77cEgc4R1rs.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "People are running on the road from 0:00 to 0:59 in the video. In the audio, a man is speaking and a woman is singing."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/gwAP-vfQyRU.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find fire truck siren visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t2><tdot><t4>.",
+    "audio": "/workspace/datasets/unav_100/audio/gwAP-vfQyRU.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The fire truck's siren is heard in the background from 0:00 to 0:15, and it is also visible as the fire truck drives through the intersection."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/59q9Cfz8CHw.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find fireworks banging visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t1><t2><tdot><t9> to <t0><t0><t2><t8><tdot><t3>.",
+    "audio": "/workspace/datasets/unav_100/audio/59q9Cfz8CHw.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The fireworks are visually and audibly represented from 00:00:21 to 00:00:53."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/RGWC7icTM_E.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where male singing happens in the video?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t6><tdot><t4>. From <t0><t0><t1><t8><tdot><t4> to <t0><t0><t3><t9><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/RGWC7icTM_E.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The male singer starts singing at 00:00:00 and continues until 00:00:18."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0hu4RD8klFk.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find helicopter visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t1><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/0hu4RD8klFk.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The helicopter is visually represented throughout the entire video, hovering and moving around in the backyard. It is also heard through the sound of its engine."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0M-hPUiNVks.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find woman speaking visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t2><t2><tdot><t1>. From <t0><t0><t4><t0><tdot><t4> to <t0><t0><t4><t2><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/0M-hPUiNVks.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The woman is visually represented from 00:00:00 to 00:00:28 and audibly from 00:00:00 to 00:00:28."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/3VoGxfa54y4.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find sheep bleating visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t2><tdot><t7> to <t0><t0><t0><t3><tdot><t7>. From <t0><t0><t1><t0><tdot><t6> to <t0><t0><t1><t1><tdot><t8>. From <t0><t0><t1><t8><tdot><t3> to <t0><t0><t2><t9><tdot><t0>. From <t0><t0><t3><t8><tdot><t8> to <t0><t0><t3><t9><tdot><t8>.",
+    "audio": "/workspace/datasets/unav_100/audio/3VoGxfa54y4.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The sheep bleat audibly from 0:00 to 1:25, and visually, they are seen bleating in the same timeframe."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/TmLrqd7tm8A.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect sea waves, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t5><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/TmLrqd7tm8A.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The sea waves are visible from 00:00:00 to 00:00:59 in the video."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/SOP4zO5Tk3w.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase striking bowling in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t1><tdot><t9> to <t0><t0><t0><t2><tdot><t9>. From <t0><t0><t1><t6><tdot><t9> to <t0><t0><t1><t7><tdot><t9>. From <t0><t0><t3><t3><tdot><t9> to <t0><t0><t3><t4><tdot><t9>. From <t0><t0><t3><t6><tdot><t9> to <t0><t0><t4><t0><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/SOP4zO5Tk3w.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video showcases striking bowling through the visual of the ball hitting all pins, and the sound of the ball hitting the pins and the cheering crowd."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/8PAopfvURIc.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find thunder visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t9><tdot><t3> to <t0><t0><t1><t9><tdot><t8>.",
+    "audio": "/workspace/datasets/unav_100/audio/8PAopfvURIc.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Thunder is visually represented in the first 10 seconds and audibly represented throughout the entire video."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/5hRr39OVOds.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where fire truck siren happens in the video?"
+    },
+    "ref": "From <t0><t0><t1><t0><tdot><t0> to <t0><t0><t2><t1><tdot><t2>.",
+    "audio": "/workspace/datasets/unav_100/audio/5hRr39OVOds.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The fire truck siren can be heard from 00:00:00 to 00:00:49."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/7TmKzUgWiRU.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect chainsawing trees, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t3><tdot><t5> to <t0><t0><t1><t1><tdot><t0>. From <t0><t0><t1><t5><tdot><t9> to <t0><t0><t2><t7><tdot><t2>. From <t0><t0><t3><t9><tdot><t6> to <t0><t0><t5><t5><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/7TmKzUgWiRU.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The chainsawing activity is visible from 00:00:00 to 00:00:29 in the video, where a person is actively cutting through a tree trunk with a chainsaw. The audio track also features the sound of a chainsaw cutting wood throughout this time period."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-XrLFOaZxa0.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find playing flute visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t2><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/-XrLFOaZxa0.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The man is playing the flute from 0:00 to 1:30 in the video, and the flute's sound is heard throughout this time."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/3q0cl6qLihQ.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does playing drum kit occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t7><tdot><t4>. From <t0><t0><t0><t9><tdot><t6> to <t0><t0><t2><t2><tdot><t9>. From <t0><t0><t2><t8><tdot><t5> to <t0><t0><t5><t0><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/3q0cl6qLihQ.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Playing drum kit occurs from 00:00:00 to 00:00:12 in the video, and it is accompanied by music."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0Y2j3j5l8J0.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase child singing in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t1> to <t0><t0><t4><t8><tdot><t7>. From <t0><t0><t5><t7><tdot><t8> to <t0><t0><t5><t9><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/0Y2j3j5l8J0.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video showcases a young boy singing into a microphone while standing in front of a television screen displaying a karaoke video."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0EESEzTk150.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does auto racing occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t6><tdot><t3>.",
+    "audio": "/workspace/datasets/unav_100/audio/0EESEzTk150.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Auto racing occurs throughout the video, with the sound of a car revving and screeching tires heard repeatedly."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/2U7Xw0FIRIY.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase playing electronic organ in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t1><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/2U7Xw0FIRIY.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video showcases Peter Baartmans playing an electronic organ, with close-up shots of his hands on the keys and the sound of the music being played."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/94-SYOFG3Ow.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect wind noise, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t1><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/94-SYOFG3Ow.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The wind noise is most prominent in the audio track, where it can be heard throughout the video, especially noticeable when the sailboat is moving through choppy waters."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/kh77cZfsDvc.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect bull bellowing, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t0><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/kh77cZfsDvc.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The bull is seen standing in a grassy field, and its bellowing can be heard in the background."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0KweewGN-aY.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find people whistling visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t1><tdot><t7> to <t0><t0><t3><t9><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/0KweewGN-aY.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The man is whistling in the segment from 0:00 to 1:24."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/1EUE2fs-hZA.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does driving motorcycle occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t9><tdot><t3> to <t0><t0><t2><t9><tdot><t5>.",
+    "audio": "/workspace/datasets/unav_100/audio/1EUE2fs-hZA.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The driving of the motorcycle occurs from 00:00:12 to 00:00:48, as indicated by the sound of the engine revving up and the man speaking about checking for gas and oil."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/4CTAb1Is_XI.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does chainsawing trees occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t1><tdot><t9> to <t0><t0><t1><t2><tdot><t3>.",
+    "audio": "/workspace/datasets/unav_100/audio/4CTAb1Is_XI.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Chainsawing trees occurs from 00:00:00 to 00:00:28, as indicated by the sound of the chainsaw cutting through wood and the man's commentary."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/48EbgWTH7qY.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase auto racing in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t3><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/48EbgWTH7qY.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video showcases auto racing through scenes of cars racing on a track, spectators watching, and commentary describing race events. The sound includes engines revving, commentator speaking, and crowd cheering."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/kh77cZfsDvc.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect wind noise, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t6><tdot><t2>. From <t0><t0><t1><t4><tdot><t6> to <t0><t0><t1><t7><tdot><t6>. From <t0><t0><t2><t3><tdot><t5> to <t0><t0><t4><t0><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/kh77cZfsDvc.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The wind noise is audible throughout the video, creating a natural ambiance that complements the visual of the black bull standing in the grassy field."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/4DehgF5MyHs.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does people shouting occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t7><tdot><t1> to <t0><t0><t0><t9><tdot><t9>. From <t0><t0><t1><t2><tdot><t8> to <t0><t0><t1><t4><tdot><t3>. From <t0><t0><t1><t7><tdot><t0> to <t0><t0><t2><t0><tdot><t8>. From <t0><t0><t2><t2><tdot><t9> to <t0><t0><t2><t4><tdot><t8>. From <t0><t0><t2><t9><tdot><t2> to <t0><t0><t3><t1><tdot><t0>. From <t0><t0><t3><t7><tdot><t7> to <t0><t0><t3><t9><tdot><t8>.",
+    "audio": "/workspace/datasets/unav_100/audio/4DehgF5MyHs.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "People start shouting at 00:00:15, which coincides with the audio of people laughing and screaming."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/5aEBWi9H0rg.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does church bell ringing occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t5><tdot><t3>. From <t0><t0><t1><t8><tdot><t4> to <t0><t0><t3><t4><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/5aEBWi9H0rg.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The church bell ringing occurs from 00:00:00 to 00:00:23 in the video, and it is also heard during this time in the audio."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/1YwFK3VSPzU.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does child singing occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t5><t0><tdot><t6>.",
+    "audio": "/workspace/datasets/unav_100/audio/1YwFK3VSPzU.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Child singing occurs from 0:00 to 1:35 in the video, which corresponds to the audio where the child sings a song."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0SmZOjBjik8.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does playing harmonica occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t2><tdot><t2>.",
+    "audio": "/workspace/datasets/unav_100/audio/0SmZOjBjik8.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Playing the harmonica occurs from 0:00 to 0:14, as indicated by the man's voiceover describing his technique."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-6v1PqgFrDk.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect playing table tennis, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t4><tdot><t4> to <t0><t0><t1><t8><tdot><t8>. From <t0><t0><t2><t2><tdot><t8> to <t0><t0><t2><t4><tdot><t2>.",
+    "audio": "/workspace/datasets/unav_100/audio/-6v1PqgFrDk.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video shows two men playing table tennis on a blue table with red flooring. The audio reveals them hitting the ball back and forth."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/1EUE2fs-hZA.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find man speaking visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t8><tdot><t6>. From <t0><t0><t3><t0><tdot><t7> to <t0><t0><t3><t1><tdot><t8>.",
+    "audio": "/workspace/datasets/unav_100/audio/1EUE2fs-hZA.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The man is speaking visually in the segment from 00:00:00 to 00:00:12 and audibly from 00:00:00 to 00:00:12."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/4CTAb1Is_XI.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find man speaking visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t2><t1><tdot><t5> to <t0><t0><t2><t7><tdot><t3>.",
+    "audio": "/workspace/datasets/unav_100/audio/4CTAb1Is_XI.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The man speaks visually from 00:00:34 to 00:00:58 and audibly from 00:00:34 to 00:01:02."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/AnFLES8rJfw.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does baby laughter occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t1><t0><tdot><t1> to <t0><t0><t1><t0><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/AnFLES8rJfw.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Baby laughter occurs from 0:00 to 0:15 in the video, and it is also heard during this time in the audio."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0wVUKsMohpU.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect people laughing, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t1><t7><tdot><t1> to <t0><t0><t2><t2><tdot><t2>.",
+    "audio": "/workspace/datasets/unav_100/audio/0wVUKsMohpU.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The people laughing can be detected from 00:00:18 to 00:00:23 in the video, as well as in the audio track where the laughter is heard."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/65MOD8EJD0A.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find rope skipping visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t2><tdot><t6>. From <t0><t0><t2><t4><tdot><t9> to <t0><t0><t3><t5><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/65MOD8EJD0A.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Rope skipping is visually represented in the first segment, where the shirtless man is jumping rope. It is also heard through the audio, as he speaks about his mouthpiece and the importance of it."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/AnFLES8rJfw.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does kid speaking occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t1><t5><tdot><t4> to <t0><t0><t1><t6><tdot><t4>.",
+    "audio": "/workspace/datasets/unav_100/audio/AnFLES8rJfw.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The kid starts speaking at 00:00:04 in the video, which corresponds to the audio where the child says \"Your voice!\""
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/I9vIozBjTOg.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find baby babbling visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t1><tdot><t9> to <t0><t0><t0><t6><tdot><t2>. From <t0><t0><t1><t4><tdot><t7> to <t0><t0><t1><t7><tdot><t5>. From <t0><t0><t3><t5><tdot><t9> to <t0><t0><t4><t0><tdot><t5>.",
+    "audio": "/workspace/datasets/unav_100/audio/I9vIozBjTOg.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Baby babbling is visually represented in the first 10 seconds and audibly from the start to around 25 seconds."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/2Gr0eI5Y2X8.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does raining occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t4><tdot><t1> to <t0><t0><t5><t1><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/2Gr0eI5Y2X8.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The rain starts at 00:00:18 and continues until 00:00:35, coinciding with the audio of the rain."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/65MOD8EJD0A.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase people clapping in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t2><t0><tdot><t8> to <t0><t0><t2><t4><tdot><t1>.",
+    "audio": "/workspace/datasets/unav_100/audio/65MOD8EJD0A.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video shows people clapping in the scene where the man is skipping rope, as indicated by the text 'FIGHTHYPE.COM' on screen."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/7zPl1hU4BZ0.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does people whispering occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t8><tdot><t3>. From <t0><t0><t1><t1><tdot><t3> to <t0><t0><t1><t4><tdot><t0>. From <t0><t0><t1><t6><tdot><t7> to <t0><t0><t3><t0><tdot><t2>. From <t0><t0><t3><t5><tdot><t2> to <t0><t0><t4><t0><tdot><t1>. From <t0><t0><t4><t2><tdot><t5> to <t0><t0><t4><t3><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/7zPl1hU4BZ0.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The whispering occurs from 00:00:18 to 00:00:24, both visually and audibly."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/45wAIX6_eCo.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find baby babbling visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t3><t7><tdot><t6> to <t0><t0><t3><t9><tdot><t8>.",
+    "audio": "/workspace/datasets/unav_100/audio/45wAIX6_eCo.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Baby babbling is visually represented in the segment from 0:00 to 0:14, and it is also heard throughout the entire video."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/DDgT1J61hbU.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase playing tennis in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t1><tdot><t7> to <t0><t0><t1><t7><tdot><t0>. From <t0><t0><t4><t1><tdot><t9> to <t0><t0><t4><t3><tdot><t5>.",
+    "audio": "/workspace/datasets/unav_100/audio/DDgT1J61hbU.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video showcases playing tennis through the visuals of the young boy hitting the ball back and forth with another player, and the sounds of the ball bouncing and the players' voices can be heard."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0wVUKsMohpU.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does man speaking occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t6><tdot><t3>. From <t0><t0><t4><t6><tdot><t7> to <t0><t0><t5><t1><tdot><t7>.",
+    "audio": "/workspace/datasets/unav_100/audio/0wVUKsMohpU.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Man speaking occurs from 00:00:00 to 00:00:03 in terms of video, and it is accompanied by audio from 00:00:00 to 00:00:03."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0YuYPsGvGyM.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase playing harmonica in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t1><tdot><t6> to <t0><t0><t3><t2><tdot><t2>.",
+    "audio": "/workspace/datasets/unav_100/audio/0YuYPsGvGyM.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The child is playing the harmonica while sitting on a beige armchair, and the sound of the harmonica can be heard throughout the video."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0i7IsiodaBw.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase playing base guitar in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t2> to <t0><t0><t4><t8><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/0i7IsiodaBw.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video showcases playing base guitar through close-up shots of hands on the fretboard, highlighting finger movements and chord changes. The sound is not explicitly mentioned but can be inferred from the visual focus on the guitar strings and hand positions."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/24oYHGAu0mw.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where dog barking happens in the video?"
+    },
+    "ref": "From <t0><t0><t0><t2><tdot><t9> to <t0><t0><t0><t9><tdot><t7>. From <t0><t0><t2><t0><tdot><t0> to <t0><t0><t2><t2><tdot><t2>.",
+    "audio": "/workspace/datasets/unav_100/audio/24oYHGAu0mw.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Dog barks from 0.0 to 12.5 seconds and again from 48.3 to 56.7 seconds."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/STJ5zksfXGU.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect people shouting, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t5><t4><tdot><t4>.",
+    "audio": "/workspace/datasets/unav_100/audio/STJ5zksfXGU.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The people shouting can be detected from 00:00:00 to 00:00:59 in the video."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/3xaTX28NqHA.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where beat boxing happens in the video?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t9><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/3xaTX28NqHA.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The beatboxing starts at 00:00:00 and continues until 00:00:54."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0wVUKsMohpU.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase playing electronic organ in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t6><tdot><t3> to <t0><t0><t1><t6><tdot><t4>. From <t0><t0><t2><t2><tdot><t5> to <t0><t0><t4><t5><tdot><t5>.",
+    "audio": "/workspace/datasets/unav_100/audio/0wVUKsMohpU.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video showcases playing an electronic organ through imagery, with the man seated at the keyboard, and sound, as he plays music."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/77cEgc4R1rs.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does car passing by occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t0><tdot><t7>.",
+    "audio": "/workspace/datasets/unav_100/audio/77cEgc4R1rs.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The car passes by between 00:00:12 and 00:00:17, as indicated by the sound of the car's engine and the man speaking."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-lIxnqaPGzA.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find playing synthesizer visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t2><t5><tdot><t5>.",
+    "audio": "/workspace/datasets/unav_100/audio/-lIxnqaPGzA.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Playing the synthesizer is visually represented in the first segment, where hands are shown adjusting knobs and wires on a modular synthesizer. It is also heard in the second segment, where a man plays a keyboard with his right hand."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/QAjepby044Q.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect man speaking, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t2><t6><tdot><t7> to <t0><t0><t5><t1><tdot><t4>.",
+    "audio": "/workspace/datasets/unav_100/audio/QAjepby044Q.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The man is seen playing the violin in the beginning of the video, and he speaks while holding the violin."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0BeYHgtGmyc.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect child singing, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t9><tdot><t1>.",
+    "audio": "/workspace/datasets/unav_100/audio/0BeYHgtGmyc.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The children are singing from 0:00 to 0:49 in the video."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/9Gxke_nlcuw.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase playing snare drum in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t4><tdot><t0>. From <t0><t0><t2><t1><tdot><t2> to <t0><t0><t4><t1><tdot><t4>.",
+    "audio": "/workspace/datasets/unav_100/audio/9Gxke_nlcuw.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video showcases playing snare drum through imagery with a person seated behind a snare drum, wearing a black t-shirt with a graphic design, and using drumsticks to play the drum. The sound is heard as the person plays the snare drum rhythmically."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-WVPBMV_qbY.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where playing volleyball happens in the video?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t2><tdot><t9>. From <t0><t0><t1><t2><tdot><t8> to <t0><t0><t1><t7><tdot><t7>. From <t0><t0><t2><t5><tdot><t5> to <t0><t0><t2><t6><tdot><t5>. From <t0><t0><t3><t7><tdot><t6> to <t0><t0><t4><t4><tdot><t8>.",
+    "audio": "/workspace/datasets/unav_100/audio/-WVPBMV_qbY.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The volleyball game is played from 0:00 to 0:59."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0fjrDsLr_aE.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase chainsawing trees in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t5><t2><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/0fjrDsLr_aE.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video showcases chainsawing trees from 0:00 to 1:30, with the sound of the chainsaw cutting through wood throughout this period."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/AppGYEImw-g.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase dog howling in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t9><tdot><t1> to <t0><t0><t2><t8><tdot><t4>.",
+    "audio": "/workspace/datasets/unav_100/audio/AppGYEImw-g.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The dog howls throughout the video, with its mouth open and ears flapping, creating a howling sound that matches the man's voice."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0Y2j3j5l8J0.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find man speaking visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t4><t9><tdot><t9> to <t0><t0><t5><t2><tdot><t6>.",
+    "audio": "/workspace/datasets/unav_100/audio/0Y2j3j5l8J0.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The child sings into the microphone, and the man speaks audibly in the background."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0Y2j3j5l8J0.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where people clapping happens in the video?"
+    },
+    "ref": "From <t0><t0><t3><t0><tdot><t2> to <t0><t0><t3><t2><tdot><t1>.",
+    "audio": "/workspace/datasets/unav_100/audio/0Y2j3j5l8J0.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The clapping occurs between 00:00:21.98 and 00:00:35.99."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/5Flb0uS6iyQ.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect basketball bounce, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t4><tdot><t9> to <t0><t0><t1><t7><tdot><t2>. From <t0><t0><t2><t6><tdot><t7> to <t0><t0><t3><t4><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/5Flb0uS6iyQ.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The basketball bounce is visible on the court where players are practicing their dunks. It's also audible as the ball bounces off the floor during the practice session."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-w1C_Fgk3Bk.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find kid speaking visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t3><tdot><t8> to <t0><t0><t0><t5><tdot><t2>. From <t0><t0><t0><t9><tdot><t9> to <t0><t0><t1><t8><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/-w1C_Fgk3Bk.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The kid is speaking visually in the segment from 00:00:00 to 00:00:17 and audibly from 00:00:00 to 00:00:17."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/5i39i-PyQxA.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find engine knocking visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t5><tdot><t4>.",
+    "audio": "/workspace/datasets/unav_100/audio/5i39i-PyQxA.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The engine knocking is visually represented in the first 10 seconds and audibly from the start until the 25th second."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/7zPl1hU4BZ0.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does people eating occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t8><tdot><t3> to <t0><t0><t1><t1><tdot><t3>. From <t0><t0><t3><t0><tdot><t2> to <t0><t0><t3><t5><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/7zPl1hU4BZ0.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "People eating occurs from 00:00:54 to 00:01:23, as indicated by the woman's chewing sounds."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/4akwLXNv5ZM.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does bird chirping occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t5><tdot><t5> to <t0><t0><t4><t0><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/4akwLXNv5ZM.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Bird chirping occurs throughout the video, starting from the beginning and continuing until the end."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/2Gr0eI5Y2X8.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does thunder occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t9><tdot><t0> to <t0><t0><t2><t4><tdot><t7>.",
+    "audio": "/workspace/datasets/unav_100/audio/2Gr0eI5Y2X8.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Thunder occurs between 00:00:00 and 00:00:15, as indicated by the sound effects."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/45wAIX6_eCo.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect people shouting, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t1><t4><tdot><t9> to <t0><t0><t1><t9><tdot><t6>. From <t0><t0><t3><t3><tdot><t3> to <t0><t0><t3><t4><tdot><t3>.",
+    "audio": "/workspace/datasets/unav_100/audio/45wAIX6_eCo.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The baby is seen crawling on a bed in a room with wooden furniture, including a dresser with a mirror. The baby is wearing a light pink onesie."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/3YTJE7tD4g4.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase playing table tennis in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t5><tdot><t0>. From <t0><t0><t2><t0><tdot><t1> to <t0><t0><t4><t7><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/3YTJE7tD4g4.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video showcases playing table tennis from 00:00:00 to 00:00:21, 00:00:23 to 00:00:58, and 00:01:00 to 00:01:29."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/6C7nGqZkYbg.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find playing drum kit visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t1><tdot><t7>. From <t0><t0><t3><t4><tdot><t5> to <t0><t0><t4><t1><tdot><t2>.",
+    "audio": "/workspace/datasets/unav_100/audio/6C7nGqZkYbg.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The playing of the drum kit is visually represented from 00:00:48 to 00:01:23, and it is also heard in the same time frame."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/TmLrqd7tm8A.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase wind noise in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t5><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/TmLrqd7tm8A.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The wind noise is most prominent during the scenes where the waves are crashing, especially when the surfer is riding them."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/94-SYOFG3Ow.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect sea waves, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t2> to <t0><t0><t4><t1><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/94-SYOFG3Ow.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The sea waves are visible in the video from 00:00:00 to 00:00:59."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/8PAopfvURIc.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find raining visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t9><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/8PAopfvURIc.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The rain is visually represented in the first 10 seconds and audibly represented throughout the entire video."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0Y2j3j5l8J0.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect male singing, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t3><tdot><t4> to <t0><t0><t0><t4><tdot><t4>. From <t0><t0><t0><t7><tdot><t7> to <t0><t0><t1><t1><tdot><t1>. From <t0><t0><t2><t0><tdot><t9> to <t0><t0><t2><t5><tdot><t2>. From <t0><t0><t2><t9><tdot><t0> to <t0><t0><t3><t1><tdot><t7>. From <t0><t0><t3><t6><tdot><t0> to <t0><t0><t4><t4><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/0Y2j3j5l8J0.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The male singer is visible from 00:00:19 to 00:00:58."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/H3gIR06JwKo.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does people running occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t1><t0><tdot><t4> to <t0><t0><t1><t6><tdot><t8>. From <t0><t0><t2><t3><tdot><t3> to <t0><t0><t3><t8><tdot><t8>.",
+    "audio": "/workspace/datasets/unav_100/audio/H3gIR06JwKo.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "People start running at 00:00:15, as indicated by the sound of cheering and clapping."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/4DehgF5MyHs.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find car passing by visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t2><t7><tdot><t8> to <t0><t0><t3><t2><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/4DehgF5MyHs.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The car passing by is visually represented in the segment from 00:00:38 to 00:00:41, and it is also heard in the audio during this time."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/5IQGfpXGAbg.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does kid speaking occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t1><tdot><t8> to <t0><t0><t0><t2><tdot><t6>. From <t0><t0><t1><t6><tdot><t2> to <t0><t0><t1><t8><tdot><t7>. From <t0><t0><t2><t5><tdot><t9> to <t0><t0><t2><t7><tdot><t9>. From <t0><t0><t3><t2><tdot><t1> to <t0><t0><t3><t4><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/5IQGfpXGAbg.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Kid speaking occurs from 00:00:00 to 00:00:15, which is also when the audio starts with the woman's voice."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-TnDYy29pRA.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect engine knocking, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t1> to <t0><t0><t2><t6><tdot><t8>. From <t0><t0><t3><t0><tdot><t9> to <t0><t0><t5><t4><tdot><t5>.",
+    "audio": "/workspace/datasets/unav_100/audio/-TnDYy29pRA.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The engine knocking is detected in the audio track from 0:00 to 0:15. In the visuals, it's seen as a dark, blurry image of the car's engine compartment."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/65MOD8EJD0A.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where man speaking happens in the video?"
+    },
+    "ref": "From <t0><t0><t1><t3><tdot><t5> to <t0><t0><t2><t1><tdot><t4>. From <t0><t0><t3><t6><tdot><t9> to <t0><t0><t4><t0><tdot><t3>.",
+    "audio": "/workspace/datasets/unav_100/audio/65MOD8EJD0A.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The event happens in 0.0 - 5.6 seconds."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-WVPBMV_qbY.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase people clapping in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t2><tdot><t9> to <t0><t0><t0><t4><tdot><t5>.",
+    "audio": "/workspace/datasets/unav_100/audio/-WVPBMV_qbY.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The people are clapping during the scene where the man in the gray shirt serves the volleyball, as indicated by the sound of applause."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/3exeRhxU-8c.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find playing harp visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t1><tdot><t0>. From <t0><t0><t0><t4><tdot><t2> to <t0><t0><t1><t4><tdot><t9>. From <t0><t0><t1><t8><tdot><t1> to <t0><t0><t2><t3><tdot><t7>. From <t0><t0><t2><t6><tdot><t6> to <t0><t0><t4><t4><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/3exeRhxU-8c.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The harp is played visually from 0:00 to 0:59 and audibly throughout the entire video."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/CZRaMly8YLU.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase people eating in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t2><tdot><t7>. From <t0><t0><t0><t7><tdot><t7> to <t0><t0><t1><t2><tdot><t0>. From <t0><t0><t1><t7><tdot><t6> to <t0><t0><t5><t1><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/CZRaMly8YLU.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The woman is shown eating from a bowl filled with green beans and meat, using a white plastic spoon. The sounds include her chewing, swallowing, and occasionally taking bites."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/H3gIR06JwKo.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where people clapping happens in the video?"
+    },
+    "ref": "From <t0><t0><t1><t0><tdot><t0> to <t0><t0><t3><t8><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/H3gIR06JwKo.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The people start clapping at 00:00:14 and continue to do so until 00:00:58."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0Y2j3j5l8J0.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find kid speaking visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t4><t9><tdot><t9> to <t0><t0><t5><t2><tdot><t8>.",
+    "audio": "/workspace/datasets/unav_100/audio/0Y2j3j5l8J0.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The child speaks visually from 00:00:00 to 00:00:21 and audibly from 00:00:00 to 00:00:21."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/AD_lPXb5ivY.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase man speaking in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t1><tdot><t3> to <t0><t0><t0><t7><tdot><t2>. From <t0><t0><t1><t2><tdot><t1> to <t0><t0><t1><t5><tdot><t8>. From <t0><t0><t1><t9><tdot><t8> to <t0><t0><t2><t4><tdot><t1>. From <t0><t0><t2><t7><tdot><t1> to <t0><t0><t3><t2><tdot><t4>. From <t0><t0><t3><t6><tdot><t1> to <t0><t0><t4><t0><tdot><t3>. From <t0><t0><t4><t6><tdot><t3> to <t0><t0><t4><t9><tdot><t3>. From <t0><t0><t5><t2><tdot><t7> to <t0><t0><t5><t3><tdot><t7>.",
+    "audio": "/workspace/datasets/unav_100/audio/AD_lPXb5ivY.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video showcases the man speaking in both imagery and sound throughout, as he demonstrates guitar chords and provides instructions."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-w1C_Fgk3Bk.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase people crowd in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t5><tdot><t3> to <t0><t0><t1><t9><tdot><t1>.",
+    "audio": "/workspace/datasets/unav_100/audio/-w1C_Fgk3Bk.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video showcases people crowding around the woman playing guitar, with people walking by in the background."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-WVPBMV_qbY.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find people crowd visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t4><tdot><t8>.",
+    "audio": "/workspace/datasets/unav_100/audio/-WVPBMV_qbY.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Visually, people crowd is seen in the beginning and middle parts of the video, particularly during the volleyball game. Audibly, it's heard when the man speaks to the group and the crowd cheers."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-lIxnqaPGzA.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect man speaking, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t2><t5><tdot><t9> to <t0><t0><t4><t2><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/-lIxnqaPGzA.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Man speaking is detected from 00:00:28 to 00:00:49 in the video."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/3aFProJmJzY.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect people coughing, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t3><tdot><t3>.",
+    "audio": "/workspace/datasets/unav_100/audio/3aFProJmJzY.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The coughing is visible from 0:01 to 0:03, where the man in the blue shirt is seen coughing while eating. It's also audible during this time as he coughs repeatedly."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/QAjepby044Q.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find playing violin visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t2><t5><tdot><t5>.",
+    "audio": "/workspace/datasets/unav_100/audio/QAjepby044Q.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The playing of the violin is visually represented from 0:00 to 0:34 and audibly from 0:00 to 0:35."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-XRd6yaBDEQ.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does man speaking occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t4><t4><tdot><t0> to <t0><t0><t4><t9><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/-XRd6yaBDEQ.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Man speaking occurs from 00:00:58 to 00:01:24, which is also when the audio starts."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0aMKV7qleFI.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where playing base guitar happens in the video?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t2> to <t0><t0><t4><t5><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/0aMKV7qleFI.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The event happens in 0.0 - 12.5 seconds."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/5O_5DPVvtho.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nIn which segments of the video do we find playing cello visually or audibly represented?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t5><t5><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/5O_5DPVvtho.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The playing of the cello is visually represented from 00:00 to 01:24, and it is also audibly represented throughout the entire video."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/3Bt9Zpx8E4g.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does fireworks banging occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t7><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/3Bt9Zpx8E4g.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The fireworks bang from 0:00 to 0:15, coinciding with the audio of the fireworks."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/32EfyIPDEYg.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where fire truck siren happens in the video?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t4><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/32EfyIPDEYg.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The fire truck siren can be heard from 00:00:00 to 00:00:13 and again from 00:00:24 to 00:00:37."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-6v1PqgFrDk.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhich parts of the video showcase man speaking in both imagery and sound?"
+    },
+    "ref": "From <t0><t0><t0><t1><tdot><t0> to <t0><t0><t1><t0><tdot><t6>. From <t0><t0><t1><t9><tdot><t5> to <t0><t0><t4><t3><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/-6v1PqgFrDk.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The video showcases man speaking in both imagery and sound from 00:00:23 to 00:00:49."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/4b3QVwKX9QA.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect typing on computer keyboard, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t1><t4><tdot><t2> to <t0><t0><t1><t7><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/4b3QVwKX9QA.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The typing on the computer keyboard is visible from 00:00:04 to 00:00:59."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0SmZOjBjik8.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect man speaking, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t3><t3><tdot><t4> to <t0><t0><t4><t1><tdot><t1>.",
+    "audio": "/workspace/datasets/unav_100/audio/0SmZOjBjik8.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The man is seen playing the harmonica in front of a dark background, wearing glasses and a cap. He speaks while playing, and his voice is heard in the audio track."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/4CTAb1Is_XI.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nAt what point in the video does wind noise occur in terms of both video and audio?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t1><tdot><t8>.",
+    "audio": "/workspace/datasets/unav_100/audio/4CTAb1Is_XI.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "Wind noise is heard throughout the video, but it is particularly prominent at the beginning when the chainsaw starts up."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/I0Rj_topRmI.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect telephone bell ringing, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t5><tdot><t7> to <t0><t0><t1><t5><tdot><t0>.",
+    "audio": "/workspace/datasets/unav_100/audio/I0Rj_topRmI.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The telephone bell rings from 00:00:12 to 00:00:34."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/76afhOA4dWI.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nWhere in the video can we detect lions roaring, both in the visuals and in the audio track?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t3><t2><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/76afhOA4dWI.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The lions are seen roaring in the enclosure, particularly when the camera focuses on the lion lying down and the one perched on the elevated platform. The roaring is clearly audible throughout the video, especially during the scenes where the lions are visible."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/-j5tX4O3hh0.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where orchestra happens in the video?"
+    },
+    "ref": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t4><t4><tdot><t9>.",
+    "audio": "/workspace/datasets/unav_100/audio/-j5tX4O3hh0.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The orchestra plays from 0:00 to 1:30."
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/5IQGfpXGAbg.mp4",
+    "image": null,
+    "prompt": {
+      "from": "human",
+      "value": "<video>\nCan you identify the timestamps where people shouting happens in the video?"
+    },
+    "ref": "From <t0><t0><t1><t1><tdot><t5> to <t0><t0><t1><t5><tdot><t2>.",
+    "audio": "/workspace/datasets/unav_100/audio/5IQGfpXGAbg.wav",
+    "use_audio": true,
+    "should_use": true,
+    "pred": "The shout happens between 00:00:18 and 00:00:23."
+  }
+]
