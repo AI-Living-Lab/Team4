@@ -386,7 +386,6 @@ def train(attn_implementation="flash_attention_2"):
             shuffle=False,
             num_workers=training_args.dataloader_num_workers,
             collate_fn=collate_fn,
-            in_order=False
         )
         for inputs in tqdm(loader, desc=f"RANK {pred_rank}"):
             if inputs:
