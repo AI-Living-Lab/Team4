@@ -202,3 +202,35 @@ events.out.tfevents.*
 *.tfevents.*
 # large local data
 data/stage3.json
+
+# === RunPod 작업 추가 (jsy_APR28) ===
+# 모델 weights / 체크포인트
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+# HuggingFace cache
+**/hf_cache/
+hf_cache/
+
+# pip 캐시 (RunPod 디스크 절약)
+**/pip_cache/
+**/pip_tmp/
+
+# Avicuna 훈련 데이터 (대용량, 재다운로드 가능)
+AVicuna-main/data/stage*.json
+
+# Feature 추출 결과 (재추출 가능)
+**/features/
+*.npy
+
+# Crab+ 임시 데이터
+Crab_Plus/data_local/AVUIE_2/*/video/
+Crab_Plus/data_local/AVUIE_2/*/audio/
+Crab_Plus/weight/
+
+# Output 대용량 prediction (eval summary 만 push)
+outputs/base/*/Unav100QA/test_results_rank0.json
+outputs/base/*/Unav100QA/inference.log
+outputs/base/*/Unav100QA_*/test_results_rank0.json

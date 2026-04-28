@@ -51,7 +51,16 @@ def preprocess_qwen(
     tokenizer: transformers.PreTrainedTokenizer,
     has_image: bool = False,
     max_len=2048,
-    system_message: str = "You are a helpful assistant.",
+    system_message: str = (
+        "You are an audio-visual event localization model. "
+        "Given the video and audio, localize all audio-visual events. "
+        "Output your reasoning in <think>...</think>, "
+        "then answer in <answer>"
+        '[{"event": "event label", '
+        '"start": "<t0><t0><t0><t5><tdot><t0>", '
+        '"end": "<t0><t0><t1><t0><tdot><t0>"}]'
+        "</answer>"       
+    ),
 ) -> Dict:
     roles = {
         "human": "<|im_start|>user",
