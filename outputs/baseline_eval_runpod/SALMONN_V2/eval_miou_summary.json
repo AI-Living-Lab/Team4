@@ -1,0 +1,19 @@
+{
+  "mIoU_union_%": 16.971,
+  "Recall_%": {
+    "0.3": 21.8983,
+    "0.5": 11.8475,
+    "0.7": 5.8475
+  },
+  "FP_rate_%": 27.3087,
+  "FN_rate_%": 36.1525,
+  "FSR_%": 97.1635,
+  "n_samples": 3455,
+  "n_gt_segments": 5900,
+  "n_pred_segments": 4039,
+  "n_fp_segments": 1103,
+  "n_fn_gt_segments": 2133,
+  "parse_ok": 3357,
+  "parse_fail": 98,
+  "parser": "NL boosted (from-to | dash | starts-until | first-N | throughout | HMS | between)"
+}

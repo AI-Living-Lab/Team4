@@ -1,0 +1,19 @@
+{
+  "mIoU_union_%": 30.4242,
+  "Recall_%": {
+    "0.3": 35.5085,
+    "0.5": 28.2034,
+    "0.7": 22.9153
+  },
+  "FP_rate_%": 22.9233,
+  "FN_rate_%": 40.9322,
+  "FSR_%": 100.0,
+  "n_samples": 3455,
+  "n_gt_segments": 5900,
+  "n_pred_segments": 3455,
+  "n_fp_segments": 792,
+  "n_fn_gt_segments": 2415,
+  "parse_ok": 3455,
+  "parse_fail": 0,
+  "parser": "avicuna (from XX to YY pct, native)"
+}

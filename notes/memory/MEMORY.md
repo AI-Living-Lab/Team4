@@ -1,0 +1,9 @@
+- [Avicuna unav eval file](avicuna_unav_eval_file.md) — UnAV-100 QA 공용 eval 파일은 `unav100_test_multiseg_salmonn2plus.json` (2026-04-21 재푸시, 질문 wording 변경). 구버전 `unav100_test_{full,grounding,dense}.json` 은 main에서 삭제·로컬만 보존.
+- [Prompt 전략 (2026-04-22 수정)](feedback_headtohead_prompts.md) — prior-work baseline = 팀 UnAV wording 유지 + 끝에 모델 native format-hint tail 만 append (hybrid). 완전 native template 은 task framing 왜곡이라 폐기.
+- [Crab+ 측정 가능성](crab_plus_feasibility_2026_04_22.md) — Qwen2.5-Omni-7B + I-LoRA. ckpt public, UnAV train 학습 O, test split 미공개 → first-report. ChronusOmni 결과 고정 후 착수 예정.
+- [Crab+ UnAV 10s-cap 한계](crab_plus_limitation_2026_04_22.md) — 저자가 10s-clipped UnAV 로 훈련. V3 hybrid full run 중(~6h45m, 16:57 UTC 완료). Chunking 안 함, 본문에 limitation 명시.
+- [ARC-Hunyuan-Video 측정 준비](arc_hunyuan_prep_2026_04_22.md) — 17GB ckpt public, audio 지원, Grounding task 내장, 5분 video 네이티브. Crab+ 이후 착수. LongVALE-LLM 은 ckpt 미공개로 skip.
+- [Union-IoU + FP/FN 지표 통일 (2026-04-23)](union_iou_protocol_2026_04_23.md) — 팀 피드백 반영. 모든 baseline eval 을 Union-IoU + FP_rate + FN_rate 로 재측정. Best-IoU 동등 (single-seg 많아서) 이지만 표준 통일. FP/FN 으로 over/under-prediction 시각화.
+- [Fair parser policy (2026-04-23)](fair_parser_policy_2026_04_23.md) — 공식 포맷 모델 → native regex 전용 / 포맷 없는 foundation → boosted NL parser. 혼용 시 unfair. SALMONN base 는 hint 필요 (V1 FSR 1.74% 불가).
+- [ChronusOmni single-seg 구조적 제약](chronusomni_single_seg_2026_04_22.md) — 훈련 타깃 9종 모두 single-seg. UnAV multi-seg GT 대비 recall 제약을 limitation 으로 본문 명시.
+- [ChronusOmni UnAV 구 보류](chronusomni_postponed_2026_04_21.md) — 2026-04-21 보류. 2026-04-22 신 정책(hybrid prompt)으로 재개 중이라 이 항목은 historical.

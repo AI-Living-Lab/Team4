@@ -1,0 +1,19 @@
+{
+  "mIoU_union_%": 27.9663,
+  "Recall_%": {
+    "0.3": 33.9831,
+    "0.5": 23.9322,
+    "0.7": 17.7119
+  },
+  "FP_rate_%": 43.6296,
+  "FN_rate_%": 40.2542,
+  "FSR_%": 70.5065,
+  "n_samples": 3455,
+  "n_gt_segments": 5900,
+  "n_pred_segments": 9340,
+  "n_fp_segments": 4075,
+  "n_fn_gt_segments": 2375,
+  "parse_ok": 2436,
+  "parse_fail": 1019,
+  "parser": "avicuna_json ([{\"event\":..., \"timestamps\":\"from X to Y\"}], fuzzy label)"
+}

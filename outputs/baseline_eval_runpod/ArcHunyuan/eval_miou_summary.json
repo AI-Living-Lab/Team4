@@ -1,0 +1,19 @@
+{
+  "mIoU_union_%": 35.4636,
+  "Recall_%": {
+    "0.3": 41.8814,
+    "0.5": 31.6441,
+    "0.7": 24.5932
+  },
+  "FP_rate_%": 4.7757,
+  "FN_rate_%": 18.5932,
+  "FSR_%": 100.0,
+  "n_samples": 3455,
+  "n_gt_segments": 5900,
+  "n_pred_segments": 3455,
+  "n_fp_segments": 165,
+  "n_fn_gt_segments": 1097,
+  "parse_ok": 3455,
+  "parse_fail": 0,
+  "parser": "arc_hunyuan (<answer>...HH:MM:SS - HH:MM:SS...</answer>)"
+}

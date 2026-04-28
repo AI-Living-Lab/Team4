@@ -1,0 +1,19 @@
+{
+  "mIoU_union_%": 36.7782,
+  "Recall_%": {
+    "0.3": 43.6102,
+    "0.5": 33.4915,
+    "0.7": 25.5763
+  },
+  "FP_rate_%": 5.4577,
+  "FN_rate_%": 22.0,
+  "FSR_%": 100.0,
+  "n_samples": 3455,
+  "n_gt_segments": 5900,
+  "n_pred_segments": 3463,
+  "n_fp_segments": 189,
+  "n_fn_gt_segments": 1298,
+  "parse_ok": 3455,
+  "parse_fail": 0,
+  "parser": "chronusomni (second{X} to second{Y} / -)"
+}
