@@ -40,7 +40,7 @@ sig = inspect.signature(video_SALMONN2_plus.get_rope_index)
 params = list(sig.parameters.keys())
 expected = ["self", "input_ids", "image_grid_thw", "video_grid_thw",
             "audio_lengths", "second_per_grid_ts", "attention_mask",
-            "time_token_id_range"]
+            "time_token_id_range", "time_marker_token_len"]
 all_ok = params == expected
 print(f"  params: {params}")
 print(f"  {'OK' if all_ok else 'FAIL'}  (expected {expected})")
