@@ -229,9 +229,9 @@ def train(attn_implementation="flash_attention_2"):
         # TTI input-side marker 모드를 모델 config에 기록 → 추론/eval 시 rope2d가 자동으로
         # 같은 길이 가정으로 동작.
         model.config.tti_time_format = data_args.tti_time_format
-        model.config.time_marker_token_len = (
-            6 if data_args.tti_time_format == "special_token" else 9
-        )
+        model.config.time_marker_token_len = {
+            "off": None, "special_token": 6, "natural_text": 9,
+        }[data_args.tti_time_format]
 
         if training_args.gradient_checkpointing:
             if hasattr(model, "enable_input_require_grads"):
@@ -388,9 +388,9 @@ def train(attn_implementation="flash_attention_2"):
         # TTI marker 모드를 추론 시에도 명시 — 학습 시 저장된 config 값이 비어있는
         # 옛 체크포인트로 평가할 때 backward-compat를 보장.
         model.config.tti_time_format = data_args.tti_time_format
-        model.config.time_marker_token_len = (
-            6 if data_args.tti_time_format == "special_token" else 9
-        )
+        model.config.time_marker_token_len = {
+            "off": None, "special_token": 6, "natural_text": 9,
+        }[data_args.tti_time_format]
 
         if torch.cuda.device_count() > 1:
             import deepspeed

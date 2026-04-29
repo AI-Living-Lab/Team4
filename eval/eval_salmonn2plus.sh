@@ -273,7 +273,7 @@ for ((i=START_CHUNK; i<N_CHUNKS; i++)); do
         --base_interval "$BASE_INTERVAL" \
         --lora_ckpt "$_lora_ckpt" \
         --no_audio "$NO_AUDIO" \
-        --tti_time_format "${TTI_TIME_FORMAT:-special_token}" \
+        --tti_time_format "${TTI_TIME_FORMAT:-off}" \
         2>&1 | tee -a "$INFER_LOG"
 
     chunk_result="$CHUNK_WORKDIR/test_results_rank0.json"

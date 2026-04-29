@@ -77,8 +77,12 @@ def make_time_marker_string(sec: float, tti_time_format: str) -> str:
     return sec_to_time_token_str(sec)
 
 
-# 모드별 청크당 마커 토큰 수 (zero-padded 자연어는 항상 9, 특수토큰은 항상 6)
+# 모드별 청크당 마커 토큰 수.
+#   off            : 마커 미삽입 (Qwen2.5-VL 베이스라인) — 길이 0
+#   special_token  : <t0>..<tdot>..<t*> = 6
+#   natural_text   : 'second{XXXX.Y}' = 9 (zero-pad)
 _TIME_MARKER_TOKEN_LEN = {
+    "off": 0,
     "special_token": 6,
     "natural_text": 9,
 }
@@ -198,7 +202,7 @@ def generate_id_target(
                         replacement = "<|vision_start|>"
                         sec_per_grid_t = second_per_grid_ts[i][0] if second_per_grid_ts is not None else None
                         for timestep in range(grid_thw_video[i][0]):
-                            if sec_per_grid_t is not None:
+                            if sec_per_grid_t is not None and tti_time_format != "off":
                                 t_start_sec = timestep * sec_per_grid_t
                                 replacement += make_time_marker_string(t_start_sec, tti_time_format)
                             replacement += (
@@ -338,18 +342,22 @@ class LazySupervisedDataset(Dataset):
         else:
             self.get_rope_index = get_rope_index_2
 
-        # TTI input-side time marker 모드. data_args에서 가져옴; default=special_token.
-        self.tti_time_format = getattr(data_args, "tti_time_format", "special_token")
+        # TTI input-side time marker 모드. data_args에서 가져옴; default=off.
+        self.tti_time_format = getattr(data_args, "tti_time_format", "off")
         assert self.tti_time_format in _TIME_MARKER_TOKEN_LEN, (
             f"Unknown tti_time_format: {self.tti_time_format}. "
             f"Choices: {list(_TIME_MARKER_TOKEN_LEN.keys())}"
         )
-        self.time_marker_token_len = _TIME_MARKER_TOKEN_LEN[self.tti_time_format]
 
-        # 타임토큰 ID 범위 [lo, hi] 계산 — special_token 모드에서만 input-side 식별에 사용.
-        # ID 11개는 pre-baked 체크포인트에서 연속으로 부여되므로 (lo, hi) 튜플로 충분.
-        # natural_text 모드에서는 input-side 마커가 일반 텍스트라 ID 매칭 불가 → None.
-        if self.tti_time_format == "special_token":
+        if self.tti_time_format == "off":
+            # 베이스라인 — 마커 미삽입. rope2d 두 인자 모두 None 으로 둬서 비활성.
+            self.time_marker_token_len = None
+            self.time_token_id_range = None
+            rank0_print("[TTI] mode=off (baseline, no time markers inserted)")
+        elif self.tti_time_format == "special_token":
+            # 청크당 6토큰 + ID 범위로 식별. ID 11개는 pre-baked 체크포인트에서
+            # 연속으로 부여되므로 (lo, hi) 튜플로 충분.
+            self.time_marker_token_len = _TIME_MARKER_TOKEN_LEN[self.tti_time_format]
             t0_id = tokenizer.convert_tokens_to_ids("<t0>")
             tdot_id = tokenizer.convert_tokens_to_ids("<tdot>")
             unk = tokenizer.unk_token_id
@@ -357,8 +365,13 @@ class LazySupervisedDataset(Dataset):
                 self.time_token_id_range = (int(min(t0_id, tdot_id)), int(max(t0_id, tdot_id)))
             else:
                 self.time_token_id_range = None
+            rank0_print(
+                f"[TTI/special_token] marker_token_len={self.time_marker_token_len}, "
+                f"id_range={self.time_token_id_range}"
+            )
         else:
-            # natural_text: rope2d는 (is_video|is_audio) 음수 마스크로 마커를 식별.
+            # natural_text: rope2d는 ~(is_video|is_audio) 마스크로 마커 식별.
+            self.time_marker_token_len = _TIME_MARKER_TOKEN_LEN[self.tti_time_format]
             self.time_token_id_range = None
             # 길이 불변 검증: 'second{XXXX.Y}' 가 실제로 9 토큰인지 sanity check.
             sample_lens = set()
@@ -805,6 +818,8 @@ class LazySupervisedDataset(Dataset):
                             merge_size=self.data_args.image_processor.merge_size,
                             data_args=self.data_args,
                             source=sources[0],
+                            tti_time_format=self.tti_time_format,
+                            time_marker_token_len=self.time_marker_token_len,
                         )
                         self._debug_dump_count += 1
                     except Exception as _e:

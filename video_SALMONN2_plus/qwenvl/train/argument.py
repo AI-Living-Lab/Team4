@@ -62,11 +62,12 @@ class DataArguments:
     # -1 = 전체, >0 = 앞에서 N 샘플만 덤프
     debug_interleave_sample_limit: int = field(default=-1)
     # ---- TTI input-side time marker format ----
-    # "special_token" : <t0><t0><t1><t5><tdot><t6> (6 special tokens, 기존 동작)
+    # "off"           : 마커 미삽입 (Qwen2.5-VL 베이스라인 동작) — 기본값
+    # "special_token" : <t0><t0><t1><t5><tdot><t6> (6 special tokens)
     # "natural_text"  : "second{0015.6}" (9 일반 텍스트 토큰, zero-padded XXXX.Y)
-    # 출력(GT/labels) 형식은 항상 special_token; 이 옵션은 video/audio 청크 사이에
-    # 끼우는 입력 측 마커 표현만 바꾼다.
-    tti_time_format: str = field(default="special_token")
+    # 출력(GT/labels) 형식은 모드와 무관 — 항상 special_token. 이 옵션은 video/audio
+    # 청크 사이에 끼우는 입력 측 마커 표현만 바꾼다.
+    tti_time_format: str = field(default="off")
 
 
 @dataclass

@@ -61,7 +61,8 @@ TRAIN_TYPE: sft
 NO_AUDIO: False
 
 # ---- TTI input-side time-marker format ----
+# off           : 마커 미삽입 (Qwen2.5-VL 베이스라인) — 기본값
 # special_token : <t0><t0><t1><t5><tdot><t6>  (6 special tokens / chunk)
 # natural_text  : "second{0015.6}"             (9 plain text tokens / chunk)
 # 출력(GT)은 항상 special_token; 이 옵션은 video/audio 청크 사이의 입력 마커 표현만 바꾼다.
-TTI_TIME_FORMAT: special_token
+TTI_TIME_FORMAT: off

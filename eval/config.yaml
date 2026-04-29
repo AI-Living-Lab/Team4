@@ -37,5 +37,5 @@ REPORT_TO: none
 MAX_TIME: 9999.9
 
 # ---- TTI input-side time-marker format (학습 시와 동일하게 맞출 것) ----
-# special_token | natural_text
-TTI_TIME_FORMAT: special_token
+# off | special_token | natural_text
+TTI_TIME_FORMAT: off
