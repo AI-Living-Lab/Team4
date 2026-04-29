@@ -55,6 +55,7 @@ BASE_MODEL_ID=video_salmonn2_plus_7B_time_tokens
 TESTSET=unav100
 GPUS=0
 CONFIG=config.yaml
+TTI_TIME_FORMAT_CLI=""   # 비어있으면 config.yaml 값 사용
 
 # ---- KEY=VALUE 파싱 ----
 for arg in "$@"; do
@@ -66,9 +67,10 @@ for arg in "$@"; do
         TESTSET=*)          TESTSET="${arg#*=}" ;;
         GPUS=*)             GPUS="${arg#*=}" ;;
         CONFIG=*)           CONFIG="${arg#*=}" ;;
+        TTI_TIME_FORMAT=*)  TTI_TIME_FORMAT_CLI="${arg#*=}" ;;
         *)
             echo "[에러] 지원하지 않는 인자: $arg"
-            echo "지원 인자: STAGE, CKPT_MODEL_ID, CKPT_STEP, BASE_MODEL_ID, TESTSET, GPUS, CONFIG"
+            echo "지원 인자: STAGE, CKPT_MODEL_ID, CKPT_STEP, BASE_MODEL_ID, TESTSET, GPUS, CONFIG, TTI_TIME_FORMAT"
             exit 1
             ;;
     esac
@@ -96,6 +98,11 @@ while IFS= read -r line || [ -n "$line" ]; do
     [[ -z "$key" ]] && continue
     eval "$key=\"\$val\""
 done < "$CONFIG_DIR"
+
+# ---- CLI override (YAML 보다 우선) ----
+if [ -n "$TTI_TIME_FORMAT_CLI" ]; then
+    TTI_TIME_FORMAT="$TTI_TIME_FORMAT_CLI"
+fi
 
 NUM_GPUS=$(echo "$GPUS" | awk -F',' '{print NF}')
 export CUDA_VISIBLE_DEVICES=$GPUS
