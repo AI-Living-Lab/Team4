@@ -342,7 +342,7 @@ def train(attn_implementation="flash_attention_2"):
                     model.save_pretrained(os.path.join(training_args.output_dir, "generation"))
                 else:
                     model.save_pretrained(os.path.join(training_args.output_dir, f"generation_{pred_rank}"))
-            dist.barrier(device_ids=local_rank)
+            dist.barrier(device_ids=[local_rank])
             
 
         if torch.cuda.device_count() > 1:
@@ -396,7 +396,6 @@ def train(attn_implementation="flash_attention_2"):
             shuffle=False,
             num_workers=training_args.dataloader_num_workers,
             collate_fn=collate_fn,
-            in_order=False
         )
         for inputs in tqdm(loader, desc=f"RANK {pred_rank}"):
             if inputs:

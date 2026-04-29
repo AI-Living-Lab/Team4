@@ -8,6 +8,7 @@ eval_miou_multiseg.py
     GT vs Union IoU를 계산 → 쪼개진 예측/과장된 예측 모두 합리적으로 반영
 """
 import argparse
+import datetime as _dt
 import json
 import os
 import re
@@ -108,6 +109,10 @@ def main():
     ap.add_argument("--test_json", required=True)
     ap.add_argument("--max_time", type=float, default=60.0)
     ap.add_argument("--out_dir", default=None)
+    ap.add_argument("--progress_log", default=None,
+                    help="When set, append a single-line JSON snapshot of metrics to this JSONL file.")
+    ap.add_argument("--quiet", action="store_true",
+                    help="Suppress console report. Summary JSON is still written.")
     args = ap.parse_args()
 
     out_dir = args.out_dir or os.path.dirname(os.path.abspath(args.results))
@@ -119,7 +124,8 @@ def main():
     with open(args.results, "r") as f:
         raw_results = json.load(f)
 
-    print(f"[1/3] Test: {len(test_data)}, Results: {len(raw_results)}")
+    if not args.quiet:
+        print(f"[1/3] Test: {len(test_data)}, Results: {len(raw_results)}")
 
     # Match results to test data
     # Results have "pred" field, test_data has "gt_segments"
@@ -168,39 +174,55 @@ def main():
         recall_at[th] = float(np.mean(all_ious >= th)) if n > 0 else 0.0
 
     fp_rate = fp_preds / total_preds if total_preds > 0 else 0.0
+    fn_gt = int(np.sum(all_ious == 0.0)) if n > 0 else 0
+    fn_rate = fn_gt / n if n > 0 else 0.0
 
-    SEP = "=" * 52
-    print(f"\n{SEP}")
-    print("  Multi-Segment — Union-IoU mIoU + Recall@θ")
-    print(SEP)
-    print(f"  Samples:     {len(raw_results)}")
-    print(f"  GT segments: {n}")
-    print(f"  Parse OK:    {parse_ok} ({parse_ok*100/max(len(raw_results),1):.1f}%)")
-    print(f"  Parse fail:  {parse_fail} ({parse_fail*100/max(len(raw_results),1):.1f}%)")
-    print(f"  mIoU(union): {miou * 100:.2f}%")
-    print()
-    for th, val in sorted(recall_at.items()):
-        print(f"  Recall @ IoU={th:.1f}:  {val * 100:.2f}%")
-    print()
-    print(f"  FP_rate:     {fp_rate * 100:.2f}%  ({fp_preds}/{total_preds})")
-    print(f"\n{SEP}\n")
+    if not args.quiet:
+        SEP = "=" * 52
+        print(f"\n{SEP}")
+        print("  Multi-Segment — Union-IoU mIoU + Recall@θ")
+        print(SEP)
+        print(f"  Samples:     {len(raw_results)}")
+        print(f"  GT segments: {n}")
+        print(f"  Parse OK:    {parse_ok} ({parse_ok*100/max(len(raw_results),1):.1f}%)")
+        print(f"  Parse fail:  {parse_fail} ({parse_fail*100/max(len(raw_results),1):.1f}%)")
+        print(f"  mIoU(union): {miou * 100:.2f}%")
+        print()
+        for th, val in sorted(recall_at.items()):
+            print(f"  Recall @ IoU={th:.1f}:  {val * 100:.2f}%")
+        print()
+        print(f"  FP_rate:     {fp_rate * 100:.2f}%  ({fp_preds}/{total_preds})")
+        print(f"  FN_rate:     {fn_rate * 100:.2f}%  ({fn_gt}/{n})")
+        print(f"\n{SEP}\n")
 
     summary = {
         "mIoU_union_%": round(miou * 100, 4),
         "Recall": {str(k): round(v * 100, 4) for k, v in recall_at.items()},
         "FP_rate_%": round(fp_rate * 100, 4),
+        "FN_rate_%": round(fn_rate * 100, 4),
         "n_pred_segments": total_preds,
         "n_fp_segments": fp_preds,
         "n_gt_segments": n,
+        "n_fn_gt_segments": fn_gt,
         "n_samples": len(raw_results),
         "parse_ok": parse_ok,
         "parse_fail": parse_fail,
     }
 
     summary_path = os.path.join(out_dir, "eval_miou_summary.json")
-    with open(summary_path, "w") as f:
+    tmp_summary = summary_path + ".tmp"
+    with open(tmp_summary, "w") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
-    print(f"[SAVED] {summary_path}")
+    os.replace(tmp_summary, summary_path)
+    if not args.quiet:
+        print(f"[SAVED] {summary_path}")
+
+    if args.progress_log:
+        snapshot = {"timestamp": _dt.datetime.now().isoformat(timespec="seconds"), **summary}
+        with open(args.progress_log, "a") as f:
+            f.write(json.dumps(snapshot, ensure_ascii=False) + "\n")
+        if not args.quiet:
+            print(f"[PROGRESS] appended snapshot -> {args.progress_log}")
 
 
 if __name__ == "__main__":

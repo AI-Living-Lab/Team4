@@ -1,72 +1,46 @@
 #!/bin/bash
 # ============================================================
-# SALMONN2+ Eval 런처
-#   - 학습된 LoRA 체크포인트 또는 베이스 모델 단독으로 추론
-#   - 평가 지표: Union-IoU 기반 mIoU + Recall@{0.3,0.5,0.7} + FP_rate
-#     · mIoU(union)  : GT 하나당 겹치는 pred 합집합과의 IoU 평균 (쪼개기 손해 방지)
-#     · Recall@θ     : Union-IoU ≥ θ 인 GT segment 비율
-#     · FP_rate      : GT와 전혀 겹치지 않는 pred 비율 (과잉/무관 예측 페널티)
-#   - 하이퍼파라미터는 config.yaml 에서 관리 (CONFIG=... 으로 교체 가능)
+# SALMONN2+ Eval 런처 (chunked 추론 + 자동 resume)
 #
-# 사용법 (모든 인자 선택, KEY=VALUE 형식):
+# 동작
+#   ${BASE_DIR}/data/test/${TESTSET}/chunk_*.json 들을 순회하며 chunk 마다
+#   torchrun 추론 → master 에 append → eval_miou_summary.json 갱신.
+#   chunk 0 의 LoRA merge 결과(generation_0)는 .merged_model/ 로 보존하여 재사용.
+#
+# 사전 준비 (한 번만)
+#   python3 ${BASE_DIR}/eval/_chunk_helpers.py split \
+#       --test_json ${BASE_DIR}/data/<원본>.json \
+#       --chunks_dir ${BASE_DIR}/data/test/<TESTSET>/ \
+#       --chunk_size 500
+#
+# 자동 resume
+#   $OUT_DIR/.chunk_idx 또는 master test_results_rank0.json 길이로 다음
+#   chunk index 추정 → 그 다음 chunk 부터 이어서 진행. (같은 OUT_DIR 에서
+#   중단된 후 같은 명령 재실행하면 됨)
+#
+# 사용법 (KEY=VALUE)
 #   bash eval_salmonn2plus.sh \
-#       STAGE=sft \
-#       CKPT_MODEL_ID=salmonn2p_7b_unav_baseline \
-#       CKPT_STEP=5000 \
-#       BASE_MODEL_ID=video_salmonn2_plus_7B_time_tokens \
-#       TESTSET_FILE=unav100_test_multiseg_sub80.json \
-#       GPUS=0 \
-#       CONFIG=config.yaml
+#       STAGE=sft CKPT_MODEL_ID=salmonn2p_7b_unav_baseline CKPT_STEP=1500 \
+#       BASE_MODEL_ID=base/video_salmonn2_plus_7B_time_tokens \
+#       TESTSET=unav100 GPUS=0
 #
-# 지원 인자:
-#   STAGE         : sft | gdpo  (대소문자 무관, 기본값 sft)
-#                   -> 어느 stage 체크포인트를 쓸지 결정
-#   CKPT_MODEL_ID : 평가할 학습 산출물 식별자 (train 의 MODEL_ID 와 동일)
-#                   네이밍 규칙: {model}_{size}_{dataset}_{설정tag}
-#                   예) salmonn2p_7b_unav_baseline
-#   CKPT_STEP     : 평가할 체크포인트 스텝 번호.
-#                   - 생략            -> 해당 모델의 가장 최근 checkpoint-*
-#                   - 5000            -> checkpoint-5000
-#                   - checkpoint-5000 -> 같은 의미
-#                   - base / no       -> LoRA 없이 베이스 모델만 평가
-#   BASE_MODEL_ID : ${CKPT_DIR} 아래 베이스 모델 폴더명
-#   TESTSET_FILE  : ${BASE_DIR}/data 아래 테스트 json 파일명
-#                   (확장자 제외한 이름이 결과 하위 폴더가 됨)
-#   GPUS          : 사용할 GPU id 목록 (콤마 구분, 예: "0" / "0,1")
-#   CONFIG        : 하이퍼파라미터 yaml 파일명 (스크립트와 같은 폴더 기준)
-#
-# 결과 저장 구조 예시:
-#   Team4/
-#   └── outputs/
-#       ├── sft/
-#       │   └── salmonn2p_7b_unav_baseline/              <- {CKPT_MODEL_ID}
-#       │       ├── checkpoint-00500/                 
-#       │       │   └── unav100_sub80/                
-#       │       │       ├── eval_miou_summary.json
-#       │       │       ├── test_results_rank0.json
-#       │       │       └── inference.log
-#       │       └── checkpoint-01000/
-#       ├── gdpo/
-#       │   └── salmonn2p_7b_unav_baseline/
-#       │       └── checkpoint-00500/
-#       │           └── unav100_test_full/
-#       │               ├── eval_miou_summary.json
-#       │               ├── test_results_rank0.json
-#       │               └── inference.log
-#       └── base/                                     <- CKPT_STEP=base 일 때
-#           └── video_salmonn2_plus_7B_time_tokens/   <- {BASE_MODEL_ID}
-#               └── unav100_sub80/
-#                   ├── eval_miou_summary.json
-#                   ├── test_results_rank0.json
-#                   └── inference.log
+# 결과 경로
+#   $OUT_DIR = outputs/<stage>/<model>/<ckpt>/<TESTSET>/  (LoRA)
+#            = outputs/base/<base_model>/<TESTSET>/        (CKPT_STEP=base)
+#     test_results_rank0.json    : master, chunk 별 append
+#     eval_miou_summary.json     : 매 chunk 후 갱신
+#     eval_miou_progress.jsonl   : chunk 별 timestamp + metrics 누적
+#     inference.log              : chunk 별 stdout 누적
+#     .chunk_idx, .chunk_workdir/, .merged_model/ : 임시 (성공시 자동 정리)
 # ============================================================
 
-set -e
+set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source /workspace/setup.sh
 conda activate salmonn2plus
+source "$SCRIPT_DIR/../paths.env"
 
 export ARNOLD_WORKER_NUM=1
 export ARNOLD_ID=0
@@ -77,87 +51,87 @@ STAGE=sft
 CKPT_MODEL_ID=salmonn2p_7b_unav_baseline
 CKPT_STEP=
 BASE_MODEL_ID=video_salmonn2_plus_7B_time_tokens
-TESTSET_FILE=unav100_test_multiseg_sub80.json
+TESTSET=unav100
 GPUS=0
 CONFIG=config.yaml
 
-# ---- KEY=VALUE 인자 파싱 ----
+# ---- KEY=VALUE 파싱 ----
 for arg in "$@"; do
     case "$arg" in
         STAGE=*)            STAGE="${arg#*=}" ;;
         CKPT_MODEL_ID=*)    CKPT_MODEL_ID="${arg#*=}" ;;
         CKPT_STEP=*)        CKPT_STEP="${arg#*=}" ;;
         BASE_MODEL_ID=*)    BASE_MODEL_ID="${arg#*=}" ;;
-        TESTSET_FILE=*)     TESTSET_FILE="${arg#*=}" ;;
+        TESTSET=*)          TESTSET="${arg#*=}" ;;
         GPUS=*)             GPUS="${arg#*=}" ;;
         CONFIG=*)           CONFIG="${arg#*=}" ;;
         *)
             echo "[에러] 지원하지 않는 인자: $arg"
-            echo "지원 인자: STAGE, CKPT_MODEL_ID, CKPT_STEP, BASE_MODEL_ID, TESTSET_FILE, GPUS, CONFIG"
+            echo "지원 인자: STAGE, CKPT_MODEL_ID, CKPT_STEP, BASE_MODEL_ID, TESTSET, GPUS, CONFIG"
             exit 1
             ;;
     esac
 done
 
-# ---- STAGE 검증 (소문자로 정규화 후 sft/gdpo만 허용) ----
 STAGE=$(echo "$STAGE" | tr '[:upper:]' '[:lower:]')
 if [ "$STAGE" != "sft" ] && [ "$STAGE" != "gdpo" ]; then
-    echo "[에러] STAGE는 'sft' 또는 'gdpo' 여야 합니다 (받은 값: $STAGE)"
+    echo "[에러] STAGE는 sft|gdpo 여야 합니다 (받은 값: $STAGE)"
     exit 1
 fi
 
-# ---- config.yaml 로드 ----
+# ---- config.yaml 로드 (flat KEY: VALUE) ----
 CONFIG_DIR="${SCRIPT_DIR}/${CONFIG}"
 if [ ! -f "$CONFIG_DIR" ]; then
-    echo "[에러] config 파일을 찾을 수 없음: $CONFIG_DIR"
+    echo "[에러] config 파일 없음: $CONFIG_DIR"
     exit 1
 fi
-
 while IFS= read -r line || [ -n "$line" ]; do
-    line="${line%$'\r'}"
-    line="${line%%#*}"
+    line="${line%$'\r'}"; line="${line%%#*}"
     [[ -z "${line// }" ]] && continue
-    key="${line%%:*}"
-    val="${line#*:}"
+    key="${line%%:*}"; val="${line#*:}"
     key="$(echo "$key" | awk '{$1=$1;print}')"
     val="$(echo "$val" | awk '{$1=$1;print}')"
-    val="${val#\"}"; val="${val%\"}"
-    val="${val#\'}"; val="${val%\'}"
+    val="${val#\"}"; val="${val%\"}"; val="${val#\'}"; val="${val%\'}"
     [[ -z "$key" ]] && continue
     eval "$key=\"\$val\""
 done < "$CONFIG_DIR"
 
-# ---- GPU 개수 자동 계산 ----
 NUM_GPUS=$(echo "$GPUS" | awk -F',' '{print NF}')
 export CUDA_VISIBLE_DEVICES=$GPUS
 export ARNOLD_WORKER_GPU=$NUM_GPUS
 
-# ---- 경로 조립 ----
+# ---- 경로 ----
 BASE_CODE="${BASE_DIR}/video_SALMONN2_plus"
 MODEL_BASE="${CKPT_DIR}/${BASE_MODEL_ID}"
-TEST_JSON="${BASE_DIR}/data/${TESTSET_FILE}"
 MODEL_DIR="${CKPT_DIR}/${STAGE}/${CKPT_MODEL_ID}"
 EVAL_SCRIPT="${BASE_DIR}/eval/eval_miou_multiseg.py"
+HELPER="${BASE_DIR}/eval/_chunk_helpers.py"
+CHUNKS_DIR="${BASE_DIR}/data/test/${TESTSET}"
 
-# 테스트 json 존재 확인
-if [ ! -f "$TEST_JSON" ]; then
-    echo "[에러] 테스트 json 없음: $TEST_JSON"
+# ---- chunks 검증 ----
+if [ ! -d "$CHUNKS_DIR" ]; then
+    echo "[에러] testset 디렉토리 없음: $CHUNKS_DIR"
+    echo "  먼저: python3 $HELPER split --test_json <원본.json> --chunks_dir $CHUNKS_DIR --chunk_size 500"
+    exit 1
+fi
+mapfile -t CHUNK_FILES < <(ls "$CHUNKS_DIR"/chunk_*.json 2>/dev/null | sort)
+N_CHUNKS=${#CHUNK_FILES[@]}
+if [ "$N_CHUNKS" -le 0 ]; then
+    echo "[에러] $CHUNKS_DIR 에 chunk_*.json 없음"
     exit 1
 fi
 
-# 결과 하위 폴더명: TESTSET_FILE 에서 .json 제거
-TESTSET_NAME="${TESTSET_FILE%.json}"
+# eval_miou 가 사용할 _full.json (없으면 1회 생성)
+TEST_JSON="${CHUNKS_DIR}/_full.json"
+N_TOTAL=$(python3 "$HELPER" build_full --chunks_dir "$CHUNKS_DIR" | awk '{print $1}')
 
-# ---- CKPT_STEP → LoRA 경로 / 체크포인트 폴더명 결정 ----
-# 1) 생략       -> 가장 최근 checkpoint-*
-# 2) base/no    -> LoRA 미적용 (베이스 모델만)
-# 3) 그 외      -> checkpoint-<CKPT_STEP>
+# ---- CKPT_STEP 해석 ----
 CKPT_STEP_LOWER=$(echo "$CKPT_STEP" | tr '[:upper:]' '[:lower:]')
 IS_BASE_EVAL=false
 if [ -z "$CKPT_STEP" ]; then
     LORA_CKPT=$(ls -d "$MODEL_DIR"/checkpoint-* 2>/dev/null | sort -V | tail -n 1)
     if [ -z "$LORA_CKPT" ]; then
-        echo "[에러] $MODEL_DIR 에서 checkpoint-* 를 찾을 수 없습니다"
+        echo "[에러] $MODEL_DIR 에 checkpoint-* 없음"
         exit 1
     fi
     CKPT_FOLDER=$(basename "$LORA_CKPT")
@@ -178,79 +152,161 @@ else
     fi
 fi
 
-# ---- 결과 디렉토리 ----
-# 일반:     outputs/{stage}/{ckpt_model_id}/{checkpoint-xxxx}/{testset}/
-# 베이스:   outputs/base/{base_model_id}/{testset}/
 if [ "$IS_BASE_EVAL" = "true" ]; then
-    OUT_DIR="${BASE_DIR}/outputs/base/${BASE_MODEL_ID}/${TESTSET_NAME}"
+    OUT_DIR="${BASE_DIR}/outputs/base/${BASE_MODEL_ID}/${TESTSET}"
 else
-    OUT_DIR="${BASE_DIR}/outputs/${STAGE}/${CKPT_MODEL_ID}/${CKPT_FOLDER}/${TESTSET_NAME}"
+    OUT_DIR="${BASE_DIR}/outputs/${STAGE}/${CKPT_MODEL_ID}/${CKPT_FOLDER}/${TESTSET}"
 fi
-
-echo "=================================================="
-echo "  STAGE           : $STAGE"
-echo "  CKPT_MODEL_ID   : $CKPT_MODEL_ID"
-echo "  CKPT_STEP       : ${CKPT_STEP:-<latest>}  ->  $CKPT_FOLDER"
-echo "  LORA_CKPT       : $LORA_CKPT"
-echo "  BASE_MODEL_ID   : $BASE_MODEL_ID"
-echo "  TESTSET         : $TEST_JSON"
-echo "  GPUS            : $GPUS  (count=$NUM_GPUS)"
-echo "  CONFIG          : $CONFIG_DIR"
-echo "  OUT_DIR         : $OUT_DIR"
-echo "=================================================="
-
 mkdir -p "$OUT_DIR"
 
-cd "$BASE_CODE"
+MASTER_RESULT="$OUT_DIR/test_results_rank0.json"
+SUMMARY_FILE="$OUT_DIR/eval_miou_summary.json"
+PROGRESS_LOG="$OUT_DIR/eval_miou_progress.jsonl"
+INFER_LOG="$OUT_DIR/inference.log"
+CHUNK_IDX_FILE="$OUT_DIR/.chunk_idx"
+CHUNK_WORKDIR="$OUT_DIR/.chunk_workdir"
+MERGED_MODEL_DIR="$OUT_DIR/.merged_model"
 
-# torchrun 포트 (GPUS 첫 id 로 충돌 회피)
+# ---- resume offset ----
+RESUME_OUT=$(python3 "$HELPER" resume_offset \
+    --master "$MASTER_RESULT" \
+    --chunks_dir "$CHUNKS_DIR" \
+    --chunk_idx_file "$CHUNK_IDX_FILE")
+read START_CHUNK N_MASTER EXPECTED_N <<<"$RESUME_OUT"
+
+# master 가 chunk 경계와 어긋나면 잘라냄
+if [ "$N_MASTER" -gt "$EXPECTED_N" ]; then
+    python3 "$HELPER" truncate_master --master "$MASTER_RESULT" --keep "$EXPECTED_N" >/dev/null
+    echo "[CLEAN] truncated master $N_MASTER -> $EXPECTED_N (chunk-aligned)"
+    N_MASTER=$EXPECTED_N
+fi
+
+cat <<EOF
+==================================================
+  STAGE             : $STAGE
+  CKPT_MODEL_ID     : $CKPT_MODEL_ID
+  CKPT_STEP         : ${CKPT_STEP:-<latest>}  ->  $CKPT_FOLDER
+  LORA_CKPT         : $LORA_CKPT
+  BASE_MODEL_ID     : $BASE_MODEL_ID
+  TESTSET           : $TESTSET  ($N_CHUNKS chunks, $N_TOTAL samples)
+  GPUS              : $GPUS  (count=$NUM_GPUS)
+  OUT_DIR           : $OUT_DIR
+  START_CHUNK       : $START_CHUNK  (master n=$N_MASTER)
+==================================================
+EOF
+
+# ---- 종료 시 정리 ----
+SUCCESS=0
+cleanup_all() {
+    rm -rf "$CHUNK_WORKDIR" 2>/dev/null || true
+    if [ "$SUCCESS" = "1" ]; then
+        rm -rf "$MERGED_MODEL_DIR" 2>/dev/null || true
+        rm -f "$CHUNK_IDX_FILE" 2>/dev/null || true
+    fi
+}
+trap cleanup_all EXIT
+
+# 모든 chunk 끝났으면 최종 평가만
+if [ "$START_CHUNK" -ge "$N_CHUNKS" ]; then
+    echo "[SKIP] all $N_CHUNKS chunks already done; running final eval only"
+    python3 "$EVAL_SCRIPT" \
+        --results "$MASTER_RESULT" --test_json "$TEST_JSON" \
+        --max_time "$MAX_TIME" --out_dir "$OUT_DIR" --progress_log "$PROGRESS_LOG"
+    SUCCESS=1
+    echo "[완료] $OUT_DIR"
+    exit 0
+fi
+
+cd "$BASE_CODE"
 FIRST_GPU=$(echo "$GPUS" | awk -F',' '{print $1}')
 MASTER_PORT=$((12900 + FIRST_GPU))
 
-# ---- 추론 실행 ----
-torchrun --nproc_per_node=$NUM_GPUS --master_port=$MASTER_PORT \
-    qwenvl/train/train_qwen.py \
-    --model_base "$MODEL_BASE" \
-    --run_test True \
-    --pred_rank 0 \
-    --deepspeed "$DEEPSPEED_CONFIG" \
-    --model_name_or_path "$MODEL_BASE" \
-    --dataset_use "$TEST_JSON" \
-    --bf16 \
-    --output_dir "$OUT_DIR" \
-    --num_train_epochs "$NUM_TRAIN_EPOCHS" \
-    --per_device_train_batch_size "$PER_DEVICE_TRAIN_BATCH_SIZE" \
-    --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
-    --max_pixels "$MAX_PIXELS" \
-    --min_pixels "$MIN_PIXELS" \
-    --video_max_frame_pixels "$VIDEO_MAX_FRAME_PIXELS" \
-    --video_min_frame_pixels "$VIDEO_MIN_FRAME_PIXELS" \
-    --eval_strategy "$EVAL_STRATEGY" \
-    --save_strategy "$SAVE_STRATEGY" \
-    --learning_rate "$LEARNING_RATE" \
-    --model_max_length "$MODEL_MAX_LENGTH" \
-    --gradient_checkpointing "$GRADIENT_CHECKPOINTING" \
-    --dataloader_num_workers "$DATALOADER_NUM_WORKERS" \
-    --run_name "${STAGE}_${CKPT_MODEL_ID}_${CKPT_FOLDER}_${TESTSET_NAME}" \
-    --report_to "$REPORT_TO" \
-    --video_min_frames "$VIDEO_MIN_FRAMES" \
-    --video_max_frames "$VIDEO_MAX_FRAMES" \
-    --base_interval "$BASE_INTERVAL" \
-    --lora_ckpt "$LORA_CKPT" \
-    --no_audio "$NO_AUDIO" \
-    2>&1 | tee "$OUT_DIR/inference.log"
+# ---- chunk loop ----
+for ((i=START_CHUNK; i<N_CHUNKS; i++)); do
+    chunk_json="${CHUNK_FILES[$i]}"
+    chunk_id=$(basename "$chunk_json" .json | sed 's/^chunk_//')
 
-# ---- mIoU 평가 ----
-RESULT_FILE=$(find "$OUT_DIR" -name "test_results_rank0.json" 2>/dev/null | head -1)
-if [ ! -f "$RESULT_FILE" ]; then
-    echo "[에러] 추론 결과 파일을 찾을 수 없습니다: $OUT_DIR/test_results_rank0.json"
-    exit 1
-fi
+    # merged_model 이 있으면 재사용, 없으면 LoRA merge
+    if [ -d "$MERGED_MODEL_DIR" ] && [ "$IS_BASE_EVAL" != "true" ]; then
+        _model_name="$MERGED_MODEL_DIR"
+        _lora_ckpt="No"
+    else
+        _model_name="$MODEL_BASE"
+        _lora_ckpt="$LORA_CKPT"
+    fi
 
+    rm -rf "$CHUNK_WORKDIR"
+    mkdir -p "$CHUNK_WORKDIR"
+
+    header="
+=== [CHUNK $((i+1))/$N_CHUNKS] id=$chunk_id  start=$(date -Iseconds) ==="
+    echo "$header"
+    echo "$header" >> "$INFER_LOG"
+
+    torchrun --nproc_per_node=$NUM_GPUS --master_port=$MASTER_PORT \
+        qwenvl/train/train_qwen.py \
+        --model_base "$MODEL_BASE" \
+        --run_test True \
+        --pred_rank 0 \
+        --deepspeed "$DEEPSPEED_CONFIG" \
+        --model_name_or_path "$_model_name" \
+        --dataset_use "$chunk_json" \
+        --bf16 \
+        --output_dir "$CHUNK_WORKDIR" \
+        --num_train_epochs "$NUM_TRAIN_EPOCHS" \
+        --per_device_train_batch_size "$PER_DEVICE_TRAIN_BATCH_SIZE" \
+        --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
+        --max_pixels "$MAX_PIXELS" \
+        --min_pixels "$MIN_PIXELS" \
+        --video_max_frame_pixels "$VIDEO_MAX_FRAME_PIXELS" \
+        --video_min_frame_pixels "$VIDEO_MIN_FRAME_PIXELS" \
+        --eval_strategy "$EVAL_STRATEGY" \
+        --save_strategy "$SAVE_STRATEGY" \
+        --learning_rate "$LEARNING_RATE" \
+        --model_max_length "$MODEL_MAX_LENGTH" \
+        --gradient_checkpointing "$GRADIENT_CHECKPOINTING" \
+        --dataloader_num_workers "$DATALOADER_NUM_WORKERS" \
+        --run_name "." \
+        --report_to "$REPORT_TO" \
+        --video_min_frames "$VIDEO_MIN_FRAMES" \
+        --video_max_frames "$VIDEO_MAX_FRAMES" \
+        --base_interval "$BASE_INTERVAL" \
+        --lora_ckpt "$_lora_ckpt" \
+        --no_audio "$NO_AUDIO" \
+        2>&1 | tee -a "$INFER_LOG"
+
+    chunk_result="$CHUNK_WORKDIR/test_results_rank0.json"
+    if [ ! -f "$chunk_result" ]; then
+        echo "[에러] chunk $chunk_id 결과 파일 없음: $chunk_result"
+        exit 1
+    fi
+
+    # LoRA merge 결과를 처음 만든 chunk 라면 .merged_model 로 보존
+    if [ "$IS_BASE_EVAL" != "true" ] && [ ! -d "$MERGED_MODEL_DIR" ] && [ -d "$CHUNK_WORKDIR/generation_0" ]; then
+        mv "$CHUNK_WORKDIR/generation_0" "$MERGED_MODEL_DIR"
+        echo "[MERGE] preserved -> $MERGED_MODEL_DIR"
+    fi
+
+    # master append + chunk_idx 업데이트
+    AGG_OUT=$(python3 "$HELPER" append --master "$MASTER_RESULT" --chunk_results "$chunk_result")
+    read N_AFTER N_ADDED <<<"$AGG_OUT"
+    echo "$((i + 1))" > "$CHUNK_IDX_FILE.tmp" && mv "$CHUNK_IDX_FILE.tmp" "$CHUNK_IDX_FILE"
+
+    # summary 갱신 + 한 줄 요약
+    python3 "$EVAL_SCRIPT" \
+        --results "$MASTER_RESULT" --test_json "$TEST_JSON" \
+        --max_time "$MAX_TIME" --out_dir "$OUT_DIR" \
+        --progress_log "$PROGRESS_LOG" --quiet
+    echo "[CHUNK $((i+1))/$N_CHUNKS] done  master_n=$N_AFTER  added=$N_ADDED  $(date -Iseconds)"
+    python3 "$HELPER" summary_oneline --summary "$SUMMARY_FILE"
+done
+
+# ---- 최종 평가 (loud) ----
+echo ""
+echo "=== FINAL EVAL  $(date -Iseconds) ==="
 python3 "$EVAL_SCRIPT" \
-    --results "$RESULT_FILE" \
-    --test_json "$TEST_JSON" \
-    --max_time "$MAX_TIME" \
-    --out_dir "$OUT_DIR"
+    --results "$MASTER_RESULT" --test_json "$TEST_JSON" \
+    --max_time "$MAX_TIME" --out_dir "$OUT_DIR" --progress_log "$PROGRESS_LOG"
 
-echo "[완료] $OUT_DIR 에 평가 결과 저장 (eval_miou_summary.json)"
+SUCCESS=1
+echo "[완료] $OUT_DIR"
