@@ -31,6 +31,9 @@ def main():
     ap.add_argument("--video_max_frame_pixels", type=int, default=28224)
     ap.add_argument("--video_min_frame_pixels", type=int, default=784)
     ap.add_argument("--sample_limit", type=int, default=-1)
+    ap.add_argument("--tti_time_format", default="off",
+                    choices=["off", "special_token", "natural_text"],
+                    help="입력 측 시간 마커 모드 (default: off)")
     args = ap.parse_args()
 
     # BASE_CODE 를 sys.path 에 추가
@@ -79,6 +82,7 @@ def main():
         image_processor=image_processor,
         audio_processor=audio_processor,
         model_type="qwen2.5vl",
+        tti_time_format=args.tti_time_format,
     )
 
     print(f"[smoke] building dataset from {args.dataset_use}")

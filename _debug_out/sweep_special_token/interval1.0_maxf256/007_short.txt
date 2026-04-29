@@ -1,0 +1,84 @@
+=== short  (duration=15.58s) ===
+video: /workspace/datasets/unav_100/videos/gwAP-vfQyRU.mp4
+audio: /workspace/datasets/unav_100/audio/gwAP-vfQyRU.wav  use_audio=True
+tti_time_format: special_token  marker_len=6
+config: base_interval=1.0  video_frames=[64,256]  pixels=[784..176400]  merge=2
+seq_len=3461  text=39  time=192  video_pad=3168  audio_pad=60  vis_start/end=1/1
+
+layout:
+  chunk   0  t=   0.0s  VID×99   AUD×0    [15..120)  marker=
+  chunk   1  t=   0.5s  VID×99   AUD×1    [120..226)  marker=
+  chunk   2  t=   1.0s  VID×99   AUD×1    [226..332)  marker=
+  chunk   3  t=   1.5s  VID×99   AUD×1    [332..438)  marker=
+  chunk   4  t=   1.9s  VID×99   AUD×1    [438..544)  marker=
+  chunk   5  t=   2.4s  VID×99   AUD×1    [544..650)  marker=
+  chunk   6  t=   2.9s  VID×99   AUD×1    [650..756)  marker=
+  chunk   7  t=   3.4s  VID×99   AUD×1    [756..862)  marker=
+  chunk   8  t=   3.9s  VID×99   AUD×1    [862..968)  marker=
+  chunk   9  t=   4.4s  VID×99   AUD×1    [968..1074)  marker=
+  chunk  10  t=   4.8s  VID×99   AUD×1    [1074..1180)  marker=
+  chunk  11  t=   5.3s  VID×99   AUD×1    [1180..1286)  marker=
+  chunk  12  t=   5.8s  VID×99   AUD×1    [1286..1392)  marker=
+  chunk  13  t=   6.3s  VID×99   AUD×1    [1392..1498)  marker=
+  chunk  14  t=   6.8s  VID×99   AUD×1    [1498..1604)  marker=
+  chunk  15  t=   7.3s  VID×99   AUD×1    [1604..1710)  marker=
+  chunk  16  t=   7.8s  VID×99   AUD×1    [1710..1816)  marker=
+  chunk  17  t=   8.2s  VID×99   AUD×1    [1816..1922)  marker=
+  chunk  18  t=   8.7s  VID×99   AUD×1    [1922..2028)  marker=
+  chunk  19  t=   9.2s  VID×99   AUD×1    [2028..2134)  marker=
+  ... (12 more chunks)
+
+time markers (32): [0.0, 0.5, 1.0, 1.5, 1.9, 2.4, 2.9, 3.4, 3.9, 4.4, 4.8, 5.3, 5.8, 6.3, 6.8, 7.3, 7.8, 8.2, 8.7, 9.2, 9.7, 10.2, 10.7, 11.2, 11.6, 12.1, 12.6, 13.1, 13.6, 14.1] ...
+
+RoPE samples (t, h, w):
+  pos=   14  vision_start                          t=   14 h=  14 w=  14
+  pos=   15  time_marker[0.0]_first                t=   15 h=  15 w=  15
+  pos=   20  time_marker[0.0]_last                 t=   15 h=  15 w=  15
+  pos=   21  video_pad[ch=0]_first                 t=   15 h=  15 w=  15
+  pos=  119  video_pad[ch=0]_last                  t=   15 h=  23 w=  25
+  pos=  120  time_marker[0.5]_first                t=   15 h=  15 w=  15
+  pos=  125  time_marker[0.5]_last                 t=   15 h=  15 w=  15
+  pos=  126  video_pad[ch=1]_first                 t=   15 h=  15 w=  15
+  pos=  224  video_pad[ch=1]_last                  t=   15 h=  23 w=  25
+  pos=  225  audio_pad[ch=1]_first                 t=   15 h=  15 w=  15
+  pos=  226  time_marker[1.0]_first                t=   16 h=  15 w=  16
+  pos=  231  time_marker[1.0]_last                 t=   16 h=  15 w=  16
+  pos=  232  video_pad[ch=2]_first                 t=   16 h=  15 w=  15
+  pos=  330  video_pad[ch=2]_last                  t=   16 h=  23 w=  25
+  pos=  331  audio_pad[ch=2]_first                 t=   16 h=  15 w=  16
+  pos=  332  time_marker[1.5]_first                t=   17 h=  15 w=  17
+  pos=  337  time_marker[1.5]_last                 t=   17 h=  15 w=  17
+  pos=  338  video_pad[ch=3]_first                 t=   17 h=  15 w=  15
+  pos=  436  video_pad[ch=3]_last                  t=   17 h=  23 w=  25
+  pos=  437  audio_pad[ch=3]_first                 t=   17 h=  15 w=  17
+  pos=  438  time_marker[1.9]_first                t=   18 h=  15 w=  18
+  pos=  443  time_marker[1.9]_last                 t=   18 h=  15 w=  18
+  pos=  444  video_pad[ch=4]_first                 t=   18 h=  15 w=  15
+  pos=  542  video_pad[ch=4]_last                  t=   18 h=  23 w=  25
+  pos=  543  audio_pad[ch=4]_first                 t=   18 h=  15 w=  18
+  pos=  544  time_marker[2.4]_first                t=   19 h=  15 w=  19
+  pos=  549  time_marker[2.4]_last                 t=   19 h=  15 w=  19
+  pos=  550  video_pad[ch=5]_first                 t=   19 h=  15 w=  15
+  pos=  648  video_pad[ch=5]_last                  t=   19 h=  23 w=  25
+  pos=  649  audio_pad[ch=5]_first                 t=   19 h=  15 w=  19
+  pos=  650  time_marker[2.9]_first                t=   20 h=  15 w=  20
+  pos=  655  time_marker[2.9]_last                 t=   20 h=  15 w=  20
+  pos=  656  video_pad[ch=6]_first                 t=   20 h=  15 w=  15
+  pos=  754  video_pad[ch=6]_last                  t=   20 h=  23 w=  25
+  pos=  755  audio_pad[ch=6]_first                 t=   20 h=  15 w=  20
+  pos=  756  time_marker[3.4]_first                t=   21 h=  15 w=  21
+  pos=  761  time_marker[3.4]_last                 t=   21 h=  15 w=  21
+  pos=  762  video_pad[ch=7]_first                 t=   21 h=  15 w=  15
+  pos=  860  video_pad[ch=7]_last                  t=   21 h=  23 w=  25
+  pos=  861  audio_pad[ch=7]_first                 t=   21 h=  15 w=  21
+  ... (122 more)
+t_axis (vision): range=[14, 75]  monotonic=True
+
+validation:
+       mode: tti_special_token
+  OK  num_chunks_eq_T: True
+  OK  time_tokens_eq_M_times_T: True
+       expected_per_chunk_video_pad: 99
+  OK  video_pad_per_chunk_consistent: True
+  OK  audio_pad_sum_matches: True
+  OK  rope_t_monotonic_vision: True

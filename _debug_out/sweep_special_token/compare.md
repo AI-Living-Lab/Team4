@@ -1,0 +1,138 @@
+# compare: in_dir=/workspace/tti_natural/Team4/_debug_out/sweep_special_token  configs=12  samples=8  rows=96  fails=0
+
+### [sample] long_60s  (n=12)
+
+| config | mode | seq_len | time | video | audio | chunks | vid/ch | aud/ch(avg) | val |
+|---|---|---|---|---|---|---|---|---|---|
+| interval0.1_maxf64 | tti_special_token | 1376 | 192 | 1024 | 120 | 32 | 32 | 3.75 | ok |
+| interval0.1_maxf128 | tti_special_token | 2592 | 384 | 2048 | 120 | 64 | 32 | 1.88 | ok |
+| interval0.1_maxf256 | tti_special_token | 5024 | 768 | 4096 | 120 | 128 | 32 | 0.94 | ok |
+| interval0.2_maxf64 | tti_special_token | 1376 | 192 | 1024 | 120 | 32 | 32 | 3.75 | ok |
+| interval0.2_maxf128 | tti_special_token | 2592 | 384 | 2048 | 120 | 64 | 32 | 1.88 | ok |
+| interval0.2_maxf256 | tti_special_token | 5024 | 768 | 4096 | 120 | 128 | 32 | 0.94 | ok |
+| interval0.5_maxf64 | tti_special_token | 1376 | 192 | 1024 | 120 | 32 | 32 | 3.75 | ok |
+| interval0.5_maxf128 | tti_special_token | 2364 | 348 | 1856 | 120 | 58 | 32 | 2.07 | ok |
+| interval0.5_maxf256 | tti_special_token | 4336 | 348 | 3828 | 120 | 58 | 66 | 2.07 | ok |
+| interval1.0_maxf64 | tti_special_token | 1376 | 192 | 1024 | 120 | 32 | 32 | 3.75 | ok |
+| interval1.0_maxf128 | tti_special_token | 2464 | 192 | 2112 | 120 | 32 | 66 | 3.75 | ok |
+| interval1.0_maxf256 | tti_special_token | 4192 | 192 | 3840 | 120 | 32 | 120 | 3.75 | ok |
+
+### [sample] longest  (n=12)
+
+| config | mode | seq_len | time | video | audio | chunks | vid/ch | aud/ch(avg) | val |
+|---|---|---|---|---|---|---|---|---|---|
+| interval0.1_maxf64 | tti_special_token | 1432 | 192 | 1024 | 180 | 32 | 32 | 5.62 | ok |
+| interval0.1_maxf128 | tti_special_token | 2648 | 384 | 2048 | 180 | 64 | 32 | 2.81 | ok |
+| interval0.1_maxf256 | tti_special_token | 5080 | 768 | 4096 | 180 | 128 | 32 | 1.41 | ok |
+| interval0.2_maxf64 | tti_special_token | 1432 | 192 | 1024 | 180 | 32 | 32 | 5.62 | ok |
+| interval0.2_maxf128 | tti_special_token | 2648 | 384 | 2048 | 180 | 64 | 32 | 2.81 | ok |
+| interval0.2_maxf256 | tti_special_token | 5080 | 768 | 4096 | 180 | 128 | 32 | 1.41 | ok |
+| interval0.5_maxf64 | tti_special_token | 1432 | 192 | 1024 | 180 | 32 | 32 | 5.62 | ok |
+| interval0.5_maxf128 | tti_special_token | 2496 | 360 | 1920 | 180 | 60 | 32 | 3.0 | ok |
+| interval0.5_maxf256 | tti_special_token | 4536 | 360 | 3960 | 180 | 60 | 66 | 3.0 | ok |
+| interval1.0_maxf64 | tti_special_token | 1432 | 192 | 1024 | 180 | 32 | 32 | 5.62 | ok |
+| interval1.0_maxf128 | tti_special_token | 2520 | 192 | 2112 | 180 | 32 | 66 | 5.62 | ok |
+| interval1.0_maxf256 | tti_special_token | 4248 | 192 | 3840 | 180 | 32 | 120 | 5.62 | ok |
+
+### [sample] medium  (n=12)
+
+| config | mode | seq_len | time | video | audio | chunks | vid/ch | aud/ch(avg) | val |
+|---|---|---|---|---|---|---|---|---|---|
+| interval0.1_maxf64 | tti_special_token | 1319 | 192 | 1024 | 60 | 32 | 32 | 1.88 | ok |
+| interval0.1_maxf128 | tti_special_token | 2535 | 384 | 2048 | 60 | 64 | 32 | 0.94 | ok |
+| interval0.1_maxf256 | tti_special_token | 3941 | 606 | 3232 | 60 | 101 | 32 | 0.59 | ok |
+| interval0.2_maxf64 | tti_special_token | 1319 | 192 | 1024 | 60 | 32 | 32 | 1.88 | ok |
+| interval0.2_maxf128 | tti_special_token | 2041 | 306 | 1632 | 60 | 51 | 32 | 1.18 | ok |
+| interval0.2_maxf256 | tti_special_token | 4081 | 306 | 3672 | 60 | 51 | 72 | 1.18 | ok |
+| interval0.5_maxf64 | tti_special_token | 1319 | 192 | 1024 | 60 | 32 | 32 | 1.88 | ok |
+| interval0.5_maxf128 | tti_special_token | 2407 | 192 | 2112 | 60 | 32 | 66 | 1.88 | ok |
+| interval0.5_maxf256 | tti_special_token | 4135 | 192 | 3840 | 60 | 32 | 120 | 1.88 | ok |
+| interval1.0_maxf64 | tti_special_token | 1319 | 192 | 1024 | 60 | 32 | 32 | 1.88 | ok |
+| interval1.0_maxf128 | tti_special_token | 2407 | 192 | 2112 | 60 | 32 | 66 | 1.88 | ok |
+| interval1.0_maxf256 | tti_special_token | 4135 | 192 | 3840 | 60 | 32 | 120 | 1.88 | ok |
+
+### [sample] multiseg_3plus  (n=12)
+
+| config | mode | seq_len | time | video | audio | chunks | vid/ch | aud/ch(avg) | val |
+|---|---|---|---|---|---|---|---|---|---|
+| interval0.1_maxf64 | tti_special_token | 1376 | 192 | 1024 | 120 | 32 | 32 | 3.75 | ok |
+| interval0.1_maxf128 | tti_special_token | 2592 | 384 | 2048 | 120 | 64 | 32 | 1.88 | ok |
+| interval0.1_maxf256 | tti_special_token | 5024 | 768 | 4096 | 120 | 128 | 32 | 0.94 | ok |
+| interval0.2_maxf64 | tti_special_token | 1376 | 192 | 1024 | 120 | 32 | 32 | 3.75 | ok |
+| interval0.2_maxf128 | tti_special_token | 2592 | 384 | 2048 | 120 | 64 | 32 | 1.88 | ok |
+| interval0.2_maxf256 | tti_special_token | 4530 | 690 | 3680 | 120 | 115 | 32 | 1.04 | ok |
+| interval0.5_maxf64 | tti_special_token | 1376 | 192 | 1024 | 120 | 32 | 32 | 3.75 | ok |
+| interval0.5_maxf128 | tti_special_token | 2506 | 276 | 2070 | 120 | 46 | 45 | 2.61 | ok |
+| interval0.5_maxf256 | tti_special_token | 4622 | 276 | 4186 | 120 | 46 | 91 | 2.61 | ok |
+| interval1.0_maxf64 | tti_special_token | 1376 | 192 | 1024 | 120 | 32 | 32 | 3.75 | ok |
+| interval1.0_maxf128 | tti_special_token | 2464 | 192 | 2112 | 120 | 32 | 66 | 3.75 | ok |
+| interval1.0_maxf256 | tti_special_token | 4192 | 192 | 3840 | 120 | 32 | 120 | 3.75 | ok |
+
+### [sample] multiseg_short  (n=12)
+
+| config | mode | seq_len | time | video | audio | chunks | vid/ch | aud/ch(avg) | val |
+|---|---|---|---|---|---|---|---|---|---|
+| interval0.1_maxf64 | tti_special_token | 1184 | 192 | 896 | 60 | 32 | 28 | 1.88 | ok |
+| interval0.1_maxf128 | tti_special_token | 2272 | 384 | 1792 | 60 | 64 | 28 | 0.94 | ok |
+| interval0.1_maxf256 | tti_special_token | 4278 | 738 | 3444 | 60 | 123 | 28 | 0.49 | ok |
+| interval0.2_maxf64 | tti_special_token | 1184 | 192 | 896 | 60 | 32 | 28 | 1.88 | ok |
+| interval0.2_maxf128 | tti_special_token | 2204 | 372 | 1736 | 60 | 62 | 28 | 0.97 | ok |
+| interval0.2_maxf256 | tti_special_token | 4188 | 372 | 3720 | 60 | 62 | 60 | 0.97 | ok |
+| interval0.5_maxf64 | tti_special_token | 1184 | 192 | 896 | 60 | 32 | 28 | 1.88 | ok |
+| interval0.5_maxf128 | tti_special_token | 2208 | 192 | 1920 | 60 | 32 | 60 | 1.88 | ok |
+| interval0.5_maxf256 | tti_special_token | 4320 | 192 | 4032 | 60 | 32 | 126 | 1.88 | ok |
+| interval1.0_maxf64 | tti_special_token | 1184 | 192 | 896 | 60 | 32 | 28 | 1.88 | ok |
+| interval1.0_maxf128 | tti_special_token | 2208 | 192 | 1920 | 60 | 32 | 60 | 1.88 | ok |
+| interval1.0_maxf256 | tti_special_token | 4320 | 192 | 4032 | 60 | 32 | 126 | 1.88 | ok |
+
+### [sample] no_audio  (n=12)
+
+| config | mode | seq_len | time | video | audio | chunks | vid/ch | aud/ch(avg) | val |
+|---|---|---|---|---|---|---|---|---|---|
+| interval0.1_maxf64 | video_only | 1064 | 0 | 1024 | 0 | 0 | 0 | 0 | ok |
+| interval0.1_maxf128 | video_only | 2088 | 0 | 2048 | 0 | 0 | 0 | 0 | ok |
+| interval0.1_maxf256 | video_only | 4136 | 0 | 4096 | 0 | 0 | 0 | 0 | ok |
+| interval0.2_maxf64 | video_only | 1064 | 0 | 1024 | 0 | 0 | 0 | 0 | ok |
+| interval0.2_maxf128 | video_only | 2088 | 0 | 2048 | 0 | 0 | 0 | 0 | ok |
+| interval0.2_maxf256 | video_only | 4136 | 0 | 4096 | 0 | 0 | 0 | 0 | ok |
+| interval0.5_maxf64 | video_only | 1064 | 0 | 1024 | 0 | 0 | 0 | 0 | ok |
+| interval0.5_maxf128 | video_only | 1896 | 0 | 1856 | 0 | 0 | 0 | 0 | ok |
+| interval0.5_maxf256 | video_only | 3868 | 0 | 3828 | 0 | 0 | 0 | 0 | ok |
+| interval1.0_maxf64 | video_only | 1064 | 0 | 1024 | 0 | 0 | 0 | 0 | ok |
+| interval1.0_maxf128 | video_only | 2152 | 0 | 2112 | 0 | 0 | 0 | 0 | ok |
+| interval1.0_maxf256 | video_only | 3880 | 0 | 3840 | 0 | 0 | 0 | 0 | ok |
+
+### [sample] no_video  (n=12)
+
+| config | mode | seq_len | time | video | audio | chunks | vid/ch | aud/ch(avg) | val |
+|---|---|---|---|---|---|---|---|---|---|
+| interval0.1_maxf64 | text_only | 37 | 0 | 0 | 0 | 0 | 0 | 0 | ok |
+| interval0.1_maxf128 | text_only | 37 | 0 | 0 | 0 | 0 | 0 | 0 | ok |
+| interval0.1_maxf256 | text_only | 37 | 0 | 0 | 0 | 0 | 0 | 0 | ok |
+| interval0.2_maxf64 | text_only | 37 | 0 | 0 | 0 | 0 | 0 | 0 | ok |
+| interval0.2_maxf128 | text_only | 37 | 0 | 0 | 0 | 0 | 0 | 0 | ok |
+| interval0.2_maxf256 | text_only | 37 | 0 | 0 | 0 | 0 | 0 | 0 | ok |
+| interval0.5_maxf64 | text_only | 37 | 0 | 0 | 0 | 0 | 0 | 0 | ok |
+| interval0.5_maxf128 | text_only | 37 | 0 | 0 | 0 | 0 | 0 | 0 | ok |
+| interval0.5_maxf256 | text_only | 37 | 0 | 0 | 0 | 0 | 0 | 0 | ok |
+| interval1.0_maxf64 | text_only | 37 | 0 | 0 | 0 | 0 | 0 | 0 | ok |
+| interval1.0_maxf128 | text_only | 37 | 0 | 0 | 0 | 0 | 0 | 0 | ok |
+| interval1.0_maxf256 | text_only | 37 | 0 | 0 | 0 | 0 | 0 | 0 | ok |
+
+### [sample] short  (n=12)
+
+| config | mode | seq_len | time | video | audio | chunks | vid/ch | aud/ch(avg) | val |
+|---|---|---|---|---|---|---|---|---|---|
+| interval0.1_maxf64 | tti_special_token | 1253 | 192 | 960 | 60 | 32 | 30 | 1.88 | ok |
+| interval0.1_maxf128 | tti_special_token | 2405 | 384 | 1920 | 60 | 64 | 30 | 0.94 | ok |
+| interval0.1_maxf256 | tti_special_token | 4313 | 468 | 3744 | 60 | 78 | 48 | 0.77 | ok |
+| interval0.2_maxf64 | tti_special_token | 1253 | 192 | 960 | 60 | 32 | 30 | 1.88 | ok |
+| interval0.2_maxf128 | tti_special_token | 2207 | 234 | 1872 | 60 | 39 | 48 | 1.54 | ok |
+| interval0.2_maxf256 | tti_special_token | 4196 | 234 | 3861 | 60 | 39 | 99 | 1.54 | ok |
+| interval0.5_maxf64 | tti_special_token | 1253 | 192 | 960 | 60 | 32 | 30 | 1.88 | ok |
+| interval0.5_maxf128 | tti_special_token | 2309 | 192 | 2016 | 60 | 32 | 63 | 1.88 | ok |
+| interval0.5_maxf256 | tti_special_token | 3461 | 192 | 3168 | 60 | 32 | 99 | 1.88 | ok |
+| interval1.0_maxf64 | tti_special_token | 1253 | 192 | 960 | 60 | 32 | 30 | 1.88 | ok |
+| interval1.0_maxf128 | tti_special_token | 2309 | 192 | 2016 | 60 | 32 | 63 | 1.88 | ok |
+| interval1.0_maxf256 | tti_special_token | 3461 | 192 | 3168 | 60 | 32 | 99 | 1.88 | ok |
+

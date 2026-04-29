@@ -1,0 +1,99 @@
+{
+  "sample_idx": 1,
+  "sample_tag": "no_audio",
+  "config": {
+    "tti_time_format": "natural_text",
+    "time_marker_token_len": 9,
+    "base_interval": 0.2,
+    "video_min_frames": 64,
+    "video_max_frames": 128,
+    "max_pixels": 176400,
+    "min_pixels": 784,
+    "video_max_frame_pixels": 28224,
+    "video_min_frame_pixels": 784,
+    "merge_size": 2,
+    "time_token_id_range": null
+  },
+  "video_meta": {
+    "video_path": "/workspace/datasets/unav_100/videos/0wVUKsMohpU.mp4",
+    "audio_path": null,
+    "use_audio": false,
+    "duration_sec": 57.72,
+    "debug_tag": "no_audio",
+    "grid_thw_video": [
+      [
+        64,
+        8,
+        16
+      ]
+    ],
+    "second_per_grid_ts": [
+      0.9018750000000001,
+      0.9018750000000001,
+      0.9018750000000001
+    ],
+    "audio_lengths": null
+  },
+  "token_counts": {
+    "total": 2088,
+    "text": 38,
+    "vision_start": 1,
+    "video_pad": 2048,
+    "vision_end": 1
+  },
+  "interleaving": {
+    "num_chunks": 0,
+    "per_chunk_marker_tokens": 0,
+    "per_chunk_video_pad": 0,
+    "per_chunk_audio_pad_avg": 0,
+    "per_chunk_audio_pad_min": 0,
+    "per_chunk_audio_pad_max": 0,
+    "chunk_offsets": []
+  },
+  "chunks": [],
+  "time_markers": [],
+  "rope": {
+    "samples": [
+      {
+        "pos": 14,
+        "kind": "vision_start",
+        "t": 14,
+        "h": 14,
+        "w": 14
+      },
+      {
+        "pos": 15,
+        "kind": "video_pad_first",
+        "t": 15,
+        "h": 15,
+        "w": 15
+      },
+      {
+        "pos": 2062,
+        "kind": "video_pad_last",
+        "t": 128,
+        "h": 18,
+        "w": 22
+      },
+      {
+        "pos": 2063,
+        "kind": "vision_end",
+        "t": 129,
+        "h": 129,
+        "w": 129
+      }
+    ],
+    "t_axis_range_vision": [
+      14,
+      129
+    ],
+    "t_axis_monotonic_vision": true
+  },
+  "validation": {
+    "mode": "video_only",
+    "num_chunks_eq_T": "N/A (not tti mode)",
+    "expected_per_chunk_video_pad": 32,
+    "video_pad_total_eq_T_times_per_chunk": true,
+    "rope_t_monotonic_vision": true
+  }
+}

@@ -28,16 +28,18 @@ OUT_BASE="${OUT_BASE:-_debug_out/sweep}"
 INTERVALS="${INTERVALS:-0.1 0.2 0.5 1.0}"
 MAX_FRAMES="${MAX_FRAMES:-64 128 256}"
 SAMPLE_LIMIT="${SAMPLE_LIMIT:--1}"
+TTI_TIME_FORMAT="${TTI_TIME_FORMAT:-off}"
 
 cd "$BASE_DIR"
 
 echo "=================================================="
-echo "  BASE_MODEL    : $BASE_MODEL"
-echo "  DATASET       : $DATASET"
-echo "  OUT_BASE      : $OUT_BASE"
-echo "  INTERVALS     : $INTERVALS"
-echo "  MAX_FRAMES    : $MAX_FRAMES"
-echo "  SAMPLE_LIMIT  : $SAMPLE_LIMIT"
+echo "  BASE_MODEL       : $BASE_MODEL"
+echo "  DATASET          : $DATASET"
+echo "  OUT_BASE         : $OUT_BASE"
+echo "  INTERVALS        : $INTERVALS"
+echo "  MAX_FRAMES       : $MAX_FRAMES"
+echo "  SAMPLE_LIMIT     : $SAMPLE_LIMIT"
+echo "  TTI_TIME_FORMAT  : $TTI_TIME_FORMAT"
 echo "=================================================="
 
 for INTERVAL in $INTERVALS; do
@@ -53,6 +55,7 @@ for INTERVAL in $INTERVALS; do
             --base_interval "$INTERVAL" \
             --video_max_frames "$MAXF" \
             --sample_limit "$SAMPLE_LIMIT" \
+            --tti_time_format "$TTI_TIME_FORMAT" \
             2>&1 | tail -n $((8 + 2))   # size + "... ok" lines
     done
 done
