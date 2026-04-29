@@ -34,4 +34,4 @@ SAVE_STRATEGY: "no"
 REPORT_TO: none
 
 # ---- mIoU 평가 파라미터 (eval_miou_multiseg.py 로 전달) ----
-MAX_TIME: 60.0
+MAX_TIME: 9999.9

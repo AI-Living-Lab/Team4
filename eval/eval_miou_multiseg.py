@@ -15,7 +15,7 @@ import re
 import numpy as np
 
 
-def decode_vtg_time(token_str, max_time=60.0):
+def decode_vtg_time(token_str, max_time=9999.9):
     has_dot = "<tdot>" in token_str
     if has_dot:
         parts = token_str.split("<tdot>")
@@ -32,7 +32,7 @@ def decode_vtg_time(token_str, max_time=60.0):
     return min(t, max_time)
 
 
-def parse_multi_segments(raw, max_time=60.0):
+def parse_multi_segments(raw, max_time=9999.9):
     """Parse 'From X to Y. From X to Y.' format into list of segments."""
     segments = []
     pattern = r"[Ff]rom\s+((?:<t\d>)+(?:<tdot>(?:<t\d>)+)?)\s+to\s+((?:<t\d>)+(?:<tdot>(?:<t\d>)+)?)"
@@ -107,7 +107,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--results", required=True)
     ap.add_argument("--test_json", required=True)
-    ap.add_argument("--max_time", type=float, default=60.0)
+    ap.add_argument("--max_time", type=float, default=9999.9)
     ap.add_argument("--out_dir", default=None)
     ap.add_argument("--progress_log", default=None,
                     help="When set, append a single-line JSON snapshot of metrics to this JSONL file.")
