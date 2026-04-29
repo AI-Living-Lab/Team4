@@ -24,9 +24,10 @@
 #       BASE_MODEL_ID=base/video_salmonn2_plus_7B_time_tokens \
 #       TESTSET=unav100 GPUS=0
 #
-# 결과 경로
-#   $OUT_DIR = outputs/<stage>/<model>/<ckpt>/<TESTSET>/  (LoRA)
-#            = outputs/base/<base_model>/<TESTSET>/        (CKPT_STEP=base)
+# 결과 경로 (EVAL_TAG = fps<round(1/BASE_INTERVAL)>_<format> ; format ∈ off/natural/tti)
+#   $OUT_DIR = outputs/<stage>/<model>/<CKPT_FOLDER>/<EVAL_TAG>/<TESTSET>/  (LoRA)
+#            = outputs/base/<base_model>/<EVAL_TAG>/<TESTSET>/                 (CKPT_STEP=base)
+#   예) outputs/sft/salmonn2p_7b_unav_fps10_tti/checkpoint-100/fps10_tti/unav100/
 #     test_results_rank0.json    : master, chunk 별 append
 #     eval_miou_summary.json     : 매 chunk 후 갱신
 #     eval_miou_progress.jsonl   : chunk 별 timestamp + metrics 누적
@@ -100,13 +101,23 @@ NUM_GPUS=$(echo "$GPUS" | awk -F',' '{print NF}')
 export CUDA_VISIBLE_DEVICES=$GPUS
 export ARNOLD_WORKER_GPU=$NUM_GPUS
 
+# ---- EVAL_TAG = fps<N>_<format>  (config.yaml 기반 자동 생성) ----
+FPS_INT=$(awk -v b="${BASE_INTERVAL:-0.2}" 'BEGIN { printf "%d", (1.0/b)+0.5 }')
+case "${TTI_TIME_FORMAT:-off}" in
+    off)            FORMAT_TAG=off ;;
+    natural_text)   FORMAT_TAG=natural ;;
+    special_token)  FORMAT_TAG=tti ;;
+    *)              FORMAT_TAG="${TTI_TIME_FORMAT:-off}" ;;
+esac
+EVAL_TAG="fps${FPS_INT}_${FORMAT_TAG}"
+
 # ---- 경로 ----
 BASE_CODE="${BASE_DIR}/video_SALMONN2_plus"
 MODEL_BASE="${CKPT_DIR}/${BASE_MODEL_ID}"
 MODEL_DIR="${CKPT_DIR}/${STAGE}/${CKPT_MODEL_ID}"
 EVAL_SCRIPT="${BASE_DIR}/eval/eval_miou_multiseg.py"
 HELPER="${BASE_DIR}/eval/_chunk_helpers.py"
-CHUNKS_DIR="${BASE_DIR}/data/test/${TESTSET}"
+CHUNKS_DIR="${TEST_DIR}/${TESTSET}"
 
 # ---- chunks 검증 ----
 if [ ! -d "$CHUNKS_DIR" ]; then
@@ -153,9 +164,9 @@ else
 fi
 
 if [ "$IS_BASE_EVAL" = "true" ]; then
-    OUT_DIR="${BASE_DIR}/outputs/base/${BASE_MODEL_ID}/${TESTSET}"
+    OUT_DIR="${EVAL_DIR}/base/${BASE_MODEL_ID}/${EVAL_TAG}/${TESTSET}"
 else
-    OUT_DIR="${BASE_DIR}/outputs/${STAGE}/${CKPT_MODEL_ID}/${CKPT_FOLDER}/${TESTSET}"
+    OUT_DIR="${EVAL_DIR}/${STAGE}/${CKPT_MODEL_ID}/${CKPT_FOLDER}/${EVAL_TAG}/${TESTSET}"
 fi
 mkdir -p "$OUT_DIR"
 
@@ -188,6 +199,7 @@ cat <<EOF
   CKPT_STEP         : ${CKPT_STEP:-<latest>}  ->  $CKPT_FOLDER
   LORA_CKPT         : $LORA_CKPT
   BASE_MODEL_ID     : $BASE_MODEL_ID
+  EVAL_TAG          : $EVAL_TAG  (BASE_INTERVAL=$BASE_INTERVAL → fps=$FPS_INT, TTI=${TTI_TIME_FORMAT:-off})
   TESTSET           : $TESTSET  ($N_CHUNKS chunks, $N_TOTAL samples)
   GPUS              : $GPUS  (count=$NUM_GPUS)
   OUT_DIR           : $OUT_DIR

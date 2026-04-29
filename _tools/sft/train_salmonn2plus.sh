@@ -17,9 +17,15 @@
 #   STAGE         : sft | gdpo  (대소문자 무관, 기본값 sft)
 #                   -> 체크포인트 저장 위치의 하위 폴더를 결정
 #   MODEL_ID      : 학습 산출물 식별자.
-#                   네이밍 규칙: {model}_{size}_{dataset}_{설정tag}
-#                   예) salmonn2p_7b_unav_baseline, salmonn2p_7b_unav_tti
-#   TRAINSET_FILE  : ${JSON_DIR} 아래 학습 json 파일명
+#                   네이밍 규칙: {model}_{size}_{dataset}_fps{N}_{format}
+#                     - {format} = off | natural | tti
+#                     - {N}      = 1/BASE_INTERVAL 의 정수
+#                   예) salmonn2p_7b_unav_fps10_tti       (BASE_INTERVAL=0.1, special_token)
+#                       salmonn2p_7b_unav_fps10_natural   (BASE_INTERVAL=0.1, natural_text)
+#                       salmonn2p_7b_unav_fps5_off        (BASE_INTERVAL=0.2, off)
+#                   config.yaml 의 BASE_INTERVAL / TTI_TIME_FORMAT 와 불일치 시 경고.
+#   TRAINSET_FILE : ${TRAIN_DIR} (= ${JSON_DIR}/train) 아래 학습 json 파일명
+#                   예) unav100_sft.json -> ${TRAIN_DIR}/unav100_sft.json
 #   BASE_MODEL_ID : ${CKPT_DIR} 아래 베이스 모델 폴더명
 #   GPUS          : 사용할 GPU id 목록 (콤마 구분, 예: "0" / "0,1,2,3")
 #   CONFIG        : 하이퍼파라미터 yaml 파일명 (스크립트와 같은 폴더 기준)
@@ -44,14 +50,23 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEAM_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 source /workspace/setup.sh
 conda activate salmonn2plus
 
+# paths.env 로드 (BASE_DIR / CKPT_DIR / JSON_DIR / TRAIN_DIR 등 정의)
+if [ -f "$TEAM_ROOT/paths.env" ]; then
+    source "$TEAM_ROOT/paths.env"
+else
+    echo "[에러] paths.env 없음: $TEAM_ROOT/paths.env" >&2
+    exit 1
+fi
+
 # ---- 기본값 ----
 STAGE=sft
-MODEL_ID=salmonn2p_unav_baseline
-TRAINSET_FILE=unav100_train_multiseg_salmonn2plus.json
+MODEL_ID=salmonn2p_7b_unav_fps10_off
+TRAINSET_FILE=unav100_sft.json
 BASE_MODEL_ID=video_salmonn2_plus_7B_time_tokens
 GPUS=0
 CONFIG=config.yaml
@@ -108,6 +123,51 @@ while IFS= read -r line || [ -n "$line" ]; do
     eval "$key=\"\$val\""
 done < "$CONFIG_DIR"
 
+# ---- MODEL_ID vs config.yaml 일치성 검증 (경고만, 학습은 계속 진행) ----
+# config.yaml 의 BASE_INTERVAL / TTI_TIME_FORMAT 와 MODEL_ID 의 토큰을 비교해서
+# 실험 식별이 헷갈리지 않게 안내한다.
+FPS_INT=$(awk -v b="${BASE_INTERVAL:-0.2}" 'BEGIN { printf "%d", (1.0/b)+0.5 }')
+case "${TTI_TIME_FORMAT:-off}" in
+    off)            FORMAT_TAG=off ;;
+    natural_text)   FORMAT_TAG=natural ;;
+    special_token)  FORMAT_TAG=tti ;;
+    *)              FORMAT_TAG="${TTI_TIME_FORMAT:-off}" ;;
+esac
+
+issues=()
+if [[ "$MODEL_ID" != *"fps${FPS_INT}"* ]]; then
+    issues+=("MODEL_ID 에 'fps${FPS_INT}' 가 없음  (config.BASE_INTERVAL=${BASE_INTERVAL} → fps=${FPS_INT})")
+fi
+if [[ "$MODEL_ID" != *"${FORMAT_TAG}"* ]]; then
+    issues+=("MODEL_ID 에 '${FORMAT_TAG}' 가 없음  (config.TTI_TIME_FORMAT=${TTI_TIME_FORMAT:-off} → '${FORMAT_TAG}')")
+fi
+for other in off natural tti; do
+    if [ "$other" != "$FORMAT_TAG" ] && [[ "$MODEL_ID" == *"_${other}"* ]]; then
+        issues+=("MODEL_ID 에 '_${other}' 가 들어있음  (config 와 다른 모드 토큰 — 예상 '_${FORMAT_TAG}')")
+    fi
+done
+
+if [ "${#issues[@]}" -gt 0 ]; then
+    BASE_NAME=$(echo "$MODEL_ID" | sed -E 's/_fps[0-9]+//; s/_(off|natural|tti)//g')
+    cat >&2 <<EOF
+
+[경고] MODEL_ID 와 config.yaml 의 설정이 어긋나 보입니다.
+  MODEL_ID    : ${MODEL_ID}
+  config.yaml : BASE_INTERVAL=${BASE_INTERVAL}  →  fps=${FPS_INT}
+                TTI_TIME_FORMAT=${TTI_TIME_FORMAT:-off}  →  '${FORMAT_TAG}'
+  발견된 문제 :
+EOF
+    for it in "${issues[@]}"; do echo "    - $it" >&2; done
+    cat >&2 <<EOF
+  권장 이름   : ${BASE_NAME}_fps${FPS_INT}_${FORMAT_TAG}
+                (네이밍 규칙: <base>_fps<N>_<off|natural|tti>)
+
+  ※ 학습은 그대로 진행됩니다. 의도한 네이밍이면 무시,
+    실수라면 Ctrl+C 후 MODEL_ID 를 다시 지정해 재실행하세요.
+
+EOF
+fi
+
 # ---- GPU 개수 자동 계산 ----
 NUM_GPUS=$(echo "$GPUS" | awk -F',' '{print NF}')
 
@@ -122,7 +182,14 @@ cd "${BASE_DIR}/video_SALMONN2_plus"
 # ---- 경로 조립 ----
 MODEL=${CKPT_DIR}/${BASE_MODEL_ID}
 MODEL_BASE=${CKPT_DIR}/${BASE_MODEL_ID}
-DATASET=${JSON_DIR}/${TRAINSET_FILE}
+# TRAIN_DIR (paths.env: ${JSON_DIR}/train) 아래에서 학습 JSON 탐색
+DATASET=${TRAIN_DIR}/${TRAINSET_FILE}
+if [ ! -f "$DATASET" ]; then
+    echo "[에러] 학습 JSON 없음: $DATASET" >&2
+    echo "  TRAIN_DIR=${TRAIN_DIR}" >&2
+    echo "  TRAINSET_FILE=${TRAINSET_FILE}" >&2
+    exit 1
+fi
 # 체크포인트는 stage 별 폴더에 분리 저장: checkpoints/{sft|gdpo}/{MODEL_ID}/
 MODEL_DIR=${CKPT_DIR}/${STAGE}/${MODEL_ID}
 
