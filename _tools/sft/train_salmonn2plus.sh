@@ -187,4 +187,5 @@ torchrun --standalone --nproc_per_node=$ARNOLD_WORKER_GPU \
     --base_interval "$BASE_INTERVAL" \
     --train_type "$TRAIN_TYPE" \
     --no_audio "$NO_AUDIO" \
+    --tti_time_format "${TTI_TIME_FORMAT:-special_token}" \
     2>&1 | tee -a "$MODEL_DIR/train.log"
