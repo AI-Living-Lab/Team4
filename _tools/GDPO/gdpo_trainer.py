@@ -171,7 +171,7 @@ class GDPOTrainer(Trainer):
             max_new_tokens=self.max_completion_length,
             do_sample=True,
             temperature=self.temperature,
-            top_p=0.9,
+            top_p=0.95,
             num_return_sequences=self.num_generations,
             pad_token_id=pad_token_id,
         )
