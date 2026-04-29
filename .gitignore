@@ -211,3 +211,6 @@ data/stage3.json
 
 # 구버전 GDPO
 _tools/GDPO(OLD)/
+
+# 평가 결과
+outputs/
