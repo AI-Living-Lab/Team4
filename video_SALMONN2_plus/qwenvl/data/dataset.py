@@ -61,6 +61,28 @@ def sec_to_time_token_str(sec: float) -> str:
     d1, d2, d3, d4 = (i // 1000) % 10, (i // 100) % 10, (i // 10) % 10, i % 10
     return f"<t{d1}><t{d2}><t{d3}><t{d4}><tdot><t{f}>"
 
+
+def sec_to_natural_text_str(sec: float) -> str:
+    # 초 → 'second{XXXX.Y}' 형식. zero-pad 4자리 정수부 + '.Y' 소수부 = 9 토큰 고정
+    # (Qwen2.5 BPE: ['second','{','D','D','D','D','.','D','}']).
+    # 범위/정밀도는 special_token 모드와 동일.
+    sec = max(0.0, min(9999.9, sec))
+    return f"second{{{sec:06.1f}}}"
+
+
+def make_time_marker_string(sec: float, tti_time_format: str) -> str:
+    # tti_time_format에 따라 입력 측 시간 마커 문자열을 생성. 출력 측(GT)은 무관.
+    if tti_time_format == "natural_text":
+        return sec_to_natural_text_str(sec)
+    return sec_to_time_token_str(sec)
+
+
+# 모드별 청크당 마커 토큰 수 (zero-padded 자연어는 항상 9, 특수토큰은 항상 6)
+_TIME_MARKER_TOKEN_LEN = {
+    "special_token": 6,
+    "natural_text": 9,
+}
+
 def rank0_print(*args):
     if local_rank == 0:
         print(*args)
@@ -101,13 +123,14 @@ def split_into_groups(counts, groups, second_per_grid_ts=None):
 
 def generate_id_target(
     source,
-    grid_thw_image, 
-    grid_thw_video, 
-    audio_lengths, 
-    tokenizer, 
+    grid_thw_image,
+    grid_thw_video,
+    audio_lengths,
+    tokenizer,
     target_role,
     merge_size: int = 2,
-    second_per_grid_ts: List = []
+    second_per_grid_ts: List = [],
+    tti_time_format: str = "special_token",
 ):
     visual_replicate_index_image = 0
     visual_replicate_index_video = 0
@@ -177,7 +200,7 @@ def generate_id_target(
                         for timestep in range(grid_thw_video[i][0]):
                             if sec_per_grid_t is not None:
                                 t_start_sec = timestep * sec_per_grid_t
-                                replacement += sec_to_time_token_str(t_start_sec)
+                                replacement += make_time_marker_string(t_start_sec, tti_time_format)
                             replacement += (
                                 f"<|video_pad|>"
                                 * (grid_thw_video[i][1] * grid_thw_video[i][2] // merge_size**2)
@@ -223,7 +246,8 @@ def preprocess_qwen_2_visual(
     grid_thw_video: List = [],
     audio_lengths = None,
     merge_size=2,
-    second_per_grid_ts: List = []
+    second_per_grid_ts: List = [],
+    tti_time_format: str = "special_token",
 ) -> Dict:
     if second_per_grid_ts is not None and isinstance(second_per_grid_ts, list) and not isinstance(second_per_grid_ts[0], list):
         second_per_grid_ts = [second_per_grid_ts]
@@ -252,14 +276,14 @@ def preprocess_qwen_2_visual(
                 is_dpo_data = True
                 break
         
-        input_id, target = generate_id_target(source, grid_thw_image, grid_thw_video, audio_lengths, tokenizer, "gpt", merge_size, second_per_grid_ts)
+        input_id, target = generate_id_target(source, grid_thw_image, grid_thw_video, audio_lengths, tokenizer, "gpt", merge_size, second_per_grid_ts, tti_time_format)
         assert len(input_id) == len(target), f"{len(input_id)} != {len(target)}"
         input_ids.append(input_id)
         targets.append(target)
 
         if is_dpo_data:
-            chosen_id, chosen_target = generate_id_target(source, grid_thw_image, grid_thw_video, audio_lengths, tokenizer, "chosen", merge_size, second_per_grid_ts)
-            reject_id, reject_target = generate_id_target(source, grid_thw_image, grid_thw_video, audio_lengths, tokenizer, "reject", merge_size, second_per_grid_ts)
+            chosen_id, chosen_target = generate_id_target(source, grid_thw_image, grid_thw_video, audio_lengths, tokenizer, "chosen", merge_size, second_per_grid_ts, tti_time_format)
+            reject_id, reject_target = generate_id_target(source, grid_thw_image, grid_thw_video, audio_lengths, tokenizer, "reject", merge_size, second_per_grid_ts, tti_time_format)
 
             assert len(chosen_id) == len(chosen_target), f"{len(chosen_id)}!= {len(chosen_target)}"
             assert len(reject_id) == len(reject_target), f"{len(reject_id)}!= {len(reject_target)}"
@@ -314,15 +338,42 @@ class LazySupervisedDataset(Dataset):
         else:
             self.get_rope_index = get_rope_index_2
 
-        # 타임토큰 ID 범위 [lo, hi] 계산 — <t0>와 <tdot>이 vocab에 등록된 경우에만 활성화.
+        # TTI input-side time marker 모드. data_args에서 가져옴; default=special_token.
+        self.tti_time_format = getattr(data_args, "tti_time_format", "special_token")
+        assert self.tti_time_format in _TIME_MARKER_TOKEN_LEN, (
+            f"Unknown tti_time_format: {self.tti_time_format}. "
+            f"Choices: {list(_TIME_MARKER_TOKEN_LEN.keys())}"
+        )
+        self.time_marker_token_len = _TIME_MARKER_TOKEN_LEN[self.tti_time_format]
+
+        # 타임토큰 ID 범위 [lo, hi] 계산 — special_token 모드에서만 input-side 식별에 사용.
         # ID 11개는 pre-baked 체크포인트에서 연속으로 부여되므로 (lo, hi) 튜플로 충분.
-        t0_id = tokenizer.convert_tokens_to_ids("<t0>")
-        tdot_id = tokenizer.convert_tokens_to_ids("<tdot>")
-        unk = tokenizer.unk_token_id
-        if t0_id is not None and tdot_id is not None and t0_id != unk and tdot_id != unk:
-            self.time_token_id_range = (int(min(t0_id, tdot_id)), int(max(t0_id, tdot_id)))
+        # natural_text 모드에서는 input-side 마커가 일반 텍스트라 ID 매칭 불가 → None.
+        if self.tti_time_format == "special_token":
+            t0_id = tokenizer.convert_tokens_to_ids("<t0>")
+            tdot_id = tokenizer.convert_tokens_to_ids("<tdot>")
+            unk = tokenizer.unk_token_id
+            if t0_id is not None and tdot_id is not None and t0_id != unk and tdot_id != unk:
+                self.time_token_id_range = (int(min(t0_id, tdot_id)), int(max(t0_id, tdot_id)))
+            else:
+                self.time_token_id_range = None
         else:
+            # natural_text: rope2d는 (is_video|is_audio) 음수 마스크로 마커를 식별.
             self.time_token_id_range = None
+            # 길이 불변 검증: 'second{XXXX.Y}' 가 실제로 9 토큰인지 sanity check.
+            sample_lens = set()
+            for s in [0.0, 9.9, 99.9, 999.9, 9999.9, 1234.5]:
+                ids = tokenizer.encode(sec_to_natural_text_str(s), add_special_tokens=False)
+                sample_lens.add(len(ids))
+            assert sample_lens == {self.time_marker_token_len}, (
+                f"natural_text marker length not invariant: got {sample_lens}, "
+                f"expected {{{self.time_marker_token_len}}}. "
+                f"Tokenizer may have changed; review sec_to_natural_text_str()."
+            )
+            rank0_print(
+                f"[TTI/natural_text] marker_token_len={self.time_marker_token_len}, "
+                f"sample='{sec_to_natural_text_str(15.6)}'"
+            )
 
         # TTI debug dump counter (run_test + debug_interleave_dir 에서만 쓰임)
         self._debug_dump_count = 0
@@ -621,6 +672,7 @@ class LazySupervisedDataset(Dataset):
                 audio_lengths=audio_lengths if audio_lengths else None,
                 merge_size=self.data_args.image_processor.merge_size,
                 second_per_grid_ts=second_per_grid_ts if second_per_grid_ts else None,
+                tti_time_format=self.tti_time_format,
             )
             position_ids, _ = self.get_rope_index(
                 self.data_args.image_processor.merge_size,
@@ -632,6 +684,7 @@ class LazySupervisedDataset(Dataset):
                 second_per_grid_ts=second_per_grid_ts if second_per_grid_ts else None,
                 audio_lengths=audio_lengths if audio_lengths else None,
                 time_token_id_range=self.time_token_id_range,
+                time_marker_token_len=self.time_marker_token_len,
             )
             if data_dict["chosen_ids"] is not None:
                 chosen_position_ids, _ = self.get_rope_index(
@@ -644,6 +697,7 @@ class LazySupervisedDataset(Dataset):
                     second_per_grid_ts=second_per_grid_ts if second_per_grid_ts else None,
                     audio_lengths=audio_lengths if audio_lengths else None,
                     time_token_id_range=self.time_token_id_range,
+                    time_marker_token_len=self.time_marker_token_len,
                 )
             else:
                 chosen_position_ids = None
@@ -658,6 +712,7 @@ class LazySupervisedDataset(Dataset):
                     second_per_grid_ts=second_per_grid_ts if second_per_grid_ts else None,
                     audio_lengths=audio_lengths if audio_lengths else None,
                     time_token_id_range=self.time_token_id_range,
+                    time_marker_token_len=self.time_marker_token_len,
                 )
             else:
                 reject_position_ids = None

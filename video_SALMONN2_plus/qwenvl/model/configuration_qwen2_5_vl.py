@@ -377,6 +377,8 @@ class Qwen2_5_VLConfig(PretrainedConfig):
         audio_config=None,
         rope_scaling=None,
         audio_token_id=151665,
+        tti_time_format="special_token",
+        time_marker_token_len=6,
         **kwargs,
     ):
         if isinstance(vision_config, dict):
@@ -414,6 +416,11 @@ class Qwen2_5_VLConfig(PretrainedConfig):
         self.attention_dropout = attention_dropout
         self.rope_scaling = rope_scaling
         self.audio_token_id = audio_token_id
+        # TTI input-side marker 모드. "special_token"(6토큰 <tD><tD><tD><tD><tdot><tD>)
+        # 또는 "natural_text"(9토큰 'second{XXXX.Y}'). 출력은 항상 special_token.
+        self.tti_time_format = tti_time_format
+        # 청크당 마커 토큰 수. special_token=6, natural_text=9 (zero-padded XXXX.Y).
+        self.time_marker_token_len = time_marker_token_len
 
         # Validate the correctness of rotary position embeddings parameters
         # BC: if there is a 'type' field, move it to 'rope_type'.

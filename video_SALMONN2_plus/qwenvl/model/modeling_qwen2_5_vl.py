@@ -1817,12 +1817,19 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
         second_per_grid_ts=None,
         attention_mask=None,
         time_token_id_range=None,
+        time_marker_token_len=None,
     ):
         """
         멀티모달 3D RoPE 인덱스 계산. 실제 로직은 rope2d.get_rope_index_25 에 위임하며,
-        여기서는 모델 config 에서 spatial_merge_size 와 (선택) time_token_id_range 를
-        꺼내 넘긴다. 체크포인트 config 에 time_token_id_range 가 [lo, hi] 로 저장되어
-        있으면 타임토큰 인터리빙 경로가 활성화된다.
+        여기서는 모델 config 에서 spatial_merge_size 와 (선택) time_token_id_range,
+        time_marker_token_len 을 꺼내 넘긴다.
+
+        TTI 활성화 신호:
+          - special_token 모드: config.time_token_id_range = [lo, hi],
+                                config.time_marker_token_len = 6
+          - natural_text  모드: config.time_token_id_range = None (또는 미설정),
+                                config.time_marker_token_len = 9
+          - TTI off          : 둘 다 미설정/None
 
         주의: rope2d.get_rope_index_25 는 image/video/audio/vision_start 토큰 ID 를
         하드코딩(151655/151656/151665/151652) 한다. pre-baked 체크포인트의 config 값과
@@ -1833,6 +1840,11 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
             if cfg_range is not None:
                 time_token_id_range = tuple(cfg_range)
 
+        if time_marker_token_len is None:
+            cfg_len = getattr(self.config, "time_marker_token_len", None)
+            if cfg_len is not None and cfg_len > 0:
+                time_marker_token_len = int(cfg_len)
+
         return _rope2d_get_rope_index_25(
             spatial_merge_size=self.config.vision_config.spatial_merge_size,
             input_ids=input_ids,
@@ -1842,6 +1854,7 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
             second_per_grid_ts=second_per_grid_ts,
             attention_mask=attention_mask,
             time_token_id_range=time_token_id_range,
+            time_marker_token_len=time_marker_token_len,
         )
 
     # -------------------------------------------------------------------------
