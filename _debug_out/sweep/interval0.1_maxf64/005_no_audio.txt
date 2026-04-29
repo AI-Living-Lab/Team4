@@ -1,0 +1,23 @@
+=== no_audio  (duration=57.72s) ===
+video: /workspace/datasets/unav_100/videos/0wVUKsMohpU.mp4
+audio: None  use_audio=False
+config: base_interval=0.1  video_frames=[64,64]  pixels=[784..176400]  merge=2
+seq_len=1064  text=38  time=0  video_pad=1024  audio_pad=0  vis_start/end=1/1
+
+layout:
+  (no vision span — pure text/audio path)
+
+time markers (0): []
+
+RoPE samples (t, h, w):
+  pos=   14  vision_start                          t=   14 h=  14 w=  14
+  pos= 1039  vision_end                            t=  127 h= 127 w= 127
+t_axis (vision): range=[14, 127]  monotonic=True
+
+validation:
+    mode: video_only
+  - time_tokens_eq_6T: N/A (not tti mode)
+  - num_chunks_eq_T: N/A (not tti mode)
+    expected_per_chunk_video_pad: 32
+  ✓ video_pad_total_eq_T_times_per_chunk: True
+  ✓ rope_t_monotonic_vision: True

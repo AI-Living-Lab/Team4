@@ -410,15 +410,24 @@ def train(attn_implementation="flash_attention_2"):
                     "should_use": inputs.pop("should_use", True),
                 }
                 inputs = {k: v.to(f"cuda:{torch.cuda.current_device()}") for k, v in inputs.items() if isinstance(v, torch.Tensor)}
+                # debug_interleave_dir 가 설정되고 debug_interleave_generate 가 False 면
+                # dataset hook 이 이미 덤프했으니 model.generate 를 스킵한다.
+                _dbg_skip = (
+                    bool(getattr(data_args, "debug_interleave_dir", ""))
+                    and not getattr(data_args, "debug_interleave_generate", False)
+                )
                 for _ in range(data_args.num_sample):
-                    with torch.no_grad():
-                        outputs = model.generate(
-                            **inputs,
-                            max_new_tokens=1024,
-                            do_sample=data_args.do_sample,
-                            top_p=0.9)
-                    output_trimmed = outputs[0, len(inputs["input_ids"][0]):]
-                    output_text = tokenizer.decode(output_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+                    if _dbg_skip:
+                        output_text = "[debug_interleave: generate skipped]"
+                    else:
+                        with torch.no_grad():
+                            outputs = model.generate(
+                                **inputs,
+                                max_new_tokens=1024,
+                                do_sample=data_args.do_sample,
+                                top_p=0.9)
+                        output_trimmed = outputs[0, len(inputs["input_ids"][0]):]
+                        output_text = tokenizer.decode(output_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False)
                     if data_args.num_sample == 1:
                         res_i["pred"] = output_text
                     else:

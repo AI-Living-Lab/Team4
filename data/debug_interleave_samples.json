@@ -1,0 +1,228 @@
+[
+  {
+    "video": "/workspace/datasets/unav_100/videos/gwAP-vfQyRU.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/gwAP-vfQyRU.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nIn which segments of the video do we find fire truck siren visually or audibly represented?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t2><tdot><t4>."
+      }
+    ],
+    "gt_label": "fire truck siren",
+    "gt_segments": [
+      [
+        0,
+        12.39344
+      ]
+    ],
+    "_debug_tag": "short",
+    "_debug_note": "duration=15.6s (최단 계열)",
+    "_duration_sec": 15.58
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/I0Rj_topRmI.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/I0Rj_topRmI.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nWhere in the video can we detect telephone bell ringing, both in the visuals and in the audio track?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t5><tdot><t7> to <t0><t0><t1><t5><tdot><t0>."
+      }
+    ],
+    "gt_label": "telephone bell ringing",
+    "gt_segments": [
+      [
+        5.661,
+        15.0212
+      ]
+    ],
+    "_debug_tag": "medium",
+    "_debug_note": "duration=20.1s (중간)",
+    "_duration_sec": 20.13
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0wVUKsMohpU.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/0wVUKsMohpU.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does man speaking occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t6><tdot><t3>. From <t0><t0><t4><t6><tdot><t7> to <t0><t0><t5><t1><tdot><t7>."
+      }
+    ],
+    "gt_label": "man speaking",
+    "gt_segments": [
+      [
+        0,
+        6.29053
+      ],
+      [
+        46.735,
+        51.73497
+      ]
+    ],
+    "_debug_tag": "long_60s",
+    "_debug_note": "duration=57.7s (~60s)",
+    "_duration_sec": 57.72
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0Y2j3j5l8J0.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/0Y2j3j5l8J0.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nWhich parts of the video showcase child singing in both imagery and sound?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t1> to <t0><t0><t4><t8><tdot><t7>. From <t0><t0><t5><t7><tdot><t8> to <t0><t0><t5><t9><tdot><t9>."
+      }
+    ],
+    "gt_label": "child singing",
+    "gt_segments": [
+      [
+        0.1468,
+        48.7377
+      ],
+      [
+        57.759,
+        59.89344
+      ]
+    ],
+    "_debug_tag": "longest",
+    "_debug_note": "duration=60.0s (최장)",
+    "_duration_sec": 60.03
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/3nqELeTLYBs.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/3nqELeTLYBs.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does people eating occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t1><t4><tdot><t6>. From <t0><t0><t1><t7><tdot><t6> to <t0><t0><t3><t2><tdot><t2>. From <t0><t0><t3><t5><tdot><t8> to <t0><t0><t4><t5><tdot><t0>."
+      }
+    ],
+    "gt_label": "people eating",
+    "gt_segments": [
+      [
+        0,
+        14.55589
+      ],
+      [
+        17.556,
+        32.19225
+      ],
+      [
+        35.829,
+        45.96498
+      ]
+    ],
+    "_debug_tag": "multiseg_3plus",
+    "_debug_note": "segments=3, duration=46.0s",
+    "_duration_sec": 46.01
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/24oYHGAu0mw.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/24oYHGAu0mw.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nCan you identify the timestamps where dog barking happens in the video?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t2><tdot><t9> to <t0><t0><t0><t9><tdot><t7>. From <t0><t0><t2><t0><tdot><t0> to <t0><t0><t2><t2><tdot><t2>."
+      }
+    ],
+    "gt_label": "dog barking",
+    "gt_segments": [
+      [
+        2.892,
+        9.68322
+      ],
+      [
+        20.014,
+        22.21263
+      ]
+    ],
+    "_debug_tag": "multiseg_short",
+    "_debug_note": "segments=2, duration=24.9s",
+    "_duration_sec": 24.87
+  },
+  {
+    "video": "/workspace/datasets/unav_100/videos/0wVUKsMohpU.mp4",
+    "use_audio": false,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "<video>\nAt what point in the video does man speaking occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t6><tdot><t3>. From <t0><t0><t4><t6><tdot><t7> to <t0><t0><t5><t1><tdot><t7>."
+      }
+    ],
+    "gt_label": "man speaking",
+    "gt_segments": [
+      [
+        0,
+        6.29053
+      ],
+      [
+        46.735,
+        51.73497
+      ]
+    ],
+    "_debug_tag": "no_audio",
+    "_debug_note": "0wVUKsMohpU.mp4 복제 — audio key 제거, use_audio=false (duration=57.7s)",
+    "_duration_sec": 57.72
+  },
+  {
+    "audio": "/workspace/datasets/unav_100/audio/0wVUKsMohpU.wav",
+    "use_audio": true,
+    "conversations": [
+      {
+        "from": "human",
+        "value": "At what point in the video does man speaking occur in terms of both video and audio?"
+      },
+      {
+        "from": "gpt",
+        "value": "From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t6><tdot><t3>. From <t0><t0><t4><t6><tdot><t7> to <t0><t0><t5><t1><tdot><t7>."
+      }
+    ],
+    "gt_label": "man speaking",
+    "gt_segments": [
+      [
+        0,
+        6.29053
+      ],
+      [
+        46.735,
+        51.73497
+      ]
+    ],
+    "_debug_tag": "no_video",
+    "_debug_note": "ref(long_60s) 복제 — video key 제거, <video> 태그 제거 (duration≈57.7s)",
+    "_duration_sec": 57.72
+  }
+]

@@ -1,0 +1,440 @@
+"""
+TTI 디버그 모드 — dataset collate 직후 한 샘플의 인터리빙 구조를 덤프.
+
+단일 진입점: dump_sample(...)
+  <out_dir>/<NNN>_<tag>.json  — 구조화된 덤프 (config, counts, chunks, time_markers, rope, validation)
+  <out_dir>/<NNN>_<tag>.txt   — 사람이 읽는 요약 (layout, time marker strip, RoPE samples)
+
+상수: TOKENS_PER_MARKER = 6  (정수부 4 + <tdot> + 소수부 1)
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import torch
+
+TOKENS_PER_MARKER = 6
+
+
+# ---------------- Token 분류 ----------------
+
+def _special_ids(tokenizer) -> Dict[str, Optional[int]]:
+    unk = tokenizer.unk_token_id
+    names = {
+        "vision_start": "<|vision_start|>",
+        "vision_end":   "<|vision_end|>",
+        "video_pad":    "<|video_pad|>",
+        "audio_pad":    "<|audio_pad|>",
+        "image_pad":    "<|image_pad|>",
+        "tdot":         "<tdot>",
+    }
+    out: Dict[str, Optional[int]] = {}
+    for k, tok in names.items():
+        tid = tokenizer.convert_tokens_to_ids(tok)
+        out[k] = tid if (tid is not None and tid != unk) else None
+    return out
+
+
+def _classify(tid: int, spec: Dict[str, Optional[int]],
+              tt_range: Optional[Tuple[int, int]]) -> str:
+    if tid == spec["vision_start"]: return "vision_start"
+    if tid == spec["vision_end"]:   return "vision_end"
+    if tid == spec["video_pad"]:    return "video_pad"
+    if tid == spec["audio_pad"]:    return "audio_pad"
+    if tid == spec["image_pad"]:    return "image_pad"
+    if tt_range is not None:
+        lo, hi = tt_range
+        if lo <= tid <= hi:
+            return "time_token"
+    return "text"
+
+
+# ---------------- Time marker 파싱 ----------------
+
+def _parse_time_markers(
+    input_ids: List[int],
+    tt_range: Tuple[int, int],
+    tdot_id: int,
+    tokenizer,
+) -> List[Dict[str, Any]]:
+    """연속된 time-token run 을 6 토큰 단위 marker 로 분할. seconds 로 복원."""
+    lo, hi = tt_range
+    markers: List[Dict[str, Any]] = []
+    n = len(input_ids)
+    i = 0
+    while i < n:
+        if lo <= input_ids[i] <= hi:
+            j = i
+            while j < n and lo <= input_ids[j] <= hi:
+                j += 1
+            # run [i, j) 를 6 단위로 쪼갬
+            for k in range(i, j, TOKENS_PER_MARKER):
+                seg = input_ids[k:k + TOKENS_PER_MARKER]
+                m: Dict[str, Any] = {
+                    "pos": k,
+                    "end": k + len(seg),
+                    "tokens": tokenizer.convert_ids_to_tokens(seg),
+                }
+                ok = len(seg) == TOKENS_PER_MARKER and seg[4] == tdot_id
+                if ok:
+                    d = [seg[x] - lo for x in (0, 1, 2, 3)]
+                    f = seg[5] - lo
+                    if all(0 <= x <= 9 for x in d) and 0 <= f <= 9:
+                        m["seconds"] = (d[0] * 1000 + d[1] * 100 + d[2] * 10 + d[3]) + f / 10.0
+                    else:
+                        m["malformed"] = True
+                else:
+                    m["malformed"] = True
+                markers.append(m)
+            i = j
+        else:
+            i += 1
+    return markers
+
+
+# ---------------- Vision span / chunk layout ----------------
+
+def _find_vision_span(categories: List[str]) -> Optional[Tuple[int, int]]:
+    try:
+        s = categories.index("vision_start")
+        e = categories.index("vision_end", s)
+        return s, e
+    except ValueError:
+        return None
+
+
+def _chunk_layout(
+    categories: List[str],
+    vision_span: Tuple[int, int],
+    time_markers: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """vision span 내부의 time marker 를 chunk 시작으로 삼아 집계."""
+    s, e = vision_span
+    in_span = [m for m in time_markers if s <= m["pos"] < e]
+    chunks: List[Dict[str, Any]] = []
+    for idx, m in enumerate(in_span):
+        start = m["pos"]
+        end = in_span[idx + 1]["pos"] if idx + 1 < len(in_span) else e
+        body_start = m["end"]
+        n_vid = n_aud = n_time = n_other = 0
+        for p in range(body_start, end):
+            c = categories[p]
+            if c == "video_pad": n_vid += 1
+            elif c == "audio_pad": n_aud += 1
+            elif c == "time_token": n_time += 1
+            else: n_other += 1
+        chunks.append({
+            "idx": idx,
+            "start_pos": start,
+            "end_pos": end,
+            "time_marker_seconds": m.get("seconds"),
+            "time_marker_tokens": m["tokens"],
+            "n_video_pad": n_vid,
+            "n_audio_pad": n_aud,
+            "n_stray_time": n_time,
+            "n_stray_other": n_other,
+        })
+    return chunks
+
+
+# ---------------- RoPE sample ----------------
+
+def _rope_samples(
+    position_ids_2d: torch.Tensor,   # [3, N]
+    categories: List[str],
+    vision_span: Optional[Tuple[int, int]],
+    chunks: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    t_axis = position_ids_2d[0].tolist()
+    h_axis = position_ids_2d[1].tolist()
+    w_axis = position_ids_2d[2].tolist()
+
+    def pick(pos: int, kind: str) -> Dict[str, Any]:
+        return {"pos": pos, "kind": kind,
+                "t": t_axis[pos], "h": h_axis[pos], "w": w_axis[pos]}
+
+    samples: List[Dict[str, Any]] = []
+    if vision_span is None:
+        return {"samples": samples, "t_axis_range_vision": None,
+                "t_axis_monotonic_vision": None}
+
+    s, e = vision_span
+    samples.append(pick(s, "vision_start"))
+    for ch in chunks:
+        sec = ch["time_marker_seconds"]
+        tag = f"time_marker[{sec}]" if sec is not None else "time_marker[?]"
+        m_s = ch["start_pos"]
+        m_last = m_s + TOKENS_PER_MARKER - 1
+        samples.append(pick(m_s, f"{tag}_first"))
+        if m_last != m_s and m_last < len(t_axis):
+            samples.append(pick(m_last, f"{tag}_last"))
+        # video_pad
+        vid_pos = [p for p in range(m_s + TOKENS_PER_MARKER, ch["end_pos"])
+                   if categories[p] == "video_pad"]
+        if vid_pos:
+            samples.append(pick(vid_pos[0],  f"video_pad[ch={ch['idx']}]_first"))
+            if len(vid_pos) > 1:
+                samples.append(pick(vid_pos[-1], f"video_pad[ch={ch['idx']}]_last"))
+        # audio_pad
+        aud_pos = [p for p in range(m_s + TOKENS_PER_MARKER, ch["end_pos"])
+                   if categories[p] == "audio_pad"]
+        if aud_pos:
+            samples.append(pick(aud_pos[0],  f"audio_pad[ch={ch['idx']}]_first"))
+            if len(aud_pos) > 1:
+                samples.append(pick(aud_pos[-1], f"audio_pad[ch={ch['idx']}]_last"))
+    samples.append(pick(e, "vision_end"))
+
+    t_span = t_axis[s:e + 1]
+    mono = all(t_span[i] <= t_span[i + 1] for i in range(len(t_span) - 1))
+    return {
+        "samples": samples,
+        "t_axis_range_vision": [min(t_span), max(t_span)],
+        "t_axis_monotonic_vision": mono,
+    }
+
+
+# ---------------- Validation ----------------
+
+def _detect_mode(token_counts: Dict[str, int],
+                 grid_thw_video: Optional[List[List[int]]]) -> str:
+    has_vid = token_counts.get("video_pad", 0) > 0
+    has_time = token_counts.get("time_token", 0) > 0
+    has_aud_seq = token_counts.get("audio_pad", 0) > 0
+    if has_vid and has_time and has_aud_seq:
+        return "tti"           # 정식 TTI: video + audio + time token
+    if has_vid and not has_time:
+        return "video_only"    # 비디오만 (TTI 미활성 — audio 없거나 use_audio=False)
+    if has_aud_seq and not has_vid:
+        return "audio_only"
+    if grid_thw_video is None and not has_vid and not has_aud_seq:
+        return "text_only"
+    return "mixed"
+
+
+def _validate(
+    token_counts: Dict[str, int],
+    chunks: List[Dict[str, Any]],
+    grid_thw_video: Optional[List[List[int]]],
+    merge_size: int,
+    audio_lengths: Optional[List[int]],
+    rope_info: Dict[str, Any],
+    mode: str,
+) -> Dict[str, Any]:
+    """mode 에 해당하는 불변식만 체크. 부적용 필드는 'N/A (reason)' 문자열."""
+    v: Dict[str, Any] = {"mode": mode}
+
+    # ---- TTI 전용 ----
+    if mode == "tti" and grid_thw_video:
+        T = sum(g[0] for g in grid_thw_video)
+        v["time_tokens_eq_6T"] = token_counts.get("time_token", 0) == TOKENS_PER_MARKER * T
+        v["num_chunks_eq_T"] = len(chunks) == T
+    else:
+        v["time_tokens_eq_6T"] = "N/A (not tti mode)"
+        v["num_chunks_eq_T"] = "N/A (not tti mode)"
+
+    # ---- Video 있는 모든 모드 ----
+    if grid_thw_video:
+        per_chunk_vid = (grid_thw_video[0][1] * grid_thw_video[0][2]) // (merge_size ** 2)
+        v["expected_per_chunk_video_pad"] = per_chunk_vid
+        T = sum(g[0] for g in grid_thw_video)
+        if chunks:
+            v["video_pad_per_chunk_consistent"] = all(
+                ch["n_video_pad"] == per_chunk_vid for ch in chunks
+            )
+        else:
+            # video_only: chunks 가 없어도 총 video_pad == T * per_chunk_vid
+            v["video_pad_total_eq_T_times_per_chunk"] = (
+                token_counts.get("video_pad", 0) == T * per_chunk_vid
+            )
+
+    # ---- Audio (sequence 안에 audio_pad 가 실제로 있는 경우만) ----
+    if audio_lengths is not None and token_counts.get("audio_pad", 0) > 0:
+        v["audio_pad_sum_matches"] = (
+            token_counts.get("audio_pad", 0) == sum(audio_lengths)
+        )
+    elif audio_lengths is not None:
+        v["audio_pad_sum_matches"] = (
+            f"N/A (audio loaded len={sum(audio_lengths)} but 0 audio_pad in sequence)"
+        )
+
+    # ---- RoPE (vision span 이 있는 경우만) ----
+    if rope_info.get("t_axis_monotonic_vision") is not None:
+        v["rope_t_monotonic_vision"] = rope_info["t_axis_monotonic_vision"]
+    return v
+
+
+# ---------------- TXT 렌더 ----------------
+
+def _render_txt(rec: Dict[str, Any]) -> str:
+    L: List[str] = []
+    meta = rec["video_meta"]
+    cfg = rec["config"]
+    L.append(f"=== {rec['sample_tag']}  (duration={meta.get('duration_sec')}s) ===")
+    L.append(f"video: {meta.get('video_path')}")
+    L.append(f"audio: {meta.get('audio_path')}  use_audio={meta.get('use_audio')}")
+    L.append(f"config: base_interval={cfg['base_interval']}  "
+             f"video_frames=[{cfg['video_min_frames']},{cfg['video_max_frames']}]  "
+             f"pixels=[{cfg['min_pixels']}..{cfg['max_pixels']}]  "
+             f"merge={cfg['merge_size']}")
+    tc = rec["token_counts"]
+    L.append(f"seq_len={tc['total']}  text={tc.get('text',0)}  "
+             f"time={tc.get('time_token',0)}  "
+             f"video_pad={tc.get('video_pad',0)}  "
+             f"audio_pad={tc.get('audio_pad',0)}  "
+             f"vis_start/end={tc.get('vision_start',0)}/{tc.get('vision_end',0)}")
+    L.append("")
+    L.append("layout:")
+    chunks = rec["chunks"]
+    if chunks:
+        shown = chunks[:20]
+        for ch in shown:
+            sec = ch["time_marker_seconds"]
+            L.append(f"  chunk {ch['idx']:>3}  t={sec:>6}s  "
+                     f"VID×{ch['n_video_pad']:<4} AUD×{ch['n_audio_pad']:<4} "
+                     f"[{ch['start_pos']}..{ch['end_pos']})")
+        if len(chunks) > 20:
+            L.append(f"  ... ({len(chunks) - 20} more chunks)")
+    else:
+        L.append("  (no vision span — pure text/audio path)")
+    L.append("")
+    secs = [ch["time_marker_seconds"] for ch in chunks]
+    L.append(f"time markers ({len(secs)}): {secs[:30]}"
+             + (" ..." if len(secs) > 30 else ""))
+    L.append("")
+    L.append("RoPE samples (t, h, w):")
+    rope = rec["rope"]
+    for r in rope["samples"][:40]:
+        L.append(f"  pos={r['pos']:>5}  {r['kind']:<36}  "
+                 f"t={r['t']:>5} h={r['h']:>4} w={r['w']:>4}")
+    if len(rope["samples"]) > 40:
+        L.append(f"  ... ({len(rope['samples']) - 40} more)")
+    L.append(f"t_axis (vision): range={rope['t_axis_range_vision']}  "
+             f"monotonic={rope['t_axis_monotonic_vision']}")
+    L.append("")
+    L.append("validation:")
+    for k, val in rec["validation"].items():
+        if isinstance(val, bool):
+            mark = "✓" if val else "✗"
+        elif isinstance(val, str) and val.startswith("N/A"):
+            mark = "-"
+        else:
+            mark = " "
+        L.append(f"  {mark} {k}: {val}")
+    return "\n".join(L) + "\n"
+
+
+# ---------------- 진입점 ----------------
+
+def dump_sample(
+    out_dir: str,
+    sample_idx: int,
+    sample_tag: str,
+    input_ids: torch.Tensor,
+    position_ids: torch.Tensor,
+    tokenizer,
+    time_token_id_range: Optional[Tuple[int, int]],
+    video_grid_thw: Optional[torch.Tensor],
+    second_per_grid_ts: Optional[List],
+    audio_lengths: Optional[List[int]],
+    merge_size: int,
+    data_args,
+    source: Dict[str, Any],
+) -> str:
+    """단일 샘플 덤프. 출력 파일 base path 반환."""
+    out_p = Path(out_dir)
+    out_p.mkdir(parents=True, exist_ok=True)
+
+    # shape 정규화
+    if input_ids.dim() == 2:
+        input_ids = input_ids[0]
+    if position_ids.dim() == 3:
+        position_ids = position_ids[:, 0, :]
+    ids_list: List[int] = input_ids.tolist()
+
+    spec = _special_ids(tokenizer)
+    tdot_id = spec["tdot"]
+
+    categories = [_classify(t, spec, time_token_id_range) for t in ids_list]
+    token_counts: Dict[str, int] = {"total": len(ids_list)}
+    for c in categories:
+        token_counts[c] = token_counts.get(c, 0) + 1
+
+    time_markers: List[Dict[str, Any]] = []
+    if time_token_id_range is not None and tdot_id is not None:
+        time_markers = _parse_time_markers(
+            ids_list, time_token_id_range, tdot_id, tokenizer
+        )
+
+    vision_span = _find_vision_span(categories)
+    chunks = (_chunk_layout(categories, vision_span, time_markers)
+              if vision_span else [])
+
+    rope_info = _rope_samples(position_ids, categories, vision_span, chunks)
+
+    grid_list: Optional[List[List[int]]] = None
+    if video_grid_thw is not None and hasattr(video_grid_thw, "tolist"):
+        grid_list = video_grid_thw.tolist()
+    spgt_list = None
+    if second_per_grid_ts is not None:
+        spgt_list = [list(x) if hasattr(x, "__iter__") else x
+                     for x in second_per_grid_ts]
+
+    mode = _detect_mode(token_counts, grid_list)
+    validation = _validate(
+        token_counts, chunks, grid_list, merge_size,
+        list(audio_lengths) if audio_lengths is not None else None,
+        rope_info, mode,
+    )
+
+    record = {
+        "sample_idx": sample_idx,
+        "sample_tag": sample_tag,
+        "config": {
+            "base_interval": float(getattr(data_args, "base_interval", 0) or 0),
+            "video_min_frames": getattr(data_args, "video_min_frames", None),
+            "video_max_frames": getattr(data_args, "video_max_frames", None),
+            "max_pixels": getattr(data_args, "max_pixels", None),
+            "min_pixels": getattr(data_args, "min_pixels", None),
+            "video_max_frame_pixels": getattr(data_args, "video_max_frame_pixels", None),
+            "video_min_frame_pixels": getattr(data_args, "video_min_frame_pixels", None),
+            "merge_size": merge_size,
+            "time_token_id_range": list(time_token_id_range) if time_token_id_range else None,
+        },
+        "video_meta": {
+            "video_path": source.get("video"),
+            "audio_path": source.get("audio"),
+            "use_audio": source.get("use_audio", False),
+            "duration_sec": source.get("_duration_sec"),
+            "debug_tag": source.get("_debug_tag"),
+            "grid_thw_video": grid_list,
+            "second_per_grid_ts": spgt_list,
+            "audio_lengths": list(audio_lengths) if audio_lengths is not None else None,
+        },
+        "token_counts": token_counts,
+        "interleaving": {
+            "num_chunks": len(chunks),
+            "per_chunk_time_tokens": TOKENS_PER_MARKER if chunks else 0,
+            "per_chunk_video_pad": chunks[0]["n_video_pad"] if chunks else 0,
+            "per_chunk_audio_pad_avg": (
+                sum(c["n_audio_pad"] for c in chunks) / len(chunks) if chunks else 0
+            ),
+            "per_chunk_audio_pad_min": min((c["n_audio_pad"] for c in chunks), default=0),
+            "per_chunk_audio_pad_max": max((c["n_audio_pad"] for c in chunks), default=0),
+            "chunk_offsets": [c["start_pos"] for c in chunks],
+        },
+        "chunks": chunks,
+        "time_markers": time_markers,
+        "rope": rope_info,
+        "validation": validation,
+    }
+
+    tag = sample_tag or f"sample{sample_idx:03d}"
+    safe_tag = "".join(c if (c.isalnum() or c in "._-") else "_" for c in tag)
+    base = out_p / f"{sample_idx:03d}_{safe_tag}"
+    with open(base.with_suffix(".json"), "w") as f:
+        json.dump(record, f, indent=2, ensure_ascii=False)
+    with open(base.with_suffix(".txt"), "w") as f:
+        f.write(_render_txt(record))
+    return str(base)

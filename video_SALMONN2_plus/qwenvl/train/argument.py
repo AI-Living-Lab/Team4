@@ -54,6 +54,13 @@ class DataArguments:
     chunk_length: int = field(default=30)
     hop_length: int = field(default=160)
     sampling_rate: int = field(default=16000)
+    # ---- TTI debug mode ----
+    # 비어있지 않으면 활성화: dataset.__getitem__ 에서 인터리빙 구조 덤프
+    debug_interleave_dir: str = field(default="")
+    # True 면 model.generate 도 수행 (출력 확인용). 기본 False — 덤프만 하고 스킵.
+    debug_interleave_generate: bool = field(default=False)
+    # -1 = 전체, >0 = 앞에서 N 샘플만 덤프
+    debug_interleave_sample_limit: int = field(default=-1)
 
 
 @dataclass

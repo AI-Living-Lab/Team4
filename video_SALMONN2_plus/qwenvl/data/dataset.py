@@ -324,6 +324,9 @@ class LazySupervisedDataset(Dataset):
         else:
             self.time_token_id_range = None
 
+        # TTI debug dump counter (run_test + debug_interleave_dir 에서만 쓰임)
+        self._debug_dump_count = 0
+
         list_data_dict = []
 
         for data in dataset_list:
@@ -726,6 +729,31 @@ class LazySupervisedDataset(Dataset):
                 data_dict.pop("chosen_labels", None)
                 data_dict.pop("reject_labels", None)
                 data_dict.pop("audio_lengths", None)
+
+                # ---- TTI debug dump ----
+                dbg_dir = getattr(self.data_args, "debug_interleave_dir", "") or ""
+                limit = getattr(self.data_args, "debug_interleave_sample_limit", -1)
+                if dbg_dir and (limit < 0 or self._debug_dump_count < limit):
+                    try:
+                        from . import debug_interleave as _dbg
+                        _dbg.dump_sample(
+                            out_dir=dbg_dir,
+                            sample_idx=i,
+                            sample_tag=sources[0].get("_debug_tag", f"idx{i:03d}"),
+                            input_ids=data_dict["input_ids"],
+                            position_ids=data_dict["position_ids"],
+                            tokenizer=self.tokenizer,
+                            time_token_id_range=self.time_token_id_range,
+                            video_grid_thw=data_dict.get("video_grid_thw"),
+                            second_per_grid_ts=second_per_grid_ts if second_per_grid_ts else None,
+                            audio_lengths=audio_lengths,
+                            merge_size=self.data_args.image_processor.merge_size,
+                            data_args=self.data_args,
+                            source=sources[0],
+                        )
+                        self._debug_dump_count += 1
+                    except Exception as _e:
+                        print(f"[debug_interleave] dump failed for idx {i}: {_e}")
 
             return data_dict
         except Exception as e:
