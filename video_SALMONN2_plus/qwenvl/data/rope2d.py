@@ -320,7 +320,9 @@ def get_rope_index_25(
                 # ------- 오디오 토큰들의 position id 계산 -------
                 audio_len = audio_lengths[video_index]  # 이 구간 오디오 토큰 수
 
-                time_index_audio = torch.arange(audio_len, device=input_ids.device)
+                # device 통일: 이 함수는 CPU 기반으로 동작하므로 audio도 CPU로 생성.
+                # 마지막 llm_positions.to(position_ids.device) 에서 일괄 GPU 이동.
+                time_index_audio = torch.arange(audio_len)
                 w_index_audio = time_index_audio                      # w축은 시간처럼 증가
                 h_index_audio = torch.zeros_like(time_index_audio)    # h축은 0 고정 (1차원 신호)
                 audio_pos = torch.stack([time_index_audio, h_index_audio, w_index_audio]) + st_idx + text_len
@@ -349,7 +351,8 @@ def get_rope_index_25(
 
                     # 블록 전체 크기 = 마커 M*T + 비디오 T*H*W/merge² + 오디오 audio_len
                     st = ed + M * llm_grid_t + llm_grid_t * llm_grid_h * llm_grid_w + audio_len
-                    block_ids = input_ids[ed:st]
+                    # device 통일: 비교/인덱싱은 CPU에서. 함수 끝에서 일괄 GPU 이동.
+                    block_ids = input_ids[ed:st].cpu()
                     audio_visual_pos = torch.zeros_like(
                         torch.cat((video_pos, audio_pos, time_pos), dim=1)
                     )
@@ -369,8 +372,10 @@ def get_rope_index_25(
                 else:
                     audio_visual_pos = torch.zeros_like(torch.cat((video_pos, audio_pos), dim=1))
                     st = ed + llm_grid_t * llm_grid_h * llm_grid_w + audio_len
-                    audio_visual_pos[:, input_ids[ed:st] == audio_token_id] = audio_pos
-                    audio_visual_pos[:, input_ids[ed:st] == video_token_id] = video_pos
+                    # device 통일: input_ids[ed:st] 인덱스 비교도 CPU에서 하도록 CPU로 이동.
+                    input_ids_cpu_slice = input_ids[ed:st].cpu()
+                    audio_visual_pos[:, input_ids_cpu_slice == audio_token_id] = audio_pos
+                    audio_visual_pos[:, input_ids_cpu_slice == video_token_id] = video_pos
                     llm_pos_ids_list.append(audio_visual_pos)
 
                 video_index += 1

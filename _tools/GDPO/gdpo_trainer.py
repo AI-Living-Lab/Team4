@@ -8,7 +8,7 @@ gdpo_trainer.py (VS2+ / Qwen2.5-VL 버전)
 Usage:
   set -a && source paths.env && set +a
   python _tools/GDPO_revised/gdpo_trainer.py \
-    --config _tools/GDPO_revised/config.yaml \
+    --config _tools/GDPO/config.yaml \
     --model_path ${SFT_CKPT} \
     --model_base ${BASE_MODEL} \
     --dataset_path data/unav100_train_dense.json \
@@ -124,10 +124,17 @@ class GDPOTrainer(Trainer):
 
         # Reference model
         self.beta = args.beta
+        # PEFT 모델이면 disable_adapter()로 ref 역할 → ref_model 메모리 절약(~14GB).
+        # compute_loss에 이미 disable_adapter 분기가 구현돼 있음.
+        _is_peft_model = is_peft_available() and isinstance(model, PeftModel)
         if self.beta == 0.0:
             self.ref_model = None
         elif ref_model is not None:
             self.ref_model = ref_model
+        elif _is_peft_model:
+            # PEFT 사용 시 adapter disable로 ref 역할 (메모리 절약)
+            print("[GDPO] PEFT model detected → ref_model=None (use disable_adapter path)")
+            self.ref_model = None
         elif is_deepspeed_zero3_enabled():
             self.ref_model = video_SALMONN2_plus.from_pretrained(
                 model.config._name_or_path,
@@ -137,7 +144,6 @@ class GDPOTrainer(Trainer):
         elif peft_config is None:
             self.ref_model = create_reference_model(model)
         else:
-            # PEFT 사용 시 adapter disable로 ref 역할
             self.ref_model = None
 
 
@@ -331,6 +337,10 @@ class GDPOTrainer(Trainer):
 
         device = self.accelerator.device
 
+        # torchrun 환경에선 model이 DistributedDataParallel(또는 Accelerate wrap)로 감싸짐.
+        # .config / .get_base_model() 등 model 내부 attr 접근은 unwrap 후로 통일.
+        _unwrapped = self.accelerator.unwrap_model(model)
+
         # ── 입력 추출 (VS2+ 데이터셋 필드) ──
         prompt_ids = inputs["input_ids"].to(device)
         prompt_mask = inputs["attention_mask"].to(device)
@@ -468,8 +478,8 @@ class GDPOTrainer(Trainer):
         completion_ids_clean = completion_ids.clone()
         completion_ids_clean[completion_ids_clean == _VIDEO_TOKEN_ID] = pad_id
         # 모델 config에서 audio_token_id 확인
-        if hasattr(model.config, 'audio_token_id'):
-            completion_ids_clean[completion_ids_clean == model.config.audio_token_id] = pad_id
+        if hasattr(_unwrapped.config, 'audio_token_id'):
+            completion_ids_clean[completion_ids_clean == _unwrapped.config.audio_token_id] = pad_id
 
         # ── Per-token log probs (policy) ──
         # 원본 prompt(반복 전) + 각 completion을 개별 결합 (비디오 토큰 수 일치를 위해)
@@ -477,7 +487,8 @@ class GDPOTrainer(Trainer):
         prompt_mask_single = prompt_mask[:1]
 
         # ── Encoding cache (비디오/오디오 encoder는 frozen이므로 step당 1회만 인코딩) ──
-        raw_encode_model = model.get_base_model() if hasattr(model, "get_base_model") else model
+        # DDP+PEFT wrap을 벗긴 base model.
+        raw_encode_model = _unwrapped.get_base_model() if hasattr(_unwrapped, "get_base_model") else _unwrapped
         cached_video_embeds = None
         cached_audio_embeds = None
         with torch.no_grad():
@@ -488,7 +499,7 @@ class GDPOTrainer(Trainer):
                 af = audio_feature.type(raw_encode_model.audio.dtype)
                 cached_audio_embeds = raw_encode_model.audio(af).flatten(0, 1)
 
-        _AUDIO_TOKEN_ID_CFG = getattr(model.config, "audio_token_id", None)
+        _AUDIO_TOKEN_ID_CFG = getattr(_unwrapped.config, "audio_token_id", None)
 
         def _build_cached_inputs_embeds(pc_ids):
             """pc_ids에 대한 inputs_embeds 생성.
@@ -650,9 +661,16 @@ class GDPOTrainer(Trainer):
 # 모델 로딩 (VS2+)
 # ============================================================
 
-def load_model_and_tokenizer(model_path, model_base):
-    """VS2+ (Qwen2.5-VL 기반) 모델 로딩."""
-    print(f"[GDPO] Loading VS2+ model")
+def load_model_and_tokenizer(model_path, model_base, tti_mode="off"):
+    """VS2+ (Qwen2.5-VL 기반) 모델 로딩.
+
+    tti_mode:
+      - "off": base config의 time_token_id_range를 무시(None으로 덮어씀).
+               rope_index가 OFF 분기를 타도록 강제. 데이터에 time marker가
+               섞여있지 않을 때 사용.
+      - "on" : base config 그대로 사용. 데이터에 time marker가 포함된 경우.
+    """
+    print(f"[GDPO] Loading VS2+ model (tti_mode={tti_mode})")
     print(f"[GDPO]   model_path (SFT ckpt): {model_path}")
     print(f"[GDPO]   model_base: {model_base}")
 
@@ -668,6 +686,18 @@ def load_model_and_tokenizer(model_path, model_base):
         attn_implementation="sdpa",
         torch_dtype=torch.bfloat16,
     )
+
+    # TTI mode 적용: OFF 모드일 때 base config의 time_token_id_range를 비활성화.
+    # base "video_salmonn2_plus_7B_time_tokens"는 time_token_id_range가 박혀있어
+    # 이대로 두면 rope_index가 항상 TTI-ON 분기를 타서, 데이터에 time marker가
+    # 없는 경우 IndexError가 발생함.
+    if tti_mode == "off":
+        if getattr(model.config, "time_token_id_range", None) is not None:
+            print(f"[GDPO] tti_mode=off → clearing model.config.time_token_id_range "
+                  f"(was {model.config.time_token_id_range})")
+            model.config.time_token_id_range = None
+        if getattr(model.config, "time_marker_token_len", None):
+            model.config.time_marker_token_len = None
     # resize_token_embeddings 호출 금지 — base는 vocab_size=152064 (Qwen 패딩 포함)로
     # 유지해야 SFT adapter의 modules_to_save(embed_tokens/lm_head, 152064 rows)와 맞음.
     model = model.to(torch.bfloat16)
@@ -748,6 +778,13 @@ def main():
     parser.add_argument("--model_base", default=None)
     parser.add_argument("--dataset_path", default=None)
     parser.add_argument("--output_dir", default=None)
+    parser.add_argument("--max_steps", type=int, default=None,
+                        help="smoke-test 등에서 step 수 제한. >0이면 num_train_epochs 무시.")
+    parser.add_argument("--run_name", type=str, default=None,
+                        help="wandb/tracker run name 재정의. 없으면 config.logging.run_name 사용.")
+    parser.add_argument("--tti_mode", type=str, default=None, choices=[None, "off", "on"],
+                        help="TTI 모드. off=time_token_id_range 무시 / on=base config 그대로. "
+                             "기본값은 config.model.tti_mode 또는 'off'.")
     cli = parser.parse_args()
 
     cfg = load_config(cli.config) if cli.config else {}
@@ -788,9 +825,14 @@ def main():
     logging_steps = _get(None, "logging", "logging_steps", default=1)
     save_steps = _get(None, "logging", "save_steps", default=500)
     save_total_limit = _get(None, "logging", "save_total_limit", default=3)
+    report_to = _get(None, "logging", "report_to", default="tensorboard")
+    run_name = _get(cli.run_name, "logging", "run_name", default=os.path.basename(output_dir))
+
+    # TTI 모드 결정 (cli > config.model.tti_mode > "off")
+    tti_mode = _get(cli.tti_mode, "model", "tti_mode", default="off")
 
     # Model
-    model, tokenizer = load_model_and_tokenizer(model_path, model_base)
+    model, tokenizer = load_model_and_tokenizer(model_path, model_base, tti_mode=tti_mode)
 
     # Dataset — VS2+ LazySupervisedDataset 사용
     print(f"[GDPO] Loading dataset from {dataset_path}")
@@ -844,7 +886,7 @@ def main():
     print(f"[GDPO] Reward weights: {reward_weights}")
 
     # GRPOConfig
-    grpo_args = GRPOConfig(
+    grpo_kwargs = dict(
         output_dir=output_dir,
         num_train_epochs=num_epochs,
         per_device_train_batch_size=batch_size,
@@ -862,10 +904,14 @@ def main():
         seed=seed,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
-        report_to="tensorboard",
+        report_to=report_to,
+        run_name=run_name,
         logging_dir=os.path.join(output_dir, "logs"),
         remove_unused_columns=False,
     )
+    if cli.max_steps is not None and cli.max_steps > 0:
+        grpo_kwargs["max_steps"] = cli.max_steps
+    grpo_args = GRPOConfig(**grpo_kwargs)
 
     # Trainer
     trainer = GDPOTrainer(

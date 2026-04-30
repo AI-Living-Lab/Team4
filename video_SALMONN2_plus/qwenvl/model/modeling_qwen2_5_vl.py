@@ -1883,8 +1883,6 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
             mask_expanded = mask_unsqueezed.expand_as(inputs_embeds)
             image_mask = mask_expanded.to(inputs_embeds.device)
             image_embeds = image_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
-            if torch.cuda.current_device() == 0:
-                print(f"RANK 0 image_embeds: {image_embeds.shape}")
             inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
             return inputs_embeds, image_embeds
         else:
@@ -1913,8 +1911,6 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
             mask_expanded = mask_unsqueezed.expand_as(inputs_embeds)
             video_mask = mask_expanded.to(inputs_embeds.device)
             video_embeds = video_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
-            if torch.cuda.current_device() == 0:
-                print(f"RANK 0 video_embeds: {video_embeds.shape}")
             inputs_embeds = inputs_embeds.masked_scatter(video_mask, video_embeds)
             return inputs_embeds, video_embeds
         else:
@@ -1943,8 +1939,6 @@ class video_SALMONN2_plus(Qwen2_5_VLPreTrainedModel, GenerationMixin):
             mask_expanded = mask_unsqueezed.expand_as(inputs_embeds)
             audio_mask = mask_expanded.to(inputs_embeds.device)
             audio_embeds = audio_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
-            if torch.cuda.current_device() == 0:
-                print(f"RANK 0 audio_embeds: {audio_embeds.shape}")
             inputs_embeds = inputs_embeds.masked_scatter(audio_mask, audio_embeds)
             return inputs_embeds, audio_embeds
         else:

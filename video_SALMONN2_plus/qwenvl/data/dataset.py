@@ -34,7 +34,15 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
-from torchcodec.decoders import VideoDecoder
+try:
+    from torchcodec.decoders import VideoDecoder, AudioDecoder
+except (ImportError, RuntimeError) as _e:
+    # torchcodec이 PyTorch ABI/FFmpeg과 안 맞아 로드 실패 시
+    # VideoDecoder 경로는 decord로 자동 fallback되고,
+    # AudioDecoder는 process_audio에서 sf+soxr로 대체됐으므로 None으로 둬도 무해.
+    print(f"[dataset] torchcodec unavailable ({type(_e).__name__}); falling back to decord/soundfile")
+    VideoDecoder = None
+    AudioDecoder = None
 import soundfile as sf
 import soxr
 import transformers
