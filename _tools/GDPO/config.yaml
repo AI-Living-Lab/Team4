@@ -1,31 +1,31 @@
 # ============================================================
-# GDPO v2 Training Configuration
+# GDPO Training Configuration (VS2+ / Qwen2.5-VL)
 # set -a && source paths.env && set +a
-# python "_tools/GDPO_v2(revised)/gdpo_trainer.py" --config "_tools/GDPO_v2(revised)/config.yaml"
+# python _tools/GDPO_revised/gdpo_trainer.py --config _tools/GDPO_revised/config.yaml
 # ============================================================
 
 # 모델 설정
 model:
   model_path: ${SFT_CKPT}                    # SFT 체크포인트 경로
-  model_base: ${BASE_MODEL}                  # 베이스 모델 (로컬 경로 또는 HF ID)
-  # 로컬 다운로드 사용 시 아래처럼 변경:
-  # model_base: /workspace/models/llava-onevision-qwen2-7b-ov
+  model_base: ${BASE_MODEL}                  # VS2+ 베이스 모델 (3B or 7B)
+  # 3B: tsinghua-ee/video-SALMONN-2_plus_3B
+  # 7B: tsinghua-ee/video-SALMONN-2_plus_7B
 
 # 데이터 설정
 data:
-  dataset_path: data/unav100_train_gdpo.json
+  dataset_path: data/sample.json
 
 # GDPO 설정
 gdpo:
-  num_generations: 4                        # 프롬프트당 생성 수
-  max_completion_length: 1024                # 생성 최대 토큰 수
-  beta: 0.04                                 # KL 페널티 계수
-  temperature: 1.0                           # 샘플링 온도
-  reward_weights: [0.1, 0.3, 0.6]           # [format, label, iou]
+  num_generations: 8                      # 8
+  max_completion_length: 256              # 512
+  beta: 0.04                               # 0.04
+  temperature: 1.0
+  reward_weights: [1.0, 1.0]           # [format, iou]
 
 # 학습 설정
 training:
-  output_dir: output/gdpo_v2
+  output_dir: output/gdpo_vs2plus
   num_train_epochs: 1
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 4
@@ -47,4 +47,4 @@ logging:
 
 # ref 모델
 ref_model:
-  enabled: true                              # false면 KL=0 (메모리 절약)
+  enabled: true
