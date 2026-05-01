@@ -17,16 +17,17 @@ data:
 
 # GDPO 설정
 gdpo:
-  num_generations: 8                      # 8
+  num_generations: 4                      # 8
   max_completion_length: 256              # 512
   beta: 0.04                               # 0.04
-  temperature: 1.0
+  temperature: 1.5
   reward_weights: [1.0, 1.0]           # [format, iou]
 
 # 학습 설정
 training:
   output_dir: output/gdpo_vs2plus
   num_train_epochs: 1
+  max_steps: -1
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 4
   learning_rate: 5e-6

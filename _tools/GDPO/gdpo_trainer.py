@@ -171,7 +171,7 @@ class GDPOTrainer(Trainer):
             max_new_tokens=self.max_completion_length,
             do_sample=True,
             temperature=self.temperature,
-            top_p=0.9,
+            top_p=1.0,
             num_return_sequences=self.num_generations,
             pad_token_id=pad_token_id,
         )
@@ -389,8 +389,6 @@ class GDPOTrainer(Trainer):
 
         # ── Generate completions ──
         all_completion_ids = []
-        # TODO : 추후 확인 필요
-        # VS2+가 generate 반환하는거에 따라 달라질 수 있음
         prompt_length = prompt_ids.size(1)
 
         # generate 동안 비활성화
@@ -398,8 +396,6 @@ class GDPOTrainer(Trainer):
             model.gradient_checkpointing_disable()
 
         # 일단 캐싱 구현 X
-        # TODO : generate 반환에 따라 나중에
-        # 캐싱 구현 가능성 있음
         # non-None kwargs만 전달 (HF generate의 model_kwargs validation 통과용)
         gen_kwargs = {
             "input_ids": prompt_ids,
@@ -407,7 +403,7 @@ class GDPOTrainer(Trainer):
             "max_new_tokens": self.max_completion_length,
             "do_sample": True,
             "temperature": self.temperature,
-            "top_p": 0.9,
+            "top_p": 1.0,
         }
         if pixel_values_videos is not None:
             gen_kwargs["pixel_values_videos"] = pixel_values_videos
@@ -573,8 +569,6 @@ class GDPOTrainer(Trainer):
             completions = [c.replace(tok, "") for c in completions]
         completions = [re.sub(r"<\|im_start\|>\s*\w+\s*", "", c).strip() for c in completions]
 
-        print(f"[GDPO SAMPLE] completion[0][:200]: {completions[0][:200]}")
-
         # Compute rewards
         rewards_per_func = torch.zeros(len(completions), len(self.reward_funcs), device=device)
         gt_intervals_repeated = [gt_intervals] * self.num_generations
@@ -588,6 +582,27 @@ class GDPOTrainer(Trainer):
 
         rewards = rewards_per_func.sum(dim=1)
         advantages = self._compute_gdpo_advantages(rewards_per_func, rewards)
+
+        # 디버깅용: time token을 초 단위로 디코딩해서 사람이 읽기 쉽게 출력
+        _SEG_CAPTURE_DEBUG = re.compile(
+            r"[Ff]rom\s+((?:<t\d>){1,4}<tdot><t\d>)\s+to\s+((?:<t\d>){1,4}<tdot><t\d>)"
+        )
+        def _decode_segments_to_seconds(text):
+            """'From <t0>...<t5> to <t0>...<t9>. From ...' → '(5.2, 13.9), (20.5, 29.0)'"""
+            segs = []
+            for s_str, e_str in _SEG_CAPTURE_DEBUG.findall(text):
+                s = decode_vtg_time(s_str)
+                e = decode_vtg_time(e_str)
+                if s is not None and e is not None:
+                    segs.append(f"({s:.1f}, {e:.1f})")
+            return ", ".join(segs) if segs else "[no valid segment]"
+
+        gt_str = ", ".join(f"({s:.1f}, {e:.1f})" for s, e in gt_intervals) if gt_intervals else "[none]"
+        print(f"[GDPO SAMPLES] GT: {gt_str}")
+        for gi, c in enumerate(completions):
+            pred_str = _decode_segments_to_seconds(c)
+            iou_val = rewards_per_func[gi, 1].item()
+            print(f"  [{gi}] iou={iou_val:.3f} | pred: {pred_str}")
 
 
         # ── Loss ──
@@ -779,6 +794,7 @@ def main():
 
     # 학습 파라미터
     num_epochs = _get(None, "training", "num_train_epochs", default=1)
+    max_steps = _get(None, "training", "max_steps", default=-1)
     batch_size = _get(None, "training", "per_device_train_batch_size", default=1)
     grad_accum = _get(None, "training", "gradient_accumulation_steps", default=4)
     lr = float(_get(None, "training", "learning_rate", default=5e-6))
@@ -847,6 +863,7 @@ def main():
     grpo_args = GRPOConfig(
         output_dir=output_dir,
         num_train_epochs=num_epochs,
+        max_steps=max_steps,
         per_device_train_batch_size=batch_size,
         gradient_accumulation_steps=grad_accum,
         learning_rate=lr,
@@ -862,7 +879,7 @@ def main():
         seed=seed,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
-        report_to="tensorboard",
+        report_to="wandb",
         logging_dir=os.path.join(output_dir, "logs"),
         remove_unused_columns=False,
     )
