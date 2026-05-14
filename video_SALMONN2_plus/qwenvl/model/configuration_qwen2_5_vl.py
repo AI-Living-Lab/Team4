@@ -418,9 +418,10 @@ class Qwen2_5_VLConfig(PretrainedConfig):
         self.audio_token_id = audio_token_id
         # TTI input-side marker 모드. "off"(마커 미삽입, 기본값) /
         # "special_token"(6토큰 <tD><tD><tD><tD><tdot><tD>) /
-        # "natural_text"(9토큰 'second{XXXX.Y}'). 출력은 항상 special_token.
+        # "natural_text"(9토큰 'second{XXXX.Y}') /
+        # "from_to"(16토큰 'From <t*>×6 to <t*>×6'). 출력은 항상 special_token.
         self.tti_time_format = tti_time_format
-        # 청크당 마커 토큰 수. off=None, special_token=6, natural_text=9.
+        # 청크당 마커 토큰 수. off=None, special_token=6, natural_text=9, from_to=16.
         self.time_marker_token_len = time_marker_token_len
 
         # Validate the correctness of rotary position embeddings parameters

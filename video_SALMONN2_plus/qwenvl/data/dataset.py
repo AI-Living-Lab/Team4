@@ -78,21 +78,35 @@ def sec_to_natural_text_str(sec: float) -> str:
     return f"second{{{sec:06.1f}}}"
 
 
-def make_time_marker_string(sec: float, tti_time_format: str) -> str:
+def sec_to_from_to_str(sec_start: float, sec_end: float) -> str:
+    # (start, end) → 'From <t*>×6 to <t*>×6' (출력 GT 와 동일 포맷). 16 토큰 고정.
+    # Qwen2.5 BPE: ['From',' ',<t>×6,' ','to',' ',<t>×6] = 16
+    return f"From {sec_to_time_token_str(sec_start)} to {sec_to_time_token_str(sec_end)}"
+
+
+def make_time_marker_string(sec_start: float, tti_time_format: str,
+                            sec_end: float = None) -> str:
     # tti_time_format에 따라 입력 측 시간 마커 문자열을 생성. 출력 측(GT)은 무관.
+    # from_to 모드는 sec_end 도 필요 — 호출부에서 (k+1)*sec_per_grid_t - 0.1 로 계산.
     if tti_time_format == "natural_text":
-        return sec_to_natural_text_str(sec)
-    return sec_to_time_token_str(sec)
+        return sec_to_natural_text_str(sec_start)
+    if tti_time_format == "from_to":
+        if sec_end is None:
+            raise ValueError("from_to mode requires sec_end")
+        return sec_to_from_to_str(sec_start, sec_end)
+    return sec_to_time_token_str(sec_start)
 
 
 # 모드별 청크당 마커 토큰 수.
 #   off            : 마커 미삽입 (Qwen2.5-VL 베이스라인) — 길이 0
 #   special_token  : <t0>..<tdot>..<t*> = 6
 #   natural_text   : 'second{XXXX.Y}' = 9 (zero-pad)
+#   from_to        : 'From <t*>×6 to <t*>×6' = 16 (출력 포맷 정렬)
 _TIME_MARKER_TOKEN_LEN = {
     "off": 0,
     "special_token": 6,
     "natural_text": 9,
+    "from_to": 16,
 }
 
 def rank0_print(*args):
@@ -212,7 +226,12 @@ def generate_id_target(
                         for timestep in range(grid_thw_video[i][0]):
                             if sec_per_grid_t is not None and tti_time_format != "off":
                                 t_start_sec = timestep * sec_per_grid_t
-                                replacement += make_time_marker_string(t_start_sec, tti_time_format)
+                                # from_to 마커는 end-time 도 필요 — "다음 청크 시작 - 0.1초"
+                                # (등간격 청크 가정). 마지막 청크도 동일 식 → t_T - 0.1.
+                                t_end_sec = (timestep + 1) * sec_per_grid_t - 0.1
+                                replacement += make_time_marker_string(
+                                    t_start_sec, tti_time_format, sec_end=t_end_sec
+                                )
                             replacement += (
                                 f"<|video_pad|>"
                                 * (grid_thw_video[i][1] * grid_thw_video[i][2] // merge_size**2)
@@ -377,7 +396,7 @@ class LazySupervisedDataset(Dataset):
                 f"[TTI/special_token] marker_token_len={self.time_marker_token_len}, "
                 f"id_range={self.time_token_id_range}"
             )
-        else:
+        elif self.tti_time_format == "natural_text":
             # natural_text: rope2d는 ~(is_video|is_audio) 마스크로 마커 식별.
             self.time_marker_token_len = _TIME_MARKER_TOKEN_LEN[self.tti_time_format]
             self.time_token_id_range = None
@@ -394,6 +413,31 @@ class LazySupervisedDataset(Dataset):
             rank0_print(
                 f"[TTI/natural_text] marker_token_len={self.time_marker_token_len}, "
                 f"sample='{sec_to_natural_text_str(15.6)}'"
+            )
+        else:
+            # from_to: 'From <t*>×6 to <t*>×6' = 16 토큰 고정. 출력 GT 와 동일 포맷이라
+            # 모델이 본 적 없는 마커 형식이어도 zero-shot 으로 잘 처리될 가능성.
+            # rope2d 는 natural_text 와 동일하게 ~(is_video|is_audio) 마스크 사용
+            # (special-token + 일반 텍스트 혼재).
+            assert self.tti_time_format == "from_to", (
+                f"unsupported tti_time_format: {self.tti_time_format}"
+            )
+            self.time_marker_token_len = _TIME_MARKER_TOKEN_LEN[self.tti_time_format]
+            self.time_token_id_range = None
+            # 길이 불변 검증: (start, end) 다양한 조합에서 16 토큰인지 확인.
+            sample_lens = set()
+            for s, e in [(0.0, 0.1), (0.0, 1.9), (9.9, 10.0), (99.9, 1000.0),
+                         (1000.0, 9999.9), (1234.5, 5678.9)]:
+                ids = tokenizer.encode(sec_to_from_to_str(s, e), add_special_tokens=False)
+                sample_lens.add(len(ids))
+            assert sample_lens == {self.time_marker_token_len}, (
+                f"from_to marker length not invariant: got {sample_lens}, "
+                f"expected {{{self.time_marker_token_len}}}. "
+                f"Tokenizer may have changed; review sec_to_from_to_str()."
+            )
+            rank0_print(
+                f"[TTI/from_to] marker_token_len={self.time_marker_token_len}, "
+                f"sample='{sec_to_from_to_str(15.6, 17.5)}'"
             )
 
         # TTI debug dump counter (run_test + debug_interleave_dir 에서만 쓰임)

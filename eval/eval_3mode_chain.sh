@@ -16,11 +16,10 @@
 #       STAGE=sft CKPT_MODEL_ID=salmonn2p_7b_unav_baseline CKPT_STEP=1500 \
 #       BASE_MODEL_ID=base/video_salmonn2_plus_7B_time_tokens \
 #       TESTSET=unav100 GPUS=0
-#
 # 백그라운드 실행 예시
 #   cd /workspace/tti_natural/Team4
 #   setsid nohup bash eval/eval_3mode_chain.sh \
-#       STAGE=sft CKPT_MODEL_ID=salmonn2p_7b_unav_baseline CKPT_STEP=1500 \
+#       STAGE=gdpo CKPT_MODEL_ID=gdpo_run3_temp1.5 CKPT_STEP=500 \
 #       BASE_MODEL_ID=base/video_salmonn2_plus_7B_time_tokens \
 #       TESTSET=unav100 GPUS=0 \
 #       < /dev/null > /tmp/eval_3mode_chain.log 2>&1 &

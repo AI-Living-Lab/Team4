@@ -67,6 +67,25 @@ def _find_vision_span(categories: List[str]) -> Optional[Tuple[int, int]]:
 # ---------------- Time marker 검출 (모드별) ----------------
 
 _NATURAL_RE = re.compile(r"second\{(\d+\.\d+)\}")
+# from_to: 'From <t0><t0><t0><t0><tdot><t0> to <t0><t0><t0><t0><tdot><t0>'
+_FROM_TO_DIGIT = r"<t(\d)><t(\d)><t(\d)><t(\d)><tdot><t(\d)>"
+_FROM_TO_RE = re.compile(rf"From\s+{_FROM_TO_DIGIT}\s+to\s+{_FROM_TO_DIGIT}")
+
+
+def _from_to_decode_seconds(text: str):
+    """from_to 마커 텍스트에서 (start_sec, end_sec) 추출. 실패 시 None."""
+    m = _FROM_TO_RE.search(text)
+    if not m:
+        return None
+    g = m.groups()  # 10 digits: start[4]+frac, end[4]+frac
+    try:
+        s_int = int("".join(g[:4]))
+        s_frac = int(g[4])
+        e_int = int("".join(g[5:9]))
+        e_frac = int(g[9])
+        return s_int + s_frac / 10.0, e_int + e_frac / 10.0
+    except ValueError:
+        return None
 
 
 def _find_markers_special_token(
@@ -116,15 +135,16 @@ def _find_markers_special_token(
     return markers
 
 
-def _find_markers_natural_text(
+def _find_markers_text_form(
     input_ids: List[int],
     vision_span: Optional[Tuple[int, int]],
     spec: Dict[str, Optional[int]],
     marker_len: int,
     tokenizer,
+    tti_time_format: str,
 ) -> List[Dict[str, Any]]:
-    """natural_text 모드: vision span 내에서 video_pad/audio_pad 가 아닌 토큰의
-    marker_len-단위 run 을 marker 로 식별, 'second{XXXX.Y}' 텍스트에서 seconds 복원."""
+    """natural_text / from_to 모드: vision span 내에서 video_pad/audio_pad 가 아닌
+    토큰의 marker_len-단위 run 을 marker 로 식별. 텍스트에서 seconds 복원."""
     if vision_span is None:
         return []
     s, e = vision_span
@@ -137,7 +157,6 @@ def _find_markers_natural_text(
         if tid == vid or tid == aud:
             i += 1
             continue
-        # 비-video, 비-audio 토큰이 marker run 의 시작
         seg = input_ids[i:i + marker_len]
         text = tokenizer.decode(seg)
         m: Dict[str, Any] = {
@@ -146,18 +165,26 @@ def _find_markers_natural_text(
             "tokens": tokenizer.convert_ids_to_tokens(seg),
             "text": text,
         }
-        match = _NATURAL_RE.search(text)
-        if match:
-            try:
-                m["seconds"] = float(match.group(1))
-            except ValueError:
+        if tti_time_format == "natural_text":
+            match = _NATURAL_RE.search(text)
+            if match:
+                try:
+                    m["seconds"] = float(match.group(1))
+                except ValueError:
+                    m["malformed"] = True
+            else:
+                m["malformed"] = True
+        elif tti_time_format == "from_to":
+            ft = _from_to_decode_seconds(text)
+            if ft is not None:
+                m["seconds"] = ft[0]      # chunk 시작 (다른 모드와 호환)
+                m["seconds_end"] = ft[1]
+            else:
                 m["malformed"] = True
         else:
             m["malformed"] = True
         markers.append(m)
-        i += marker_len                      # 다음 marker 후보로 이동
-
-
+        i += marker_len
     return markers
 
 
@@ -174,9 +201,9 @@ def _find_markers(
         return _find_markers_special_token(
             input_ids, tt_range, spec.get("tdot"), marker_len or 6, tokenizer
         )
-    if tti_time_format == "natural_text" and marker_len:
-        return _find_markers_natural_text(
-            input_ids, vision_span, spec, marker_len, tokenizer
+    if tti_time_format in ("natural_text", "from_to") and marker_len:
+        return _find_markers_text_form(
+            input_ids, vision_span, spec, marker_len, tokenizer, tti_time_format
         )
     return []
 
@@ -210,6 +237,7 @@ def _chunk_layout(
             "end_pos": end,
             "marker_len": marker_len,
             "time_marker_seconds": m.get("seconds"),
+            "time_marker_seconds_end": m.get("seconds_end"),  # from_to 만 사용
             "time_marker_tokens": m["tokens"],
             "time_marker_text": m.get("text"),
             "n_video_pad": n_vid,
@@ -321,7 +349,7 @@ def _validate(
     """mode 에 해당하는 불변식만 체크. 부적용 필드는 'N/A (reason)' 문자열."""
     v: Dict[str, Any] = {"mode": mode}
 
-    # ---- TTI 전용 (special_token / natural_text) ----
+    # ---- TTI 전용 (special_token / natural_text / from_to) ----
     if mode.startswith("tti_") and grid_thw_video:
         T = sum(g[0] for g in grid_thw_video)
         v["num_chunks_eq_T"] = len(chunks) == T
@@ -330,8 +358,8 @@ def _validate(
                 token_counts.get("time_token", 0) == marker_len * T
             )
         else:
-            # natural_text: 마커 토큰은 'text' 로 분류되므로 ID 카운트 대신 청크별 길이로 검증
-            v["natural_marker_chunks_consistent"] = all(
+            # natural_text / from_to: 마커는 ID 분류 안 됨 → 청크별 marker_len 일관성 검증
+            v["text_marker_chunks_consistent"] = all(
                 ch.get("marker_len") == marker_len for ch in chunks
             )
     else:
@@ -395,7 +423,13 @@ def _render_txt(rec: Dict[str, Any]) -> str:
         shown = chunks[:20]
         for ch in shown:
             sec = ch["time_marker_seconds"]
-            tag = f"t={sec:>6}s" if sec is not None else "t=  ??  "
+            sec_end = ch.get("time_marker_seconds_end")
+            if sec is None:
+                tag = "t=  ??       "
+            elif sec_end is not None:
+                tag = f"t={sec:>6}→{sec_end:>6}s"
+            else:
+                tag = f"t={sec:>6}s      "
             L.append(f"  chunk {ch['idx']:>3}  {tag}  "
                      f"VID×{ch['n_video_pad']:<4} AUD×{ch['n_audio_pad']:<4} "
                      f"[{ch['start_pos']}..{ch['end_pos']})  "

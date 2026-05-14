@@ -32,7 +32,7 @@ def main():
     ap.add_argument("--video_min_frame_pixels", type=int, default=784)
     ap.add_argument("--sample_limit", type=int, default=-1)
     ap.add_argument("--tti_time_format", default="off",
-                    choices=["off", "special_token", "natural_text"],
+                    choices=["off", "special_token", "natural_text", "from_to"],
                     help="입력 측 시간 마커 모드 (default: off)")
     args = ap.parse_args()
 

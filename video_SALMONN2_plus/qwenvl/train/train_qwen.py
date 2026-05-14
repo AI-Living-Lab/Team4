@@ -230,7 +230,7 @@ def train(attn_implementation="flash_attention_2"):
         # 같은 길이 가정으로 동작.
         model.config.tti_time_format = data_args.tti_time_format
         model.config.time_marker_token_len = {
-            "off": None, "special_token": 6, "natural_text": 9,
+            "off": None, "special_token": 6, "natural_text": 9, "from_to": 16,
         }[data_args.tti_time_format]
 
         if training_args.gradient_checkpointing:
@@ -389,7 +389,7 @@ def train(attn_implementation="flash_attention_2"):
         # 옛 체크포인트로 평가할 때 backward-compat를 보장.
         model.config.tti_time_format = data_args.tti_time_format
         model.config.time_marker_token_len = {
-            "off": None, "special_token": 6, "natural_text": 9,
+            "off": None, "special_token": 6, "natural_text": 9, "from_to": 16,
         }[data_args.tti_time_format]
 
         if torch.cuda.device_count() > 1:

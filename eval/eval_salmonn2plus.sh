@@ -114,6 +114,7 @@ case "${TTI_TIME_FORMAT:-off}" in
     off)            FORMAT_TAG=off ;;
     natural_text)   FORMAT_TAG=natural ;;
     special_token)  FORMAT_TAG=tti ;;
+    from_to)        FORMAT_TAG=fromto ;;
     *)              FORMAT_TAG="${TTI_TIME_FORMAT:-off}" ;;
 esac
 EVAL_TAG="fps${FPS_INT}_${FORMAT_TAG}"

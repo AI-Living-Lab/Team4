@@ -65,6 +65,7 @@ class DataArguments:
     # "off"           : 마커 미삽입 (Qwen2.5-VL 베이스라인 동작) — 기본값
     # "special_token" : <t0><t0><t1><t5><tdot><t6> (6 special tokens)
     # "natural_text"  : "second{0015.6}" (9 일반 텍스트 토큰, zero-padded XXXX.Y)
+    # "from_to"       : "From <t*>×6 to <t*>×6" (16 토큰; 출력 GT 와 동일 포맷)
     # 출력(GT/labels) 형식은 모드와 무관 — 항상 special_token. 이 옵션은 video/audio
     # 청크 사이에 끼우는 입력 측 마커 표현만 바꾼다.
     tti_time_format: str = field(default="off")

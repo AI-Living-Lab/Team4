@@ -32,9 +32,10 @@ for arg in "$@"; do
         DATASET=*)       DATASET="${arg#*=}" ;;
         OUT_BASE=*)      OUT_BASE="${arg#*=}" ;;
         SAMPLE_LIMIT=*)  SAMPLE_LIMIT="${arg#*=}" ;;
+        MODES=*)         MODES="${arg#*=}" ;;
         *)
             echo "[에러] 지원하지 않는 인자: $arg"
-            echo "지원: BASE_MODEL, DATASET, OUT_BASE, SAMPLE_LIMIT"
+            echo "지원: BASE_MODEL, DATASET, OUT_BASE, SAMPLE_LIMIT, MODES"
             exit 1
             ;;
     esac
@@ -49,7 +50,12 @@ echo "  OUT_BASE      : $OUT_BASE"
 echo "  SAMPLE_LIMIT  : $SAMPLE_LIMIT"
 echo "=================================================="
 
-for MODE in off special_token natural_text; do
+MODES="${MODES:-off special_token natural_text from_to}"
+
+echo "  MODES         : $MODES"
+echo "=================================================="
+
+for MODE in $MODES; do
     OUT_DIR="${OUT_BASE}/smoke_${MODE}"
     echo ""
     echo "---- [mode=$MODE] -> $OUT_DIR ----"
@@ -65,7 +71,7 @@ echo ""
 echo "=================================================="
 echo "  완료. 결과 요약:"
 echo "=================================================="
-for MODE in off special_token natural_text; do
+for MODE in $MODES; do
     DIR="${OUT_BASE}/smoke_${MODE}"
     n_json=$(ls "$DIR"/*.json 2>/dev/null | wc -l)
     n_txt=$(ls "$DIR"/*.txt 2>/dev/null | wc -l)
