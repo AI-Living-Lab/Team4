@@ -22,12 +22,12 @@ gdpo:
   num_generations: 8                       # 8
   max_completion_length: 256               # 256
   beta: 0.04                               # 0.04
-  temperature: 1.0
+  temperature: 1.5
   reward_weights: [1.0, 1.0]               # [format, iou]
 
 # 학습 설정
 training:
-  output_dir: ${CHECKPOINTS_DIR}/gdpo/gdpo_7b_unav_fps5_off_fmtiou_g8_l256_b004
+  output_dir: ${CHECKPOINTS_DIR}/gdpo/gdpo_7b_unav_fps5_off_fmtiou_g4_l256_b004
   num_train_epochs: 1
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 4
@@ -46,7 +46,7 @@ logging:
   save_steps: 500
   save_total_limit: 3
   report_to: wandb
-  run_name: gdpo_7b_unav_fps5_off_fmtiou_g8_l256_b004
+  run_name: gdpo_7b_unav_fps5_off_fmtiou_g4_l256_b004
 
 # ref 모델
 ref_model:

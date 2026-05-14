@@ -7,7 +7,7 @@ gdpo_trainer.py (VS2+ / Qwen2.5-VL 버전)
 
 Usage:
   set -a && source paths.env && set +a
-  python _tools/GDPO_revised/gdpo_trainer.py \
+  python _tools/GDPO/gdpo_trainer.py \
     --config _tools/GDPO/config.yaml \
     --model_path ${SFT_CKPT} \
     --model_base ${BASE_MODEL} \
