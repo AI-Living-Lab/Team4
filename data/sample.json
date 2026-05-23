@@ -1,7 +1,7 @@
 [
   {
-    "video": "/data0/aix23102/unav_100/videos/--56QUhyDQM.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/--56QUhyDQM.wav",
+    "video": "/workspace/datasets/unav_100/videos/--56QUhyDQM.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/--56QUhyDQM.wav",
     "use_audio": true,
     "conversations": [
       {
@@ -15,8 +15,8 @@
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/--5OkAjCI7g.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/--5OkAjCI7g.wav",
+    "video": "/workspace/datasets/unav_100/videos/--5OkAjCI7g.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/--5OkAjCI7g.wav",
     "use_audio": true,
     "conversations": [
       {
@@ -30,8 +30,8 @@
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/--5OkAjCI7g.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/--5OkAjCI7g.wav",
+    "video": "/workspace/datasets/unav_100/videos/--5OkAjCI7g.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/--5OkAjCI7g.wav",
     "use_audio": true,
     "conversations": [
       {
@@ -45,8 +45,8 @@
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/--9O4XZOge4.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/--9O4XZOge4.wav",
+    "video": "/workspace/datasets/unav_100/videos/--9O4XZOge4.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/--9O4XZOge4.wav",
     "use_audio": true,
     "conversations": [
       {
@@ -60,8 +60,8 @@
     ]
   },
   {
-    "video": "/data0/aix23102/unav_100/videos/--EquRwM9IQ.mp4",
-    "audio": "/data0/aix23102/unav_100/audio/--EquRwM9IQ.wav",
+    "video": "/workspace/datasets/unav_100/videos/--EquRwM9IQ.mp4",
+    "audio": "/workspace/datasets/unav_100/audio/--EquRwM9IQ.wav",
     "use_audio": true,
     "conversations": [
       {
