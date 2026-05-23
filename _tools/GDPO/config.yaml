@@ -17,9 +17,9 @@ data:
 
 # GDPO 설정
 gdpo:
-  num_generations: 8
-  max_completion_length: 512
-  beta: 0.04
+  num_generations: 4                      # 8
+  max_completion_length: 256              # 512
+  beta: 0.04                               # 0.04
   temperature: 1.0
   reward_weights: [1.0, 1.0]           # [format, iou]
 
@@ -27,11 +27,12 @@ gdpo:
 training:
   output_dir: output/gdpo_vs2plus
   num_train_epochs: 1
+  max_steps: -1
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 4
   learning_rate: 5e-6
-  warmup_ratio: 0.1
-  lr_scheduler_type: cosine
+  warmup_ratio: 0.05
+  lr_scheduler_type: linear
   bf16: true
   seed: 2024
   gradient_checkpointing: true
@@ -41,7 +42,7 @@ training:
 # 저장/로깅
 logging:
   logging_steps: 1
-  save_steps: 500
+  save_steps: 200
   save_total_limit: 3
   report_to: tensorboard
 

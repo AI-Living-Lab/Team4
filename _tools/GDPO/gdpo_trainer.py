@@ -171,7 +171,9 @@ class GDPOTrainer(Trainer):
             max_new_tokens=self.max_completion_length,
             do_sample=True,
             temperature=self.temperature,
-            top_p=0.95,
+            top_p=1.0,
+            top_k=50,
+            repetition_penalty=1.0,
             num_return_sequences=self.num_generations,
             pad_token_id=pad_token_id,
         )
@@ -403,7 +405,9 @@ class GDPOTrainer(Trainer):
             "max_new_tokens": self.max_completion_length,
             "do_sample": True,
             "temperature": self.temperature,
-            "top_p": 0.95,
+            "top_p": 1.0,
+            "top_k": 50,                # base config의 top_k=1 override (다양성 확보)
+            "repetition_penalty": 1.0,  # base config의 1.05 override (time token 반복 페널티 제거)
         }
         if pixel_values_videos is not None:
             gen_kwargs["pixel_values_videos"] = pixel_values_videos
@@ -422,6 +426,20 @@ class GDPOTrainer(Trainer):
                 if hasattr(unwrapped_model, "get_base_model")
                 else unwrapped_model
             )
+            # [DEBUG] 첫 step에서 실제 generation 설정 확인 (top_k inherit 여부 등)
+            if self.accelerator.is_main_process and self.state.global_step == 0:
+                print(f"[GDPO DEBUG] gen_kwargs keys: {list(gen_kwargs.keys())}")
+                print(f"[GDPO DEBUG] gen_kwargs (sampling): do_sample={gen_kwargs.get('do_sample')}, "
+                      f"temperature={gen_kwargs.get('temperature')}, "
+                      f"top_p={gen_kwargs.get('top_p')}, "
+                      f"top_k={gen_kwargs.get('top_k', '<not set>')}")
+                gc = raw_model.generation_config
+                print(f"[GDPO DEBUG] raw_model.generation_config: "
+                      f"do_sample={getattr(gc, 'do_sample', None)}, "
+                      f"temperature={getattr(gc, 'temperature', None)}, "
+                      f"top_p={getattr(gc, 'top_p', None)}, "
+                      f"top_k={getattr(gc, 'top_k', None)}, "
+                      f"repetition_penalty={getattr(gc, 'repetition_penalty', None)}")
             for _ in range(self.num_generations):
                 gen_ids = raw_model.generate(**gen_kwargs)
                 # HF generate는 [prompt+new_tokens] 전체를 반환 → new_tokens만 분리
@@ -451,11 +469,21 @@ class GDPOTrainer(Trainer):
         completion_mask = (sequence_indices <= eos_idx.unsqueeze(1)).int()
         attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)
 
-        # 로그
+        # 로그 (rank 0만)
         actual_lengths = completion_mask.sum(dim=1).tolist()
-        print(f"[GDPO STEP] prompt_len={prompt_length}, actual_lengths={[int(l) for l in actual_lengths]}, comp_len={completion_ids.size(1)}")
+        if self.accelerator.is_main_process:
+            print(f"[GDPO STEP] prompt_len={prompt_length}, actual_lengths={[int(l) for l in actual_lengths]}, comp_len={completion_ids.size(1)}")
 
         comp_len = completion_ids.size(1)
+
+        # DDP/PEFT wrap을 모두 벗긴 raw model (config / visual / audio / embed_tokens 접근용)
+        unwrapped_model = self.accelerator.unwrap_model(model)
+        raw_encode_model = (
+            unwrapped_model.get_base_model()
+            if hasattr(unwrapped_model, "get_base_model")
+            else unwrapped_model
+        )
+        model_cfg = raw_encode_model.config
 
         # completion에서 비디오/오디오 placeholder 토큰 제거 (logprob 계산 시 feature 수 불일치 방지)
         _VIDEO_TOKEN_ID = 151656
@@ -464,8 +492,8 @@ class GDPOTrainer(Trainer):
         completion_ids_clean = completion_ids.clone()
         completion_ids_clean[completion_ids_clean == _VIDEO_TOKEN_ID] = pad_id
         # 모델 config에서 audio_token_id 확인
-        if hasattr(model.config, 'audio_token_id'):
-            completion_ids_clean[completion_ids_clean == model.config.audio_token_id] = pad_id
+        if hasattr(model_cfg, 'audio_token_id'):
+            completion_ids_clean[completion_ids_clean == model_cfg.audio_token_id] = pad_id
 
         # ── Per-token log probs (policy) ──
         # 원본 prompt(반복 전) + 각 completion을 개별 결합 (비디오 토큰 수 일치를 위해)
@@ -473,7 +501,6 @@ class GDPOTrainer(Trainer):
         prompt_mask_single = prompt_mask[:1]
 
         # ── Encoding cache (비디오/오디오 encoder는 frozen이므로 step당 1회만 인코딩) ──
-        raw_encode_model = model.get_base_model() if hasattr(model, "get_base_model") else model
         cached_video_embeds = None
         cached_audio_embeds = None
         with torch.no_grad():
@@ -484,7 +511,7 @@ class GDPOTrainer(Trainer):
                 af = audio_feature.type(raw_encode_model.audio.dtype)
                 cached_audio_embeds = raw_encode_model.audio(af).flatten(0, 1)
 
-        _AUDIO_TOKEN_ID_CFG = getattr(model.config, "audio_token_id", None)
+        _AUDIO_TOKEN_ID_CFG = getattr(model_cfg, "audio_token_id", None)
 
         def _build_cached_inputs_embeds(pc_ids):
             """pc_ids에 대한 inputs_embeds 생성.
@@ -583,26 +610,45 @@ class GDPOTrainer(Trainer):
         rewards = rewards_per_func.sum(dim=1)
         advantages = self._compute_gdpo_advantages(rewards_per_func, rewards)
 
-        # 디버깅용: time token을 초 단위로 디코딩해서 사람이 읽기 쉽게 출력
+        # 디버깅용: raw token + 초 단위 디코딩 둘 다 출력
         _SEG_CAPTURE_DEBUG = re.compile(
             r"[Ff]rom\s+((?:<t\d>){1,4}<tdot><t\d>)\s+to\s+((?:<t\d>){1,4}<tdot><t\d>)"
         )
-        def _decode_segments_to_seconds(text):
-            """'From <t0>...<t5> to <t0>...<t9>. From ...' → '(5.2, 13.9), (20.5, 29.0)'"""
-            segs = []
+        def _extract_segments(text):
+            """raw + sec 두 형태 추출.
+            'From <t0>...<t5> to <t0>...<t9>. ...' →
+              raw: 'from <t0><t0><t5><tdot><t2> to <t0><t1><t3><tdot><t9>',
+              sec: '(5.2, 13.9)'"""
+            raw_segs, sec_segs = [], []
             for s_str, e_str in _SEG_CAPTURE_DEBUG.findall(text):
+                raw_segs.append(f"from {s_str} to {e_str}")
                 s = decode_vtg_time(s_str)
                 e = decode_vtg_time(e_str)
                 if s is not None and e is not None:
-                    segs.append(f"({s:.1f}, {e:.1f})")
-            return ", ".join(segs) if segs else "[no valid segment]"
+                    sec_segs.append(f"({s:.1f}, {e:.1f})")
+            raw_str = ", ".join(raw_segs) if raw_segs else "[no valid segment]"
+            sec_str = ", ".join(sec_segs) if sec_segs else "[no valid segment]"
+            return raw_str, sec_str
 
-        gt_str = ", ".join(f"({s:.1f}, {e:.1f})" for s, e in gt_intervals) if gt_intervals else "[none]"
-        print(f"[GDPO SAMPLES] GT: {gt_str}")
-        for gi, c in enumerate(completions):
-            pred_str = _decode_segments_to_seconds(c)
-            iou_val = rewards_per_func[gi, 1].item()
-            print(f"  [{gi}] iou={iou_val:.3f} | pred: {pred_str}")
+        # GT raw 토큰 형태 복원 — labels에서 다시 디코딩
+        gt_raw_str = "[none]"
+        if raw_labels is not None:
+            _gt_ids = raw_labels[0][raw_labels[0] != -100]
+            if len(_gt_ids) > 0:
+                gt_answer_raw = self.processing_class.decode(_gt_ids, skip_special_tokens=False)
+                gt_raw_segs = [f"from {s} to {e}" for s, e in _SEG_CAPTURE_DEBUG.findall(gt_answer_raw)]
+                if gt_raw_segs:
+                    gt_raw_str = ", ".join(gt_raw_segs)
+        gt_sec_str = ", ".join(f"({s:.1f}, {e:.1f})" for s, e in gt_intervals) if gt_intervals else "[none]"
+        if self.accelerator.is_main_process:
+            print(f"[GDPO SAMPLES] GT raw: {gt_raw_str}")
+            print(f"[GDPO SAMPLES] GT sec: {gt_sec_str}")
+            for gi, c in enumerate(completions):
+                pred_raw, pred_sec = _extract_segments(c)
+                iou_val = rewards_per_func[gi, 1].item()
+                print(f"  [{gi}] iou={iou_val:.3f}")
+                print(f"       raw: {pred_raw}")
+                print(f"       sec: {pred_sec}")
 
 
         # ── Loss ──
@@ -790,10 +836,12 @@ def main():
     num_generations = _get(None, "gdpo", "num_generations", default=8)
     max_completion_length = _get(None, "gdpo", "max_completion_length", default=512)
     beta = _get(None, "gdpo", "beta", default=0.04)
+    temperature = float(_get(None, "gdpo", "temperature", default=1.0))
     reward_weights = _get(None, "gdpo", "reward_weights", default=[1.0, 1.0, 1.0])
 
     # 학습 파라미터
     num_epochs = _get(None, "training", "num_train_epochs", default=1)
+    max_steps = _get(None, "training", "max_steps", default=-1)
     batch_size = _get(None, "training", "per_device_train_batch_size", default=1)
     grad_accum = _get(None, "training", "gradient_accumulation_steps", default=4)
     lr = float(_get(None, "training", "learning_rate", default=5e-6))
@@ -862,6 +910,7 @@ def main():
     grpo_args = GRPOConfig(
         output_dir=output_dir,
         num_train_epochs=num_epochs,
+        max_steps=max_steps,
         per_device_train_batch_size=batch_size,
         gradient_accumulation_steps=grad_accum,
         learning_rate=lr,
@@ -870,6 +919,7 @@ def main():
         beta=beta,
         num_generations=num_generations,
         max_completion_length=max_completion_length,
+        temperature=temperature,
         bf16=True,
         logging_steps=logging_steps,
         save_steps=save_steps,
