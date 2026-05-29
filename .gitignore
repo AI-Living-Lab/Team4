@@ -214,3 +214,7 @@ cookies_*.txt
 # local notes / conversation logs
 *.md
 !README.md
+
+# _tools/ training/eval run logs (keep .sh/.py only)
+_tools/*_logs/
+_tools/*nohup.log*

@@ -35,6 +35,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
 from qwenvl.model.modeling_qwen2_5_vl import video_SALMONN2_plus
+from qwenvl.model.ordinal_head import OrdinalHead
 from qwenvl.data.dataset import make_supervised_data_module
 from qwenvl.data.image_processing_qwen2_vl_fast import Qwen2VLImageProcessorFast
 from qwenvl.train.argument import (
@@ -120,6 +121,52 @@ def safe_save_model_for_hf_trainer(trainer: transformers.Trainer, output_dir: st
         cpu_state_dict = {key: value.cpu() for key, value in state_dict.items()}
         del state_dict
         trainer._save(output_dir, state_dict=cpu_state_dict)  # noqa
+
+
+class SaveOrdinalHeadCallback(transformers.TrainerCallback):
+    """ord_head 의 state_dict 를 체크포인트 디렉토리에 sidecar 로 저장.
+
+    PEFT modules_to_save 에 속하지 않은 새 모듈이라 adapter_model.safetensors 에
+    포함되지 않음. resume / inference 시 별도 로딩 필요.
+    """
+
+    def on_save(self, args, state, control, model=None, **kwargs):
+        if not args.should_save or model is None:
+            return
+        inner = model.base_model.model if hasattr(model, "base_model") else model
+        if not hasattr(inner, "ord_head"):
+            return
+        ckpt_dir = os.path.join(args.output_dir, f"checkpoint-{state.global_step}")
+        if not os.path.isdir(ckpt_dir):
+            return
+        from safetensors.torch import save_file
+        sd = {f"ord_head.{k}": v.detach().cpu() for k, v in inner.ord_head.state_dict().items()}
+        out_path = os.path.join(ckpt_dir, "ord_head.safetensors")
+        save_file(sd, out_path)
+        print(f"[SAVE] ord_head -> {out_path}  ({sum(v.numel() for v in sd.values())} params)")
+
+
+class SaveQTokensCallback(transformers.TrainerCallback):
+    """Save trained `audio.q_tokens` next to the adapter at every checkpoint save.
+
+    `audio.q_tokens` is an `nn.Parameter` so PEFT's `modules_to_save` cannot wrap it,
+    which means it is missing from `adapter_model.safetensors`. Without this callback
+    the merged inference model silently falls back to BASE q_tokens.
+    """
+
+    def on_save(self, args, state, control, model=None, **kwargs):
+        if not args.should_save or model is None:
+            return
+        inner = model.base_model.model if hasattr(model, "base_model") else model
+        if not (hasattr(inner, "audio") and hasattr(inner.audio, "q_tokens")):
+            return
+        ckpt_dir = os.path.join(args.output_dir, f"checkpoint-{state.global_step}")
+        if not os.path.isdir(ckpt_dir):
+            return
+        from safetensors.torch import save_file
+        out_path = os.path.join(ckpt_dir, "audio_q_tokens.safetensors")
+        save_file({"audio.q_tokens": inner.audio.q_tokens.detach().cpu()}, out_path)
+        print(f"[SAVE] audio.q_tokens -> {out_path}  shape={tuple(inner.audio.q_tokens.shape)}")
 
 
 def set_model(model_args, model):
@@ -256,10 +303,19 @@ def train(attn_implementation="flash_attention_2"):
                 module_to_save.append("audio.qformer")
                 module_to_save.append("audio.q_tokens")
                 module_to_save.append("audio.audio_proj")
+
+            VTG_TIME_TOKENS = [f"<t{i}>" for i in range(10)] + ["<tdot>"]
+            time_token_ids = [tokenizer.convert_tokens_to_ids(t) for t in VTG_TIME_TOKENS]
+            time_token_ids = [i for i in time_token_ids if i is not None and i >= 0]
+            if len(time_token_ids) > 0:
+                module_to_save.append("model.embed_tokens")
+                module_to_save.append("lm_head")
+
+            lora_target_modules = [m.strip() for m in model_args.lora_target_modules.split(",") if m.strip()]
             lora_config = LoraConfig(
                 r=model_args.lora_r,
                 lora_alpha=model_args.lora_alpha,
-                target_modules=["q_proj", "k_proj", "v_proj"], # find_all_linear_names(model),
+                target_modules=lora_target_modules,
                 lora_dropout=model_args.lora_dropout,
                 bias=model_args.lora_bias,
                 task_type="CAUSAL_LM",
@@ -275,7 +331,71 @@ def train(attn_implementation="flash_attention_2"):
             for k, v in model.named_parameters():
                 if "lora" in k:
                     v.requires_grad_(True)
-        
+
+            # audio.q_tokens is an nn.Parameter (not nn.Module) so PEFT's modules_to_save
+            # cannot wrap it. Manually unfreeze it here so gradients flow.
+            if model_args.tune_mm_qformer:
+                inner = model.base_model.model if hasattr(model, "base_model") else model
+                if hasattr(inner, "audio") and hasattr(inner.audio, "q_tokens"):
+                    inner.audio.q_tokens.requires_grad_(True)
+                    if dist.get_rank() == 0:
+                        print(f"[FIX] audio.q_tokens manually unfrozen: shape={tuple(inner.audio.q_tokens.shape)}")
+
+            # Mask gradients of embed_tokens / lm_head so only the new time token rows update.
+            if len(time_token_ids) > 0:
+                inner = model.base_model.model if hasattr(model, "base_model") else model
+                time_ids_tensor = torch.tensor(sorted(time_token_ids), dtype=torch.long)
+
+                def _row_mask_hook(grad, ids=time_ids_tensor):
+                    mask = torch.zeros(grad.shape[0], dtype=grad.dtype, device=grad.device)
+                    mask[ids.to(grad.device)] = 1.0
+                    return grad * mask.unsqueeze(-1)
+
+                # Register on the active modules_to_save copies
+                emb_mod = inner.model.embed_tokens
+                lmh_mod = inner.lm_head
+                # PEFT wraps these as ModulesToSaveWrapper; reach the active copy
+                if hasattr(emb_mod, "modules_to_save"):
+                    emb_mod.modules_to_save["default"].weight.register_hook(_row_mask_hook)
+                else:
+                    emb_mod.weight.register_hook(_row_mask_hook)
+                if hasattr(lmh_mod, "modules_to_save"):
+                    lmh_mod.modules_to_save["default"].weight.register_hook(_row_mask_hook)
+                else:
+                    lmh_mod.weight.register_hook(_row_mask_hook)
+                if dist.get_rank() == 0:
+                    print(f"[MASK] embed_tokens/lm_head gradient masked to {len(time_token_ids)} rows: {time_token_ids}")
+
+            if dist.get_rank() == 0:
+                print(f"[LORA] target_modules={lora_target_modules}")
+                print(f"[LORA] modules_to_save={module_to_save}")
+                print(f"[TIME_TOKEN] {len(time_token_ids)} tokens unfrozen via embed_tokens/lm_head: {time_token_ids}")
+
+        # ---- Ordinal regularization: time_token_ids 등록 (lambda_ord > 0 일 때만) ----
+        # 별도 head 학습 없음. lm_head 의 time-token row 만 활용해 distance-weighted NLL 계산.
+        ordinal_active = bool(getattr(data_args, "ordinal_enabled", False)) and (
+            float(getattr(training_args, "lambda_ord", 0.0)) > 0.0
+        )
+        if ordinal_active:
+            inner = model.base_model.model if hasattr(model, "base_model") else model
+            # <t0>..<t9> 의 vocab id 를 정렬해서 buffer 로 등록
+            digit_ids = []
+            for d in range(10):
+                tid = tokenizer.convert_tokens_to_ids(f"<t{d}>")
+                if tid is None or tid < 0:
+                    raise RuntimeError(f"time token <t{d}> not found in tokenizer")
+                digit_ids.append(tid)
+            inner.register_buffer(
+                "time_token_ids",
+                torch.tensor(digit_ids, dtype=torch.long),
+                persistent=False,
+            )
+            if dist.get_rank() == 0:
+                print(f"[ORDINAL] distance-weighted NLL regularization enabled. "
+                      f"time_token_ids ({len(digit_ids)})={digit_ids}, "
+                      f"lambda_ord={training_args.lambda_ord}, "
+                      f"unav_weight={training_args.ordinal_unav_weight}")
+
         if dist.get_rank() == 0:
             for k, v in model.named_parameters():
                 if v.requires_grad:
@@ -285,6 +405,11 @@ def train(attn_implementation="flash_attention_2"):
         trainer = QwenVLTrainer(
             model=model, processing_class=tokenizer, args=training_args, **data_module
         )
+        if model_args.use_lora and model_args.tune_mm_qformer:
+            trainer.add_callback(SaveQTokensCallback())
+        # NOTE: distance-weighted NLL ordinal uses lm_head's own weights (no extra params),
+        # so no sidecar callback needed. lm_head time-token rows are saved via PEFT's
+        # modules_to_save mechanism in adapter_model.safetensors.
         if data_module.get("eval_dataset") is not None and getattr(training_args, "early_stopping_patience", 0) > 0:
             from transformers import EarlyStoppingCallback
             trainer.add_callback(EarlyStoppingCallback(
@@ -407,7 +532,11 @@ def train(attn_implementation="flash_attention_2"):
                             do_sample=data_args.do_sample,
                             top_p=0.9)
                     output_trimmed = outputs[0, len(inputs["input_ids"][0]):]
-                    output_text = tokenizer.decode(output_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+                    # NOTE: skip_special_tokens=False because <t0>..<t9>, <tdot> are flagged
+                    # special=True in tokenizer config and would be stripped from generation
+                    # output otherwise. Downstream parsers must tolerate residual chat-template
+                    # special tokens (<|im_end|>, etc.) — eval_miou_v5 regex does.
+                    output_text = tokenizer.decode(output_trimmed, skip_special_tokens=False, clean_up_tokenization_spaces=False)
                     if data_args.num_sample == 1:
                         res_i["pred"] = output_text
                     else:

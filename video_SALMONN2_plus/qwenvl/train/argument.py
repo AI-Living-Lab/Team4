@@ -34,6 +34,10 @@ class ModelArguments:
     lora_dropout: float = field(default=0.05)
     lora_bias: str = field(default="none")
     lora_ckpt: str = field(default="No")
+    lora_target_modules: str = field(
+        default="q_proj,k_proj,v_proj",
+        metadata={"help": "Comma-separated linear layer names for LoRA target_modules."},
+    )
 
 @dataclass
 class DataArguments:
@@ -54,6 +58,10 @@ class DataArguments:
     chunk_length: int = field(default=30)
     hop_length: int = field(default=160)
     sampling_rate: int = field(default=16000)
+    # Ordinal loss 관련 (time-token ordinal supervision)
+    ordinal_enabled: bool = field(default=False)
+    time_ndig_int: int = field(default=4)   # 정수부 자릿수 (e.g. 4 for 4+1, 3 for 3+2)
+    time_ndig_dec: int = field(default=1)   # 소수부 자릿수 (e.g. 1 for 4+1, 2 for 3+2)
 
 
 @dataclass
@@ -71,3 +79,23 @@ class TrainingArguments(transformers.TrainingArguments):
     vision_tower_lr: Optional[float] = None
     pred_rank: int = field(default=0)
     no_audio: bool = field(default=False)
+    # Per-module LR / weight_decay overrides (None = fall back to learning_rate / weight_decay)
+    lora_lr: Optional[float] = None
+    lora_wd: Optional[float] = None
+    embed_lr: Optional[float] = None         # for model.embed_tokens (new token rows only)
+    embed_wd: Optional[float] = None
+    lm_head_lr: Optional[float] = None       # for lm_head (new token rows only)
+    lm_head_wd: Optional[float] = None
+    visual_merger_lr: Optional[float] = None
+    visual_merger_wd: Optional[float] = None
+    audio_qformer_lr: Optional[float] = None
+    audio_qformer_wd: Optional[float] = None
+    audio_proj_lr: Optional[float] = None
+    audio_proj_wd: Optional[float] = None
+    audio_q_tokens_lr: Optional[float] = None
+    audio_q_tokens_wd: Optional[float] = None
+    # Ordinal loss 관련
+    lambda_ord: float = field(default=0.0)            # 0 이면 ordinal loss 사용 안 함 (CE only)
+    ord_head_lr: Optional[float] = None
+    ord_head_wd: Optional[float] = None
+    ordinal_unav_weight: float = field(default=1.0)   # UnAV sample 의 ord_loss 가중치 (PU-VALOR=1.0 기준)

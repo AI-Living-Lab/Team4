@@ -42,6 +42,7 @@ except ImportError:
 import transformers
 
 from .rope2d import get_rope_index_25, get_rope_index_2
+from .ordinal_mask import build_time_token_maps, make_ordinal_mask
 from decord import VideoReader, cpu
 
 IGNORE_INDEX = -100
@@ -335,6 +336,22 @@ class LazySupervisedDataset(Dataset):
         self.data_args.image_processor.size["longest_edge"] = data_args.max_pixels
         self.data_args.image_processor.size["shortest_edge"] = data_args.min_pixels
 
+        # Ordinal loss 활성화 시 time-token id 매핑 캐시
+        self.ordinal_enabled = bool(getattr(data_args, "ordinal_enabled", False))
+        if self.ordinal_enabled:
+            self.time_token_id_map, self.tdot_id = build_time_token_maps(tokenizer)
+            self.time_ndig_int = int(getattr(data_args, "time_ndig_int", 3))
+            self.time_ndig_dec = int(getattr(data_args, "time_ndig_dec", 2))
+            rank0_print(
+                f"[ORDINAL] enabled. tokenization={self.time_ndig_int}+{self.time_ndig_dec}, "
+                f"|time_token_ids|={len(self.time_token_id_map)}, tdot_id={self.tdot_id}"
+            )
+        else:
+            self.time_token_id_map = None
+            self.tdot_id = -1
+            self.time_ndig_int = 0
+            self.time_ndig_dec = 0
+
     def __len__(self):
         return len(self.list_data_dict)
 
@@ -371,6 +388,27 @@ class LazySupervisedDataset(Dataset):
             print("No pre-calculated length available.")
             return np.array([1] * len(self.list_data_dict))
 
+    def _load_audio_array(self, path, target_sr):
+        """Load audio at target_sr as a 1D float32 numpy array.
+
+        Tries torchcodec first (when available), then falls back to soundfile +
+        torchaudio.functional.resample. Surface errors instead of swallowing them.
+        """
+        if AudioDecoder is not None:
+            decoder = AudioDecoder(path, sample_rate=target_sr, num_channels=1)
+            return decoder.get_all_samples().data.numpy().squeeze(0)
+        # soundfile fallback (no FFmpeg dependency; handles WAV natively)
+        import soundfile as sf
+        data, sr = sf.read(path, dtype="float32", always_2d=False)
+        if data.ndim > 1:
+            data = data.mean(axis=1)
+        if sr != target_sr:
+            import torchaudio.functional as taF
+            t = torch.from_numpy(data).float().unsqueeze(0)
+            t = taF.resample(t, orig_freq=sr, new_freq=target_sr)
+            data = t.squeeze(0).numpy()
+        return data
+
     def process_audio(self, audio_file):
         try:
             audio_kwargs = {
@@ -380,23 +418,9 @@ class LazySupervisedDataset(Dataset):
             }
             processor = copy.deepcopy(self.data_args.audio_processor)
             if isinstance(audio_file, list):
-                audio_data = []
-                for file in audio_file:
-                    decoder = AudioDecoder(
-                        file,
-                        sample_rate=audio_kwargs["sampling_rate"],
-                        num_channels=1,
-                    )
-                    audio = decoder.get_all_samples()
-                    audio_data.append(audio.data.numpy().squeeze(0))
+                audio_data = [self._load_audio_array(f, audio_kwargs["sampling_rate"]) for f in audio_file]
             else:
-                decoder = AudioDecoder(
-                    audio_file,
-                    sample_rate=audio_kwargs["sampling_rate"],
-                    num_channels=1,
-                )
-                audio = decoder.get_all_samples()
-                audio_data = [audio.data.numpy().squeeze(0)]
+                audio_data = [self._load_audio_array(audio_file, audio_kwargs["sampling_rate"])]
             audio_inputs = []
             audio_lengths = []
             for idx in range(len(audio_data)):
@@ -408,7 +432,8 @@ class LazySupervisedDataset(Dataset):
                 audio_inputs.append(torch.stack(spectrogram_lst, dim=0))
                 audio_lengths.append(math.ceil(len(audio_data[idx]) / (30 * audio_kwargs["sampling_rate"])) * 60)
             return audio_inputs, audio_lengths
-        except:
+        except Exception as e:
+            print(f"[process_audio] FAIL on {audio_file!r}: {type(e).__name__}: {e}", flush=True)
             return None, None
 
 
@@ -495,24 +520,30 @@ class LazySupervisedDataset(Dataset):
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         num_base_retries = 3
+        max_fallback = 20  # 다른 random sample 도 최대 20 번까지만 시도. recursion → iterative.
+        current_i = i
 
-        # try the current sample first
-        for attempt_idx in range(num_base_retries):
-            try:
-                sample = self._get_item(i)
-                return sample
-            except Exception as e:
-                # sleep 1s in case it is a cloud disk issue
-                print(f"[Try #{attempt_idx}] Failed to fetch sample {i}. Exception:", e)
-                time.sleep(1)
+        for fallback_round in range(max_fallback + 1):
+            for attempt_idx in range(num_base_retries):
+                try:
+                    sample = self._get_item(current_i)
+                    if self.data_args.run_test and fallback_round > 0:
+                        sample["should_use"] = False
+                    return sample
+                except Exception as e:
+                    print(f"[Try #{attempt_idx}] Failed to fetch sample {current_i}. Exception:", e)
+                    time.sleep(0.1)
 
-        if self.data_args.run_test:
-            item_to_return = self.__getitem__(random.randint(0, len(self) - 1))
-            item_to_return["should_use"] = False
-            return item_to_return
-        else:
-            print(f"Failed to fetch sample {i}. Try another sample.")
-            return self.__getitem__(random.randint(0, len(self) - 1))
+            if fallback_round == max_fallback:
+                break
+            print(f"Failed to fetch sample {current_i}. Try another sample. (fallback {fallback_round+1}/{max_fallback})")
+            current_i = random.randint(0, len(self) - 1)
+
+        # 모든 fallback 실패: dummy 반환하면 collator 에서 더 깨질 수 있으니 차라리 raise
+        raise RuntimeError(
+            f"Failed to fetch any valid sample after {max_fallback} fallbacks "
+            f"(started from index {i}). Check dataset integrity."
+        )
 
     def _get_item(self, i) -> Dict[str, torch.Tensor]:
         try:
@@ -575,9 +606,12 @@ class LazySupervisedDataset(Dataset):
                     )
                     video = [video]
                 if "use_audio" in sources[0] and sources[0]["use_audio"]:
-                    audio, audio_lengths = self.process_audio(
-                        video_file
-                    )
+                    # Sample 에 별도 audio 파일이 있으면 그것을 우선 사용 (line 622+ 의 분기에서 처리).
+                    # video_file 에서 audio 추출은 .wav 가 없을 때만 fallback.
+                    if "audio" in sources[0]:
+                        audio, audio_lengths = None, None
+                    else:
+                        audio, audio_lengths = self.process_audio(video_file)
                 else:
                     audio, audio_lengths = None, None
                 video_grid_thw_merged = copy.deepcopy(video_grid_thw)
@@ -684,7 +718,31 @@ class LazySupervisedDataset(Dataset):
                 data_dict["train_type"] = "sft"
             else:
                 data_dict["train_type"] = self.data_args.train_type
-            
+
+            # Sample-level metadata (Ordinal loss 분기 & 모니터링용)
+            raw_sample = self.list_data_dict[i] if isinstance(i, int) else self.list_data_dict[i[0]]
+            source_id = raw_sample.get("source_id", "unknown")
+            task_type = raw_sample.get("task_type", "unknown")
+            data_dict["source_id"] = source_id
+            data_dict["task_type"] = task_type
+
+            # Ordinal mask 생성 (학습 모드 & ordinal_enabled 일 때만)
+            if self.ordinal_enabled and not self.data_args.run_test:
+                ids_1d = data_dict["input_ids"][0]
+                lbl_1d = data_dict["labels"][0]
+                ord_mask, dig_tgt, dig_pl = make_ordinal_mask(
+                    ids_1d, lbl_1d,
+                    source_id=source_id,
+                    task_type=task_type,
+                    ndig_int=self.time_ndig_int,
+                    ndig_dec=self.time_ndig_dec,
+                    time_token_id_map=self.time_token_id_map,
+                    tdot_id=self.tdot_id,
+                )
+                data_dict["ordinal_mask"] = ord_mask.unsqueeze(0)
+                data_dict["digit_target"] = dig_tgt.unsqueeze(0)
+                data_dict["digit_place"] = dig_pl.unsqueeze(0)
+
             if self.data_args.run_test:
                 labels = data_dict.pop("labels", None)
                 len_input = sum(labels[0] == IGNORE_INDEX)
@@ -780,6 +838,33 @@ class DataCollatorForSupervisedDataset(object):
         else:
             reject_ids, reject_labels, reject_position_ids, reject_attention_mask = None, None, None, None
         train_type = [instance["train_type"] for instance in instances][0]
+        # Ordinal loss 관련 필드 (있을 때만 batch 화)
+        L = input_ids.shape[1]  # max length after process_ids
+        if all("ordinal_mask" in inst for inst in instances):
+            ord_masks = [inst["ordinal_mask"].squeeze(0) for inst in instances]
+            dig_tgts = [inst["digit_target"].squeeze(0) for inst in instances]
+            dig_pls = [inst["digit_place"].squeeze(0) for inst in instances]
+            ordinal_mask_b = torch.nn.utils.rnn.pad_sequence(
+                ord_masks, batch_first=True, padding_value=False
+            )[:, :L]
+            digit_target_b = torch.nn.utils.rnn.pad_sequence(
+                dig_tgts, batch_first=True, padding_value=IGNORE_INDEX
+            )[:, :L]
+            digit_place_b = torch.nn.utils.rnn.pad_sequence(
+                dig_pls, batch_first=True, padding_value=-1
+            )[:, :L]
+            # 길이가 input_ids 보다 짧을 수도 (right-truncated) — 맞춰 pad
+            if ordinal_mask_b.shape[1] < L:
+                pad = L - ordinal_mask_b.shape[1]
+                ordinal_mask_b = torch.nn.functional.pad(ordinal_mask_b, (0, pad), value=False)
+                digit_target_b = torch.nn.functional.pad(digit_target_b, (0, pad), value=IGNORE_INDEX)
+                digit_place_b = torch.nn.functional.pad(digit_place_b, (0, pad), value=-1)
+        else:
+            ordinal_mask_b = None
+            digit_target_b = None
+            digit_place_b = None
+        source_id_list = [inst.get("source_id", "unknown") for inst in instances]
+        task_type_list = [inst.get("task_type", "unknown") for inst in instances]
         batch = dict(
             input_ids=input_ids,
             labels=labels,
@@ -794,6 +879,11 @@ class DataCollatorForSupervisedDataset(object):
             chosen_attention_mask=chosen_attention_mask,
             reject_attention_mask=reject_attention_mask,
             train_type=train_type,
+            ordinal_mask=ordinal_mask_b,
+            digit_target=digit_target_b,
+            digit_place=digit_place_b,
+            source_id=source_id_list,
+            task_type=task_type_list,
         )
         images = list(
             instance["pixel_values"]

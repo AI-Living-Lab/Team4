@@ -1,0 +1,438 @@
+{
+  "groups": [
+    {
+      "group": "llm.self_attn.o_proj",
+      "n_keys": 28,
+      "n_params": 359661568,
+      "base_norm": 348.77047325938895,
+      "delta_norm": 80.33078979749762,
+      "rel_shift": 0.23032566101934165
+    },
+    {
+      "group": "llm.self_attn.v_proj",
+      "n_keys": 120,
+      "n_params": 103864320,
+      "base_norm": 187.6985264737317,
+      "delta_norm": 27.26979941517801,
+      "rel_shift": 0.14528510120719704
+    },
+    {
+      "group": "llm.self_attn.q_proj",
+      "n_keys": 120,
+      "n_params": 412231680,
+      "base_norm": 679.3402565874585,
+      "delta_norm": 77.21945075253984,
+      "rel_shift": 0.11366829803438634
+    },
+    {
+      "group": "audio.q_tokens",
+      "n_keys": 1,
+      "n_params": 3072,
+      "base_norm": 1.078788442622912,
+      "delta_norm": 0.08332946949683671,
+      "rel_shift": 0.07724356899315345
+    },
+    {
+      "group": "audio.proj",
+      "n_keys": 2,
+      "n_params": 11013632,
+      "base_norm": 66.00125319727785,
+      "delta_norm": 4.188389910903148,
+      "rel_shift": 0.06345924824160507
+    },
+    {
+      "group": "llm.mlp.other",
+      "n_keys": 4,
+      "n_params": 44573184,
+      "base_norm": 152.3887278398543,
+      "delta_norm": 5.211673667202025,
+      "rel_shift": 0.034199863343428866
+    },
+    {
+      "group": "llm.self_attn.k_proj",
+      "n_keys": 88,
+      "n_params": 103823360,
+      "base_norm": 1155.8447122583514,
+      "delta_norm": 24.92577618047546,
+      "rel_shift": 0.02156498698841138
+    },
+    {
+      "group": "lm_head",
+      "n_keys": 1,
+      "n_params": 544997376,
+      "base_norm": 292.44548103022555,
+      "delta_norm": 0.9013827602574555,
+      "rel_shift": 0.0030822249572196
+    },
+    {
+      "group": "embed_tokens",
+      "n_keys": 1,
+      "n_params": 544997376,
+      "base_norm": 353.9783273733012,
+      "delta_norm": 1.043336496277261,
+      "rel_shift": 0.0029474586877093413
+    },
+    {
+      "group": "audio.qformer",
+      "n_keys": 41,
+      "n_params": 280050176,
+      "base_norm": 6687.393545193148,
+      "delta_norm": 19.15217856087419,
+      "rel_shift": 0.0028639227572662654
+    },
+    {
+      "group": "llm.norm",
+      "n_keys": 70,
+      "n_params": 243712,
+      "base_norm": 479.4585615032733,
+      "delta_norm": 0.2125125208741756,
+      "rel_shift": 0.0004432343854865637
+    },
+    {
+      "group": "visual.merger",
+      "n_keys": 1,
+      "n_params": 1280,
+      "base_norm": 45.908574013671455,
+      "delta_norm": 0.0009765625,
+      "rel_shift": 2.1271897918440265e-05
+    },
+    {
+      "group": "audio.other",
+      "n_keys": 263,
+      "n_params": 427130880,
+      "base_norm": 1046.5489754440216,
+      "delta_norm": 0.0,
+      "rel_shift": 0.0
+    },
+    {
+      "group": "llm.mlp.down_proj",
+      "n_keys": 92,
+      "n_params": 2041192448,
+      "base_norm": 821.4125457461446,
+      "delta_norm": 0.0,
+      "rel_shift": 0.0
+    },
+    {
+      "group": "llm.mlp.gate_proj",
+      "n_keys": 92,
+      "n_params": 2041260928,
+      "base_norm": 857.3665146808937,
+      "delta_norm": 0.0,
+      "rel_shift": 0.0
+    },
+    {
+      "group": "llm.mlp.up_proj",
+      "n_keys": 92,
+      "n_params": 2041260928,
+      "base_norm": 833.5884668087342,
+      "delta_norm": 0.0,
+      "rel_shift": 0.0
+    },
+    {
+      "group": "llm.self_attn.other",
+      "n_keys": 64,
+      "n_params": 52469760,
+      "base_norm": 113.85652592135769,
+      "delta_norm": 0.0,
+      "rel_shift": 0.0
+    },
+    {
+      "group": "misc",
+      "n_keys": 1,
+      "n_params": 3584,
+      "base_norm": 240.7492698587059,
+      "delta_norm": 0.0,
+      "rel_shift": 0.0
+    },
+    {
+      "group": "visual.other",
+      "n_keys": 193,
+      "n_params": 211466240,
+      "base_norm": 452.74399122174515,
+      "delta_norm": 0.0,
+      "rel_shift": 0.0
+    }
+  ],
+  "top_keys": [
+    {
+      "key": "audio.qformer.bert.encoder.layer.1.crossattention.self.value.bias",
+      "base_norm": 0.12499140202999115,
+      "delta_norm": 0.1135604977607727,
+      "rel_shift": 0.908546475321685
+    },
+    {
+      "key": "audio.qformer.bert.encoder.layer.1.crossattention.self.query.bias",
+      "base_norm": 0.10344182699918747,
+      "delta_norm": 0.08907210826873779,
+      "rel_shift": 0.8610840590487285
+    },
+    {
+      "key": "audio.qformer.bert.encoder.layer.1.output_query.dense.bias",
+      "base_norm": 0.047830626368522644,
+      "delta_norm": 0.03678712248802185,
+      "rel_shift": 0.7691122880937716
+    },
+    {
+      "key": "audio.qformer.bert.encoder.layer.0.crossattention.self.query.bias",
+      "base_norm": 0.11648792028427124,
+      "delta_norm": 0.08681246638298035,
+      "rel_shift": 0.7452486590058637
+    },
+    {
+      "key": "audio.qformer.bert.encoder.layer.1.crossattention.self.key.bias",
+      "base_norm": 0.15289515256881714,
+      "delta_norm": 0.10986587405204773,
+      "rel_shift": 0.7185700279273355
+    },
+    {
+      "key": "audio.qformer.bert.encoder.layer.0.crossattention.self.value.bias",
+      "base_norm": 0.10315579175949097,
+      "delta_norm": 0.06565692275762558,
+      "rel_shift": 0.6364831449315909
+    },
+    {
+      "key": "audio.qformer.bert.encoder.layer.0.crossattention.self.key.bias",
+      "base_norm": 0.1503237932920456,
+      "delta_norm": 0.08028499782085419,
+      "rel_shift": 0.5340804410406559
+    },
+    {
+      "key": "audio.qformer.bert.encoder.layer.0.output_query.dense.bias",
+      "base_norm": 0.0459054671227932,
+      "delta_norm": 0.0236513614654541,
+      "rel_shift": 0.5152188387860974
+    },
+    {
+      "key": "audio.audio_proj.bias",
+      "base_norm": 0.11648233234882355,
+      "delta_norm": 0.056487783789634705,
+      "rel_shift": 0.48494722461419076
+    },
+    {
+      "key": "audio.qformer.bert.encoder.layer.1.attention.self.value.bias",
+      "base_norm": 0.07480363547801971,
+      "delta_norm": 0.032265931367874146,
+      "rel_shift": 0.4313417544649126
+    },
+    {
+      "key": "audio.qformer.bert.encoder.layer.1.intermediate_query.dense.bias",
+      "base_norm": 0.2238631397485733,
+      "delta_norm": 0.09460087865591049,
+      "rel_shift": 0.42258354261329795
+    },
+    {
+      "key": "audio.qformer.bert.encoder.layer.1.crossattention.output.dense.bias",
+      "base_norm": 0.08618588745594025,
+      "delta_norm": 0.032284434884786606,
+      "rel_shift": 0.3745907344855779
+    },
+    {
+      "key": "audio.qformer.bert.encoder.layer.0.intermediate_query.dense.bias",
+      "base_norm": 0.2512166202068329,
+      "delta_norm": 0.09076829999685287,
+      "rel_shift": 0.36131486810769037
+    },
+    {
+      "key": "model.layers.0.self_attn.v_proj.weight",
+      "base_norm": 15.8838472366333,
+      "delta_norm": 4.846482753753662,
+      "rel_shift": 0.30512020680832264
+    },
+    {
+      "key": "model.layers.24.self_attn.o_proj.weight",
+      "base_norm": 72.8176498413086,
+      "delta_norm": 22.125219345092773,
+      "rel_shift": 0.30384418328949003
+    },
+    {
+      "key": "model.layers.1.self_attn.q_proj.weight",
+      "base_norm": 65.05271911621094,
+      "delta_norm": 19.571697235107422,
+      "rel_shift": 0.30085901866982706
+    },
+    {
+      "key": "model.layers.25.self_attn.o_proj.weight",
+      "base_norm": 76.05014038085938,
+      "delta_norm": 21.993410110473633,
+      "rel_shift": 0.289196180313807
+    },
+    {
+      "key": "model.layers.23.self_attn.o_proj.weight",
+      "base_norm": 72.80400848388672,
+      "delta_norm": 20.71095848083496,
+      "rel_shift": 0.28447552424834566
+    },
+    {
+      "key": "model.layers.27.self_attn.o_proj.weight",
+      "base_norm": 73.40088653564453,
+      "delta_norm": 20.834157943725586,
+      "rel_shift": 0.2838406854065439
+    },
+    {
+      "key": "model.layers.24.self_attn.q_proj.weight",
+      "base_norm": 63.94580841064453,
+      "delta_norm": 17.937538146972656,
+      "rel_shift": 0.28051155490570767
+    }
+  ],
+  "time_tokens": {
+    "lm_head.weight": [
+      {
+        "name": "<t0>",
+        "id": 151666,
+        "base_row_norm": 0.636898398399353,
+        "delta_row_norm": 0.2634759247303009,
+        "rel_shift": 0.41368595900390454
+      },
+      {
+        "name": "<t1>",
+        "id": 151667,
+        "base_row_norm": 0.6518145203590393,
+        "delta_row_norm": 0.26141709089279175,
+        "rel_shift": 0.40106055131817897
+      },
+      {
+        "name": "<t2>",
+        "id": 151668,
+        "base_row_norm": 0.6503074169158936,
+        "delta_row_norm": 0.26241034269332886,
+        "rel_shift": 0.40351737634704504
+      },
+      {
+        "name": "<t3>",
+        "id": 151669,
+        "base_row_norm": 0.6382801532745361,
+        "delta_row_norm": 0.25904545187950134,
+        "rel_shift": 0.4058491409299315
+      },
+      {
+        "name": "<t4>",
+        "id": 151670,
+        "base_row_norm": 0.6393152475357056,
+        "delta_row_norm": 0.2688729763031006,
+        "rel_shift": 0.42056399771329334
+      },
+      {
+        "name": "<t5>",
+        "id": 151671,
+        "base_row_norm": 0.6332399249076843,
+        "delta_row_norm": 0.25921201705932617,
+        "rel_shift": 0.40934250489134205
+      },
+      {
+        "name": "<t6>",
+        "id": 151672,
+        "base_row_norm": 0.6320575475692749,
+        "delta_row_norm": 0.2731841206550598,
+        "rel_shift": 0.432213999666994
+      },
+      {
+        "name": "<t7>",
+        "id": 151673,
+        "base_row_norm": 0.6353734135627747,
+        "delta_row_norm": 0.2705426514148712,
+        "rel_shift": 0.425801026041383
+      },
+      {
+        "name": "<t8>",
+        "id": 151674,
+        "base_row_norm": 0.6337279081344604,
+        "delta_row_norm": 0.27693918347358704,
+        "rel_shift": 0.43700013825869066
+      },
+      {
+        "name": "<t9>",
+        "id": 151675,
+        "base_row_norm": 0.6350873112678528,
+        "delta_row_norm": 0.2821143567562103,
+        "rel_shift": 0.44421349907396007
+      },
+      {
+        "name": "<tdot>",
+        "id": 151676,
+        "base_row_norm": 0.5650427937507629,
+        "delta_row_norm": 0.3085094690322876,
+        "rel_shift": 0.5459931043166676
+      }
+    ],
+    "model.embed_tokens.weight": [
+      {
+        "name": "<t0>",
+        "id": 151666,
+        "base_row_norm": 0.9403046369552612,
+        "delta_row_norm": 0.3256272077560425,
+        "rel_shift": 0.34629969369298047
+      },
+      {
+        "name": "<t1>",
+        "id": 151667,
+        "base_row_norm": 0.9086607694625854,
+        "delta_row_norm": 0.31143879890441895,
+        "rel_shift": 0.34274484975099373
+      },
+      {
+        "name": "<t2>",
+        "id": 151668,
+        "base_row_norm": 0.8860409259796143,
+        "delta_row_norm": 0.32853448390960693,
+        "rel_shift": 0.3707892878040658
+      },
+      {
+        "name": "<t3>",
+        "id": 151669,
+        "base_row_norm": 0.8963128328323364,
+        "delta_row_norm": 0.3299159109592438,
+        "rel_shift": 0.3680812087854928
+      },
+      {
+        "name": "<t4>",
+        "id": 151670,
+        "base_row_norm": 0.9140256643295288,
+        "delta_row_norm": 0.2767644226551056,
+        "rel_shift": 0.30279721178050245
+      },
+      {
+        "name": "<t5>",
+        "id": 151671,
+        "base_row_norm": 0.9434792995452881,
+        "delta_row_norm": 0.2819713056087494,
+        "rel_shift": 0.2988632667874613
+      },
+      {
+        "name": "<t6>",
+        "id": 151672,
+        "base_row_norm": 0.9399840235710144,
+        "delta_row_norm": 0.24578028917312622,
+        "rel_shift": 0.26147283678199285
+      },
+      {
+        "name": "<t7>",
+        "id": 151673,
+        "base_row_norm": 0.9579260349273682,
+        "delta_row_norm": 0.2872934937477112,
+        "rel_shift": 0.29991197991522844
+      },
+      {
+        "name": "<t8>",
+        "id": 151674,
+        "base_row_norm": 0.9754924178123474,
+        "delta_row_norm": 0.36760374903678894,
+        "rel_shift": 0.37683916586538446
+      },
+      {
+        "name": "<t9>",
+        "id": 151675,
+        "base_row_norm": 0.9497634768486023,
+        "delta_row_norm": 0.3081846535205841,
+        "rel_shift": 0.3244856862077315
+      },
+      {
+        "name": "<tdot>",
+        "id": 151676,
+        "base_row_norm": 0.9802356362342834,
+        "delta_row_norm": 0.373606413602829,
+        "rel_shift": 0.3811393911750758
+      }
+    ]
+  }
+}
