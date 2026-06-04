@@ -1,5 +1,18 @@
 #!/bin/bash
 # ============================================================
+# SALMONN2+ GDPO TTI(special) Eval 런처
+#   eval_salmonn2plus.sh 파생본. 
+#     1) 기본 CONFIG=config_gdpo_tti.yaml (TTI_TIME_FORMAT=special_token)
+#     2) 저장 루트 EVAL_DIR 을 /workspace/outputs 로 override (팀 공용 위치)
+#        → OUT_ROOT env 로 변경 가능. 그 외 chunk/resume/merge 로직은 원본과 동일.
+#   체크포인트는 /workspace/checkpoints (CKPT_DIR, paths.env) 에서 읽음.
+#
+# 이 체크포인트 전용 기본값:
+#   STAGE=gdpo  CKPT_MODEL_ID=sft_7b_puvalor_off_v2_rl_tti_rMfp_v2  CKPT_STEP=100
+#   BASE_MODEL_ID=base/salmonn2p_7b_puvalor_off_v2  TESTSET=unav100_v0_500
+#   → LORA_CKPT=/workspace/checkpoints/gdpo/sft_7b_puvalor_off_v2_rl_tti_rMfp_v2/checkpoint-100
+#   → OUT_DIR=/workspace/outputs/gdpo/sft_7b_puvalor_off_v2_rl_tti_rMfp_v2/checkpoint-100/fps5_tti/unav100_v0_500/
+# ------------------------------------------------------------
 # SALMONN2+ Eval 런처 (chunked 추론 + 자동 resume)
 #
 # 동작
@@ -43,19 +56,23 @@ source /workspace/setup.sh
 source "$SCRIPT_DIR/../paths.env"
 conda activate "${CONDA_ENV:-salmonn2p}"
 
+# ---- 저장 루트 override: paths.env 의 EVAL_DIR(=cdh/Team4/outputs) 대신
+#      팀 공용 /workspace/outputs 사용 (reference fp01 과 동일 위치 규칙). ----
+export EVAL_DIR="${OUT_ROOT:-/workspace/outputs}"
+
 export ARNOLD_WORKER_NUM=1
 export ARNOLD_ID=0
 export METIS_WORKER_0_HOST=localhost
 
-# ---- 기본값 ----
-STAGE=sft
-CKPT_MODEL_ID=salmonn2p_7b_unav_baseline
-CKPT_STEP=
-BASE_MODEL_ID=video_salmonn2_plus_7B_time_tokens
-TESTSET=unav100
+# ---- 기본값 (이 체크포인트 전용; CLI 로 override 가능) ----
+STAGE=gdpo
+CKPT_MODEL_ID=sft_7b_puvalor_off_v2_rl_tti_rMfp_v2
+CKPT_STEP=100
+BASE_MODEL_ID=base/salmonn2p_7b_puvalor_off_v2
+TESTSET=unav100_v0_500
 GPUS=0
-CONFIG=config.yaml
-TTI_TIME_FORMAT_CLI=""   # 비어있으면 config.yaml 값 사용
+CONFIG=config_gdpo_tti.yaml
+TTI_TIME_FORMAT_CLI=""   # 비어있으면 config_gdpo_tti.yaml 값(special_token) 사용
 
 # ---- KEY=VALUE 파싱 ----
 for arg in "$@"; do
@@ -125,6 +142,9 @@ MODEL_BASE="${CKPT_DIR}/${BASE_MODEL_ID}"
 MODEL_DIR="${CKPT_DIR}/${STAGE}/${CKPT_MODEL_ID}"
 EVAL_SCRIPT="${BASE_DIR}/eval/eval_miou_multiseg.py"
 HELPER="${BASE_DIR}/eval/_chunk_helpers.py"
+# 추가 분석(reference fp01 의 5파일 셋 재현): segment_analysis.json + gtlen_analysis.json
+SEG_SCRIPT="${SCRIPT_DIR}/analyze_segments.py"      # → segment_analysis.json
+GTLEN_SCRIPT="${SCRIPT_DIR}/posteval_gtlen.py"      # → gtlen_analysis.json  (lib_tvg.py 의존)
 CHUNKS_DIR="${TEST_DIR}/${TESTSET}"
 
 # ---- chunks 검증 ----
@@ -213,6 +233,24 @@ CHUNK_IDX_FILE="$OUT_DIR/.chunk_idx"
 CHUNK_WORKDIR="$OUT_DIR/.chunk_workdir"
 MERGED_MODEL_DIR="$OUT_DIR/.merged_model"
 
+# ---- 모든 chunk 완료 후 1회 실행할 추가 분석 (segment + gtlen) ----
+# max_time 은 config 의 MAX_TIME(9999.9) 사용 → 같은 런의 eval_miou 와 일치.
+# fp_iou_thr=0.3 (reference fp01 과 동일). 실패해도 eval 전체를 막지 않음.
+run_post_analysis() {
+    echo ""
+    echo "=== [SEG] segment 분석 → segment_analysis.json  $(date -Iseconds) ==="
+    python3 "$SEG_SCRIPT" \
+        --results "$MASTER_RESULT" --test_json "$TEST_JSON" \
+        --max_time "$MAX_TIME" --fp_iou_thr 0.3 --label "$CKPT_MODEL_ID" \
+        --out "$OUT_DIR/segment_analysis.json" \
+        || echo "[warn] segment 분석 실패(무시)"
+    echo "=== [GTLEN] GT길이별 R@0.3 분해 → gtlen_analysis.json  $(date -Iseconds) ==="
+    python3 "$GTLEN_SCRIPT" \
+        --results "$MASTER_RESULT" --test_json "$TEST_JSON" \
+        --out "$OUT_DIR/gtlen_analysis.json" --label "$CKPT_MODEL_ID" \
+        || echo "[warn] gtlen 분해 실패(무시)"
+}
+
 # ---- resume offset ----
 RESUME_OUT=$(python3 "$HELPER" resume_offset \
     --master "$MASTER_RESULT" \
@@ -259,6 +297,7 @@ if [ "$START_CHUNK" -ge "$N_CHUNKS" ]; then
     python3 "$EVAL_SCRIPT" \
         --results "$MASTER_RESULT" --test_json "$TEST_JSON" \
         --max_time "$MAX_TIME" --out_dir "$OUT_DIR" --progress_log "$PROGRESS_LOG"
+    run_post_analysis
     SUCCESS=1
     echo "[완료] $OUT_DIR"
     exit 0
@@ -355,6 +394,8 @@ echo "=== FINAL EVAL  $(date -Iseconds) ==="
 python3 "$EVAL_SCRIPT" \
     --results "$MASTER_RESULT" --test_json "$TEST_JSON" \
     --max_time "$MAX_TIME" --out_dir "$OUT_DIR" --progress_log "$PROGRESS_LOG"
+
+run_post_analysis
 
 SUCCESS=1
 echo "[완료] $OUT_DIR"

@@ -52,6 +52,10 @@ from PIL import Image
 import transformers
 
 
+# [TTI-DBG] rope 진입 검증 로그 throttle 카운터 (env TTI_DEBUG=1, 첫 N회만)
+_TTI_ROPE_DBG_COUNT = 0
+
+
 def get_rope_index_25(
     spatial_merge_size: Optional[int] = 2,
     input_ids: Optional[torch.LongTensor] = None,
@@ -171,7 +175,7 @@ def get_rope_index_25(
         audio_lengths is not None and video_grid_thw is not None
     ):
         # TTI(타임 마커 인터리빙) 활성 여부.
-        # - special_token 모드: time_token_id_range=(lo,hi), time_marker_token_len=6
+        # - special_token 모드: time_token_id_range=(lo,hi), time_marker_token_len=5
         # - natural_text 모드 : time_token_id_range=None,    time_marker_token_len=9
         # - TTI off          : 둘 다 None
         # 둘 중 하나라도 truthy 면 활성으로 간주. time_marker_token_len 가 None 인데
@@ -181,7 +185,24 @@ def get_rope_index_25(
             or (time_token_id_range is not None)
         )
         if tti_active and (time_marker_token_len is None or time_marker_token_len <= 0):
-            time_marker_token_len = 6
+            time_marker_token_len = 5
+
+        # [TTI-DBG] ④ rope tti_active 분기 진입 + 마커 감지 검증 (첫 N회, rank0).
+        #   dataset ③ 의 #markers_in_input 과 교차검증 가능.
+        global _TTI_ROPE_DBG_COUNT
+        if (os.environ.get("TTI_DEBUG", "0").lower() in ("1", "true", "yes", "on")
+                and os.environ.get("LOCAL_RANK", "0") == "0"
+                and _TTI_ROPE_DBG_COUNT < int(os.environ.get("TTI_DEBUG_SAMPLES", "3"))):
+            _TTI_ROPE_DBG_COUNT += 1
+            _nmark = 0
+            if time_token_id_range is not None:
+                _lo, _hi = time_token_id_range
+                _flat = input_ids if input_ids.dim() == 1 else input_ids.reshape(-1)
+                _nmark = int(((_flat >= _lo) & (_flat <= _hi)).sum().item())
+            print(f"[TTI-DBG] ④ rope get_rope_index_25: tti_active={tti_active} "
+                  f"time_token_id_range={time_token_id_range} "
+                  f"time_marker_token_len={time_marker_token_len} "
+                  f"#time_tokens_in_input={_nmark}", flush=True)
 
         # 오디오·비디오가 교차(interleaved) 로 들어오는 경우 처리
         total_input_ids = input_ids
@@ -335,7 +356,7 @@ def get_rope_index_25(
                     #   h = 0
                     # 마커 내부 순서 구분은 토큰 ID(special_token) 또는 텍스트
                     # 컨텐츠(natural_text)로 충분하므로 RoPE에서는 축 분리 안 함.
-                    M = time_marker_token_len  # special_token=6, natural_text=9
+                    M = time_marker_token_len  # special_token=5, natural_text=9
                     chunk_t_base = (
                         torch.arange(llm_grid_t) * second_per_grid_t * 2
                     ).long()                                           # (T,)

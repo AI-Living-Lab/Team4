@@ -4,10 +4,10 @@
 ------------------------------
 dataset.py 의 두 가지 책임을 코드 변경 없이 확인한다.
 
-  (A) sec_to_time_token_str(sec) 이 "XXXX.Y" 6개 타임토큰 문자열을 만드는지
+  (A) sec_to_time_token_str(sec) 이 "XXX.Y" 5개 타임토큰 문자열을 만드는지
       - 경계/반올림/클리핑 포함
   (B) 비디오+오디오 인터리빙 시 각 청크가
-        <t*>×6  →  <|video_pad|>×(H*W/merge²)  →  <|audio_pad|>×audio_len
+        <t*>×5  →  <|video_pad|>×(H*W/merge²)  →  <|audio_pad|>×audio_len
       순서로 붙는지
 
 체크포인트/토크나이저를 로드하지 않는다 — 파이썬 문자열 레벨 검증.
@@ -28,23 +28,23 @@ from qwenvl.data.dataset import sec_to_time_token_str
 all_ok = True
 
 # --- (A) 변환 함수 단위 테스트 ---
-# 기대 포맷: <tA><tB><tC><tD><tdot><tE>  (정수 4자리 + . + 소수 1자리)
+# 기대 포맷: <tA><tB><tC><tdot><tE>  (정수 3자리 + . + 소수 1자리)
 print("[A] sec_to_time_token_str 단위 테스트")
 cases = [
     # (입력초, 기대 문자열, 설명)
-    (0.0,      "<t0><t0><t0><t0><tdot><t0>", "0초 → 0000.0"),
-    (0.1,      "<t0><t0><t0><t0><tdot><t1>", "최소 소수점 1자리"),
-    (1.2,      "<t0><t0><t0><t1><tdot><t2>", "문서 예시 1.2s"),
-    (12.3,     "<t0><t0><t1><t2><tdot><t3>", "두 자리"),
-    (123.4,    "<t0><t1><t2><t3><tdot><t4>", "세 자리"),
-    (9999.9,   "<t9><t9><t9><t9><tdot><t9>", "상한"),
-    (99999.0,  "<t9><t9><t9><t9><tdot><t9>", "상한 클리핑"),
-    (-1.0,     "<t0><t0><t0><t0><tdot><t0>", "하한 클리핑"),
-    (1.24,     "<t0><t0><t0><t1><tdot><t2>", "반올림(<.5) → 1.2"),
+    (0.0,      "<t0><t0><t0><tdot><t0>", "0초 → 000.0"),
+    (0.1,      "<t0><t0><t0><tdot><t1>", "최소 소수점 1자리"),
+    (1.2,      "<t0><t0><t1><tdot><t2>", "문서 예시 1.2s"),
+    (12.3,     "<t0><t1><t2><tdot><t3>", "두 자리"),
+    (123.4,    "<t1><t2><t3><tdot><t4>", "세 자리"),
+    (999.9,    "<t9><t9><t9><tdot><t9>", "상한"),
+    (99999.0,  "<t9><t9><t9><tdot><t9>", "상한 클리핑"),
+    (-1.0,     "<t0><t0><t0><tdot><t0>", "하한 클리핑"),
+    (1.24,     "<t0><t0><t1><tdot><t2>", "반올림(<.5) → 1.2"),
     # Python round() 는 banker's rounding — 0.5 는 짝수로 붙는다.
     # round(12.5)=12, round(13.5)=14 이므로 1.25 → 1.2, 1.35 → 1.4.
-    (1.25,     "<t0><t0><t0><t1><tdot><t2>", "banker's round: 1.25 → 1.2"),
-    (1.35,     "<t0><t0><t0><t1><tdot><t4>", "banker's round: 1.35 → 1.4"),
+    (1.25,     "<t0><t0><t1><tdot><t2>", "banker's round: 1.25 → 1.2"),
+    (1.35,     "<t0><t0><t1><tdot><t4>", "banker's round: 1.35 → 1.4"),
 ]
 for sec, expected, note in cases:
     got = sec_to_time_token_str(sec)

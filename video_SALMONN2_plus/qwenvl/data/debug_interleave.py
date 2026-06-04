@@ -3,7 +3,7 @@ TTI 디버그 모드 — dataset collate 직후 한 샘플의 인터리빙 구�
 
 세 가지 입력 측 마커 모드를 지원:
   - off           : 마커 미삽입 (Qwen2.5-VL 베이스라인)
-  - special_token : <t0>..<tdot>..<t*> = 6 special tokens / chunk
+  - special_token : <t0>..<tdot>..<t*> = 5 special tokens / chunk
   - natural_text  : 'second{XXXX.Y}' = 9 plain text tokens / chunk
 
 단일 진입점: dump_sample(...)
@@ -112,18 +112,18 @@ def _find_markers_special_token(
                     "end": k + len(seg),
                     "tokens": tokenizer.convert_ids_to_tokens(seg),
                 }
-                # XXXX.Y 6토큰 가정으로 seconds 복원 시도 (marker_len=6 때만)
+                # XXX.Y 5토큰 가정으로 seconds 복원 시도 (marker_len=5 때만)
                 ok = (
                     len(seg) == marker_len
                     and tdot_id is not None
-                    and marker_len == 6
-                    and seg[4] == tdot_id
+                    and marker_len == 5
+                    and seg[3] == tdot_id
                 )
                 if ok:
-                    d = [seg[x] - lo for x in (0, 1, 2, 3)]
-                    f = seg[5] - lo
+                    d = [seg[x] - lo for x in (0, 1, 2)]
+                    f = seg[4] - lo
                     if all(0 <= x <= 9 for x in d) and 0 <= f <= 9:
-                        m["seconds"] = (d[0] * 1000 + d[1] * 100 + d[2] * 10 + d[3]) + f / 10.0
+                        m["seconds"] = (d[0] * 100 + d[1] * 10 + d[2]) + f / 10.0
                     else:
                         m["malformed"] = True
                 else:
@@ -199,7 +199,7 @@ def _find_markers(
 ) -> List[Dict[str, Any]]:
     if tti_time_format == "special_token" and tt_range is not None:
         return _find_markers_special_token(
-            input_ids, tt_range, spec.get("tdot"), marker_len or 6, tokenizer
+            input_ids, tt_range, spec.get("tdot"), marker_len or 5, tokenizer
         )
     if tti_time_format in ("natural_text", "from_to") and marker_len:
         return _find_markers_text_form(

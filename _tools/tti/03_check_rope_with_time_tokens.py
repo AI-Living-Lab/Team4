@@ -6,10 +6,10 @@ get_rope_index_25(..., time_token_id_range=(lo, hi)) 가 Case 1(오디오+비디
 에서 타임토큰을 설계대로 배치하는지 확인.
 
 설계 규칙:
-  - 청크 k 의 6 타임토큰은 모두 동일 3D position 을 가짐
+  - 청크 k 의 5 타임토큰은 모두 동일 3D position 을 가짐
       t = w = k * second_per_grid_t * 2   (비디오 첫 프레임과 동일)
       h = 0
-  - 타임토큰 6 개 → 비디오(H*W/merge²) → 오디오(audio_len[k]) 의 인터리빙 순서대로
+  - 타임토큰 5 개 → 비디오(H*W/merge²) → 오디오(audio_len[k]) 의 인터리빙 순서대로
     배치되며 RoPE position_ids shape = (3, batch, seq_len).
 
 시나리오:
@@ -43,13 +43,13 @@ T0, TDOT = 151666, 151676
 TEXT = 42
 
 def time_tokens_for(chunk_idx: int, sec_per_grid_t: float):
-    """청크 시작시각 → 6 토큰 ID 시퀀스."""
+    """청크 시작시각 → 5 토큰 ID 시퀀스 (XXX.Y, 천의 자리 제거)."""
     secs = chunk_idx * sec_per_grid_t
     tenths = round(secs * 10)
     i = tenths // 10
     f = tenths % 10
-    d = [(i // 1000) % 10, (i // 100) % 10, (i // 10) % 10, i % 10]
-    return [T0 + d[0], T0 + d[1], T0 + d[2], T0 + d[3], TDOT, T0 + f]
+    d = [(i // 100) % 10, (i // 10) % 10, i % 10]
+    return [T0 + d[0], T0 + d[1], T0 + d[2], TDOT, T0 + f]
 
 # --- 시퀀스 조립 (dataset.py 인터리빙 스펙과 동일) ---
 sec_per_grid_t = 2.0
@@ -57,12 +57,13 @@ T = 3
 prefix = [TEXT] * 5 + [VISION_START]   # 길이 6 → 블록 ed = 6
 chunks = []
 for k in range(T):
-    chunks += time_tokens_for(k, sec_per_grid_t)   # 6
+    chunks += time_tokens_for(k, sec_per_grid_t)   # 5
     chunks += [VIDEO_TOKEN] * 4                    # llm_grid_h*llm_grid_w = 4
     chunks += [AUDIO_TOKEN] * 2                    # 청크당 audio_len=2
 suffix = [VISION_END, TEXT, TEXT]
 seq = prefix + chunks + suffix
-assert len(seq) == 45, f"seq_len={len(seq)}"
+# 6(prefix) + 3*(5+4+2) + 3(suffix) = 42
+assert len(seq) == 42, f"seq_len={len(seq)}"
 
 input_ids = torch.tensor([seq], dtype=torch.long)
 attention_mask = torch.ones_like(input_ids)
@@ -76,7 +77,7 @@ position_ids, _ = get_rope_index_25(
     attention_mask=attention_mask,
     time_token_id_range=(TIME_LO, TIME_HI),
 )
-p = position_ids[:, 0, :]  # (3, 45)
+p = position_ids[:, 0, :]  # (3, 42)
 t_pos = p[0].tolist()
 h_pos = p[1].tolist()
 w_pos = p[2].tolist()
@@ -89,48 +90,48 @@ def check(name, idx_range, axis_vals, expected):
     all_ok &= ok
     print(f"  {'OK ' if ok else 'FAIL'}  {name:<40s}  got={actual}  exp={expected}")
 
-assert position_ids.shape == (3, 1, 45), position_ids.shape
+assert position_ids.shape == (3, 1, 42), position_ids.shape
 print(f"shape = {position_ids.shape}  OK")
 
 # --- prefix text [0:6] : t=h=w=[0..5] ---
 check("prefix text t[0:6]",   range(0, 6),   t_pos, [0,1,2,3,4,5])
 check("prefix text h[0:6]",   range(0, 6),   h_pos, [0,1,2,3,4,5])
 
-# --- 청크 0 타임 [6:12] : 전부 t=6, h=6, w=6 ---
-check("chunk0 time t[6:12]",  range(6, 12),  t_pos, [6]*6)
-check("chunk0 time h[6:12]",  range(6, 12),  h_pos, [6]*6)
-check("chunk0 time w[6:12]",  range(6, 12),  w_pos, [6]*6)
+# --- 청크 0 타임 [6:11] : 전부 t=6, h=6, w=6 ---
+check("chunk0 time t[6:11]",  range(6, 11),  t_pos, [6]*5)
+check("chunk0 time h[6:11]",  range(6, 11),  h_pos, [6]*5)
+check("chunk0 time w[6:11]",  range(6, 11),  w_pos, [6]*5)
 
-# --- 청크 0 비디오 [12:16] : t=6, h=[6,6,7,7], w=[6,7,6,7] ---
-check("chunk0 video t[12:16]", range(12,16), t_pos, [6,6,6,6])
-check("chunk0 video h[12:16]", range(12,16), h_pos, [6,6,7,7])
-check("chunk0 video w[12:16]", range(12,16), w_pos, [6,7,6,7])
+# --- 청크 0 비디오 [11:15] : t=6, h=[6,6,7,7], w=[6,7,6,7] ---
+check("chunk0 video t[11:15]", range(11,15), t_pos, [6,6,6,6])
+check("chunk0 video h[11:15]", range(11,15), h_pos, [6,6,7,7])
+check("chunk0 video w[11:15]", range(11,15), w_pos, [6,7,6,7])
 
-# --- 청크 0 오디오 [16:18] : t=[6,7], h=[6,6], w=[6,7] ---
-check("chunk0 audio t[16:18]", range(16,18), t_pos, [6,7])
+# --- 청크 0 오디오 [15:17] : t=[6,7], h=[6,6], w=[6,7] ---
+check("chunk0 audio t[15:17]", range(15,17), t_pos, [6,7])
 
-# --- 청크 1 타임 [18:24] : t=10 (= 1 * 2 * 2 + 6), h=6, w=10 ---
-check("chunk1 time t[18:24]",  range(18,24), t_pos, [10]*6)
-check("chunk1 time h[18:24]",  range(18,24), h_pos, [6]*6)
-check("chunk1 time w[18:24]",  range(18,24), w_pos, [10]*6)
+# --- 청크 1 타임 [17:22] : t=10 (= 1 * 2 * 2 + 6), h=6, w=10 ---
+check("chunk1 time t[17:22]",  range(17,22), t_pos, [10]*5)
+check("chunk1 time h[17:22]",  range(17,22), h_pos, [6]*5)
+check("chunk1 time w[17:22]",  range(17,22), w_pos, [10]*5)
 
-# --- 청크 1 비디오 [24:28] : t=10 ---
-check("chunk1 video t[24:28]", range(24,28), t_pos, [10]*4)
+# --- 청크 1 비디오 [22:26] : t=10 ---
+check("chunk1 video t[22:26]", range(22,26), t_pos, [10]*4)
 
-# --- 청크 1 오디오 [28:30] : t=[8,9] (audio_pos 는 전체 6 을 연속 증가) ---
-check("chunk1 audio t[28:30]", range(28,30), t_pos, [8,9])
+# --- 청크 1 오디오 [26:28] : t=[8,9] (audio_pos 는 전체 6 을 연속 증가) ---
+check("chunk1 audio t[26:28]", range(26,28), t_pos, [8,9])
 
-# --- 청크 2 타임 [30:36] : t=14 ---
-check("chunk2 time t[30:36]",  range(30,36), t_pos, [14]*6)
+# --- 청크 2 타임 [28:33] : t=14 ---
+check("chunk2 time t[28:33]",  range(28,33), t_pos, [14]*5)
 
-# --- 청크 2 비디오 [36:40] : t=14 ---
-check("chunk2 video t[36:40]", range(36,40), t_pos, [14]*4)
+# --- 청크 2 비디오 [33:37] : t=14 ---
+check("chunk2 video t[33:37]", range(33,37), t_pos, [14]*4)
 
-# --- 청크 2 오디오 [40:42] : t=[10,11] ---
-check("chunk2 audio t[40:42]", range(40,42), t_pos, [10,11])
+# --- 청크 2 오디오 [37:39] : t=[10,11] ---
+check("chunk2 audio t[37:39]", range(37,39), t_pos, [10,11])
 
-# --- suffix [42:45] : 이전 max t = 14 이므로 15,16,17 ---
-check("suffix text t[42:45]",  range(42,45), t_pos, [15,16,17])
+# --- suffix [39:42] : 이전 max t = 14 이므로 15,16,17 ---
+check("suffix text t[39:42]",  range(39,42), t_pos, [15,16,17])
 
 print("\n" + "=" * 60)
 print("RESULT:", "PASS" if all_ok else "FAIL")

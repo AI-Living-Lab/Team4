@@ -51,12 +51,12 @@ T0, TDOT = 151666, 151676
 TEXT = 42
 
 def build_seq():
-    # 청크 3 개 × (6 time + 4 video + 2 audio), sec_per_grid_t=2.0
+    # 청크 3 개 × (5 time + 4 video + 2 audio), sec_per_grid_t=2.0
     def time_ids(k):
         secs = k * 2.0
         tenths = round(secs * 10); i = tenths // 10; f = tenths % 10
-        d = [(i//1000)%10, (i//100)%10, (i//10)%10, i%10]
-        return [T0+d[0], T0+d[1], T0+d[2], T0+d[3], TDOT, T0+f]
+        d = [(i//100)%10, (i//10)%10, i%10]   # XXX.Y (천의 자리 제거)
+        return [T0+d[0], T0+d[1], T0+d[2], TDOT, T0+f]
     body = []
     for k in range(3):
         body += time_ids(k) + [V]*4 + [A]*2
@@ -89,10 +89,10 @@ def call(self_obj, **overrides):
 # --- (C) 인자로 명시한 경우 ---
 print("\n[C] explicit time_token_id_range argument")
 pos_explicit, _ = call(make_self(None), time_token_id_range=(151666, 151676))
-chunk0_t = pos_explicit[0, 0, 6:12].tolist()
-ok_c = chunk0_t == [6]*6
+chunk0_t = pos_explicit[0, 0, 6:11].tolist()
+ok_c = chunk0_t == [6]*5
 all_ok &= ok_c
-print(f"  chunk0 time t[6:12] = {chunk0_t} -> {'OK' if ok_c else 'FAIL'}")
+print(f"  chunk0 time t[6:11] = {chunk0_t} -> {'OK' if ok_c else 'FAIL'}")
 
 # --- (D) config.time_token_id_range 자동 추출 (list → tuple) ---
 print("\n[D] config.time_token_id_range auto-pull (list → tuple)")

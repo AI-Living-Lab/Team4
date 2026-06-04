@@ -61,13 +61,14 @@ local_rank = None
 
 
 def sec_to_time_token_str(sec: float) -> str:
-    # 초 → XXXX.Y 포맷의 6개 타임토큰 문자열. 범위 0.0~9999.9, 정밀도 0.1초.
-    sec = max(0.0, min(9999.9, sec))
+    # 초 → XXX.Y 포맷의 5개 타임토큰 문자열. 범위 0.0~999.9, 정밀도 0.1초.
+    # (기존 XXXX.Y 6토큰에서 최상위 정수자리(천의 자리) 제거 → 5토큰.)
+    sec = max(0.0, min(999.9, sec))
     tenths = round(sec * 10)
     i = tenths // 10
     f = tenths % 10
-    d1, d2, d3, d4 = (i // 1000) % 10, (i // 100) % 10, (i // 10) % 10, i % 10
-    return f"<t{d1}><t{d2}><t{d3}><t{d4}><tdot><t{f}>"
+    d1, d2, d3 = (i // 100) % 10, (i // 10) % 10, i % 10
+    return f"<t{d1}><t{d2}><t{d3}><tdot><t{f}>"
 
 
 def sec_to_natural_text_str(sec: float) -> str:
@@ -99,14 +100,14 @@ def make_time_marker_string(sec_start: float, tti_time_format: str,
 
 # 모드별 청크당 마커 토큰 수.
 #   off            : 마커 미삽입 (Qwen2.5-VL 베이스라인) — 길이 0
-#   special_token  : <t0>..<tdot>..<t*> = 6
+#   special_token  : <t0>..<tdot>..<t*> = 5  (XXX.Y, 천의 자리 제거)
 #   natural_text   : 'second{XXXX.Y}' = 9 (zero-pad)
-#   from_to        : 'From <t*>×6 to <t*>×6' = 16 (출력 포맷 정렬)
+#   from_to        : 'From <t*>×5 to <t*>×5' = 14 (출력 포맷 정렬; special_token 길이 추종)
 _TIME_MARKER_TOKEN_LEN = {
     "off": 0,
-    "special_token": 6,
+    "special_token": 5,
     "natural_text": 9,
-    "from_to": 16,
+    "from_to": 14,
 }
 
 def rank0_print(*args):
@@ -442,6 +443,8 @@ class LazySupervisedDataset(Dataset):
 
         # TTI debug dump counter (run_test + debug_interleave_dir 에서만 쓰임)
         self._debug_dump_count = 0
+        # [TTI-DBG] env TTI_DEBUG=1 로 켜지는 경량 샘플 마커 검증 카운터 (첫 N개만)
+        self._tti_dbg_count = 0
 
         list_data_dict = []
 
@@ -781,6 +784,56 @@ class LazySupervisedDataset(Dataset):
                 )
             else:
                 reject_position_ids = None
+
+            # ── [TTI-DBG] ③ 샘플(=질문)별 마커 삽입 검증 (env TTI_DEBUG=1, rank0, 질문당 1회) ──
+            #   input_ids 에 박힌 time-token 마커를 청크별로 디코드해 "초 리스트"로 출력.
+            #   각 마커 = 연속된 time-token 런(<t..><tdot><t..>) 1개 = 비디오 청크 1개의 시각.
+            #   TTI_DEBUG_SAMPLES: 출력할 질문 수(기본 3, -1 이면 모든 질문에 대해 1회씩).
+            _tti_lim = int(os.environ.get("TTI_DEBUG_SAMPLES", "3"))
+            # rank0 판별: dataset 모듈변수 local_rank 는 GDPO 경로에서 None 일 수 있어
+            # env LOCAL_RANK 로 판별(④ rope 와 동일 기준).
+            if (os.environ.get("TTI_DEBUG", "0").lower() in ("1", "true", "yes", "on")
+                    and os.environ.get("LOCAL_RANK", "0") == "0"
+                    and (_tti_lim < 0 or self._tti_dbg_count < _tti_lim)):
+                self._tti_dbg_count += 1
+                _ids_list = data_dict["input_ids"][0].tolist()
+                _rng = self.time_token_id_range
+                _secs = []
+                if _rng is not None:
+                    _lo, _hi = _rng        # _hi=<tdot> id, _lo.._hi-1 = <t0>..<t9>
+
+                    def _decode_run(run):
+                        int_d, dec_d, dot = [], [], False
+                        for _x in run:
+                            if _x == _hi:
+                                dot = True
+                            else:
+                                (dec_d if dot else int_d).append(_x - _lo)
+                        if not int_d:
+                            return None
+                        return round(int("".join(map(str, int_d)))
+                                     + (dec_d[0] if dec_d else 0) / 10.0, 1)
+
+                    _run = []
+                    for _x in _ids_list:
+                        if _lo <= _x <= _hi:
+                            _run.append(_x)
+                        elif _run:
+                            _v = _decode_run(_run); _run = []
+                            if _v is not None:
+                                _secs.append(_v)
+                    if _run:
+                        _v = _decode_run(_run)
+                        if _v is not None:
+                            _secs.append(_v)
+                _n_chunks = int(video_grid_thw[0][0]) if video_grid_thw else 0
+                print(f"[TTI-DBG] ③ sample idx={i} fmt={self.tti_time_format} "
+                      f"chunks={_n_chunks} marker_len={self.time_marker_token_len}", flush=True)
+                print(f"[TTI-DBG] time markers ({len(_secs)}): {_secs}", flush=True)
+                if self.tti_time_format != "off" and not _secs:
+                    print("[TTI-DBG] ⚠️ WARNING: tti ON 인데 input_ids 에 time-marker 0개 "
+                          "(데이터 마커 미삽입 의심)", flush=True)
+
             if "image" not in sources[0] and "video" not in sources[0] and "audio" not in sources[0]:
                 grid_thw_merged = None
                 sources = copy.deepcopy([e["conversations"] for e in sources])

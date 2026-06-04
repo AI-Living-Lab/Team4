@@ -1,6 +1,6 @@
 # ============================================================
 # GDPO Training Configuration (VS2+ / Qwen2.5-VL)
-# set -a && source paths.env && set +a
+# source paths.env
 # python _tools/GDPO/gdpo_trainer.py --config _tools/GDPO/config.yaml
 # ============================================================
 
@@ -8,14 +8,19 @@
 model:
   model_path: ${SFT_CKPT}                    # SFT 체크포인트 경로 (LoRA adapter)
   model_base: ${BASE_MODEL}                  # VS2+ 베이스 모델 (time_tokens 추가됨)
-  # off : base config의 time_token_id_range를 무시 → rope OFF 분기.
-  #       (SFT가 _off로 학습됐고 데이터에 time marker가 없을 때 사용.)
-  # on  : base config 그대로 사용 → rope ON 분기.
   tti_mode: "off"
 
 # 데이터 설정
 data:
-  dataset_path: data/train/unav100_rl.json
+  dataset_path: ${TRAIN_DIR}/unav100_v2.json
+
+# Target Modules 
+lora:
+  enabled: true
+  r: 32
+  lora_alpha: 64
+  lora_dropout: 0.05
+  train_embeddings: true     # embed_tokens/lm_head 도 학습(modules_to_save). false 면 LoRA(q/k/v/o)만.
 
 # GDPO 설정
 gdpo:
@@ -27,12 +32,12 @@ gdpo:
 
 # 학습 설정
 training:
-  output_dir: ${CHECKPOINTS_DIR}/gdpo/gdpo_7b_unav_fps5_off_fmtiou_g4_l256_b004
   num_train_epochs: 1
+  max_steps: 1000
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 4
   learning_rate: 5e-6
-  warmup_ratio: 0.1
+  warmup_ratio: 0.05
   lr_scheduler_type: cosine
   bf16: true
   seed: 2024
@@ -43,10 +48,9 @@ training:
 # 저장/로깅
 logging:
   logging_steps: 1
-  save_steps: 500
-  save_total_limit: 3
+  save_steps: 100
+  save_total_limit: 5
   report_to: wandb
-  run_name: gdpo_7b_unav_fps5_off_fmtiou_g4_l256_b004
 
 # ref 모델
 ref_model:

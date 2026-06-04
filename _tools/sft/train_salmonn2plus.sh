@@ -53,7 +53,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEAM_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 source /workspace/setup.sh
-conda activate salmonn2plus
+# conda 환경은 이 스크립트에서 activate 하지 않는다.
+# 실행 전 셸에서 직접 활성화할 것:
+#   source /workspace/setup.sh && conda activate salmonn2p
 
 # paths.env 로드 (BASE_DIR / CKPT_DIR / JSON_DIR / TRAIN_DIR 등 정의)
 if [ -f "$TEAM_ROOT/paths.env" ]; then

@@ -1,119 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-gdpo_trainer_tti.py (VS2+ / Qwen2.5-VL 버전) 
-
-  [cdh/gdpo_trainer.py에 hyj/gdpo_trainer_rM_fp.py 의 최신 로직을 융합한버전]
-  cdh 베이스에서 유지:
-    - tti_mode (off/on): base config 의 time_token_id_range 활성/비활성 처리
-    - --reward_module 동적 선택 (reward_functions | reward_functions_rM_fp)
-    - SFT adapter 이어학습 시 RL trainable 제한 (q/k/v LoRA + embed/lm_head)
-    - generate 중 GC 강제 ON/OFF (모듈 순회, use_reentrant=False)
-    - 상위호환 ref 로직 (_is_peft_model 분기)
-  hyj 에서 이식:
-    - 머지 모델 위 fresh RL LoRA 학습 (config.lora.enabled → peft_config)
-    - generation: top_k=50 / repetition_penalty=1.0 (다양성 + time-token 반복 허용)
-    - resume_from_checkpoint 지원
-    - rank-0 한정 로깅 + raw/sec segment 디버그 출력
-    - get_peft_model 후 enable_input_require_grads 재적용
-
-두 가지 학습 경로 (model_path 가 무엇이냐로 자동 분기):
-  (A) adapter 이어학습 : model_path=SFT LoRA adapter, model_base=time-token base
-                          → adapter 로드 + RL trainable 제한. ref = pre-SFT base.
-  (B) fresh LoRA       : model_path=model_base=SFT-머지 모델, config.lora.enabled=true
-                          → 머지 weight 위 새 LoRA. ref = SFT 정책(LoRA disable).
+gdpo_trainer.py (VS2+ / Qwen2.5-VL 버전)
+  transformers.Trainer 상속 + GDPO compute_loss 전체 루프.
+  VS2+ (video_SALMONN2_plus) 백본 기반.
 
 Usage:
-  # 0) 환경 준비 — CKPT_DIR / TRAIN_DIR / WANDB_* 는 paths.env 로 이미 환경에 export 돼 있음
-  #    (모델 경로는 아래처럼 CLI 인자로 직접 전달. SFT_CKPT/BASE_MODEL export 불필요.)
-  conda activate salmonn2p
-
-  # 1) 기본 (모델/데이터 경로를 CLI 로 직접 지정)
-  python _tools/GDPO/gdpo_trainer.py \
-      --config       _tools/GDPO/config.yaml \
-      --model_path   ${CKPT_DIR}/sft/salmonn2p_7b_unav_fps5_off \
-      --model_base   ${CKPT_DIR}/video_salmonn2_plus_7B_time_tokens \
-      --dataset_path ${TRAIN_DIR}/unav100_v2.json
-
-  # 2) 멀티 GPU
-  export CUDA_VISIBLE_DEVICES=0,1,2,3
-  torchrun --standalone --nproc_per_node=4 \
-      _tools/GDPO/gdpo_trainer.py \
-      --config       _tools/GDPO/config.yaml \
-      --model_path   ${CKPT_DIR}/sft/salmonn2p_7b_unav_fps5_off \
-      --model_base   ${CKPT_DIR}/video_salmonn2_plus_7B_time_tokens \
-      --dataset_path ${TRAIN_DIR}/unav100_v2.json
-
-  # 3) 모든 CLI 인자를 명시 (CLI > config.yaml 우선)
-  python _tools/GDPO/gdpo_trainer.py \
-      --config       _tools/GDPO/config.yaml \
-      --model_path   ${CKPT_DIR}/sft/salmonn2p_7b_unav_fps5_off \  # 경로A=SFT LoRA adapter / 경로B=SFT-머지 모델 (필수)
-      --model_base   ${CKPT_DIR}/video_salmonn2_plus_7B_time_tokens \  # time-token VS2+ base
-      --dataset_path ${TRAIN_DIR}/unav100_v2.json \  # 학습 JSON (필수)
-      --output_dir   ${CKPT_DIR}/gdpo/salmonn2p_7b_unav_rM \  # 체크포인트/로그 저장 (미지정→output/gdpo_vs2plus)
-      --max_steps    1000 \                  # >0 이면 num_train_epochs 무시 (smoke-test/길이제한)
-      --run_name     gdpo_rM_run1 \          # wandb/tracker run 이름 (미지정→output_dir basename)
-      --tti_mode     off \                   # off | on  (모델 time_token_id_range ↔ 데이터 마커 짝)
-      --reward_module reward_functions \     # reward 구현 교체 (아래 표)
-      --resume_from_checkpoint True          # True=output_dir 최신 자동재개 / 경로=특정 / 미지정=처음부터
-
-  # 4) 빠른 동작 확인 (3 step)
-  python _tools/GDPO/gdpo_trainer.py \
-      --config       _tools/GDPO/config.yaml \
-      --model_path   ${CKPT_DIR}/sft/salmonn2p_7b_unav_fps5_off \
-      --model_base   ${CKPT_DIR}/video_salmonn2_plus_7B_time_tokens \
-      --dataset_path ${TRAIN_DIR}/unav100_v2.json \
-      --max_steps 3
-
-  # 5) 체크포인트에서 재개 (모델/데이터 경로는 동일하게 전달)
-  python _tools/GDPO/gdpo_trainer.py \
-      --config       _tools/GDPO/config.yaml \
-      --model_path   ${CKPT_DIR}/sft/salmonn2p_7b_unav_fps5_off \
-      --model_base   ${CKPT_DIR}/video_salmonn2_plus_7B_time_tokens \
-      --dataset_path ${TRAIN_DIR}/unav100_v2.json \
-      --output_dir   ${CKPT_DIR}/gdpo/salmonn2p_7b_unav_rM \
-      --resume_from_checkpoint ${CKPT_DIR}/gdpo/salmonn2p_7b_unav_rM/checkpoint-500
-
-  # 6) 백그라운드 실행 (SSH 끊겨도 유지) — setsid+nohup 으로 세션 분리 + HUP 무시.
-  #    학습 로그는 output_dir/train.log 로 남으므로 콘솔 출력은 /dev/null 로 버림.
-  #    (관리: tail -f $OUT/train.log / ps -ef|grep gdpo_trainer / pkill -f gdpo_trainer.py)
-  OUT=${CKPT_DIR}/gdpo/salmonn2p_7b_unav_rM
-  setsid nohup python _tools/GDPO/gdpo_trainer.py \
-      --config       _tools/GDPO/config.yaml \
-      --model_path   ${CKPT_DIR}/sft/salmonn2p_7b_unav_fps5_off \
-      --model_base   ${CKPT_DIR}/video_salmonn2_plus_7B_time_tokens \
-      --dataset_path ${TRAIN_DIR}/unav100_v2.json \
-      --output_dir   "$OUT" \
-      < /dev/null > /dev/null 2>&1 &
-
-CLI 인자 (모두 선택; 미지정 시 config.yaml → 내부 기본값 순으로 fallback):
-  --config                  config.yaml 경로. 나머지 인자/하이퍼파라미터의 기본 소스.
-  --model_path              [필수] SFT adapter(경로A, adapter_config.json 존재) 또는
-                            SFT-머지 모델(경로B). 어느 쪽이냐로 학습 경로 자동 분기.
-                            (config: model.model_path)
-  --model_base              VS2+ time-token base 모델. (config: model.model_base)
-  --dataset_path            [필수] UnAV-100 multi-segment QA JSON. (config: data.dataset_path)
-  --output_dir              체크포인트/로그 저장 경로. (config: training.output_dir / 기본 output/gdpo_vs2plus)
-  --max_steps   int         step 수 제한. >0 이면 num_train_epochs 무시. (config: training.max_steps)
-  --run_name    str         wandb/tracker run 이름. (config: logging.run_name / 기본 output_dir basename)
-  --tti_mode    off|on      TTI 모드. off=time_token_id_range 무시(rope OFF 분기) /
-                            on=base config 유지(rope ON 분기, 데이터에 마커 필요).
-                            (config: model.tti_mode / 기본 off)
-  --reward_module str       reward 함수 모듈명. (config: reward.module / 기본 reward_functions)
-                              reward_functions       → iou = MUSEG r_M
-                              reward_functions_rM_fp  → iou = r_M - K*n_unmatched_pred (FP penalty)
-                              reward_functions_prec   → iou = r_M - λ*outside_ratio (precision penalty)
-                              reward_functions_rM_cov → iou = r_M - γ*coverage_excess (길이편향 억제)
-                              reward_functions_f1     → iou = F1(best-match) 베이스라인
-  --resume_from_checkpoint  'True'=output_dir 내 최신 체크포인트 자동 재개 /
-                            <경로>=특정 체크포인트 / 미지정=처음부터.
-
-학습 경로별 주의:
-  - 경로A(adapter 이어학습): config 의 lora.enabled=false 로 둘 것 (PeftModel 이중 적용 방지).
-  - 경로B(fresh LoRA)     : config 의 lora.enabled=true.
-
-디버그 env:
-  TTI_DEBUG=1 [TTI_DEBUG_STEPS=3]   rank-0 한정, 첫 N step 동안 TTI 정합성 계측 출력.
+  set -a && source paths.env && set +a
+  python _tools/GDPO_revised/gdpo_trainer.py \
+    --config _tools/GDPO_revised/config.yaml \
+    --model_path ${SFT_CKPT} \
+    --model_base ${BASE_MODEL} \
+    --dataset_path data/unav100_train_dense.json \
+    --output_dir output/gdpo_vs2plus
 """
 
 import argparse
@@ -161,75 +60,20 @@ from qwenvl.data.dataset import LazySupervisedDataset, DataCollatorForSupervised
 
 
 
-# reward 함수 — 어떤 모듈을 쓸지는 런타임에 --reward_module 로 선택(load_reward_module).
-# trainer 를 reward 마다 복제하지 않고 import 대상만 바꾸기 위함.
+# reward 함수
+# [CoT 변형] <think>...</think><answer>...</answer> 포맷 전용 4채널 reward.
+#   format    : 기존 토큰 포맷 AND CoT 구조
+#   iou       : r_M(answer) - K*FP   (answer 블록만 파싱)
+#   timestamp : think.Joint 집합 == answer 집합
+#   modality  : think.Joint ⊆ (Audio ∩ Video)
+# 원본 reward_functions.py / reward_functions_rM_fp.py 는 무수정, import 만.
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _THIS_DIR)
-
-
-def load_reward_module(module_name: str):
-    """reward 모듈을 동적 로드해 (format_reward, iou_reward) 반환.
-      reward_functions      → iou_reward = MUSEG r_M
-      reward_function_rM_fp  → iou_reward = r_M - 0.2 * n_unmatched_pred (FP penalty)
-    """
-    import importlib
-    mod = importlib.import_module(module_name)
-    return mod.format_reward, mod.iou_reward
+from reward_functions_rM_fp_cot import (
+    format_reward, iou_reward, timestamp_reward, modality_reward,
+)
 
 RewardFunc = Union[str, PreTrainedModel, Callable[[list, list], list[float]]]
-
-
-# ============================================================
-# TTI 디버그 계측 (env TTI_DEBUG=1 로 활성; rank-0 한정, 첫 N step만)
-#   FP_PENALTY_K 와 동일한 env 패턴. 평상시(off) 런엔 영향 0.
-# ============================================================
-TTI_DEBUG = os.environ.get("TTI_DEBUG", "0").lower() in ("1", "true", "yes", "on")
-TTI_DEBUG_STEPS = int(os.environ.get("TTI_DEBUG_STEPS", "3"))   # compute_loss 첫 N step만
-
-
-def _is_rank0() -> bool:
-    return os.environ.get("RANK", os.environ.get("LOCAL_RANK", "0")) == "0"
-
-
-def _tti_dbg(msg: str):
-    """TTI_DEBUG on + rank-0 일 때만 출력."""
-    if TTI_DEBUG and _is_rank0():
-        print(f"[TTI-DBG] {msg}", flush=True)
-
-
-def count_time_markers(ids, id_range) -> int:
-    """ids(1D tensor 또는 리스트) 중 time-token id_range [lo,hi] 안에 드는 토큰 수."""
-    if id_range is None:
-        return 0
-    lo, hi = id_range
-    if isinstance(ids, torch.Tensor):
-        return int(((ids >= lo) & (ids <= hi)).sum().item())
-    return sum(1 for x in ids if lo <= int(x) <= hi)
-
-
-# ── resume RNG 로딩 우회 (torch>=2.4 weights_only=True 기본값 대응) ──
-# checkpoint 의 rng_state_*.pth 는 np.random.get_state()(numpy 객체)를 담는데,
-# torch.load(weights_only=True) 가 numpy global 언피클을 거부 →
-# transformers._load_rng_state 가 resume 시 UnpicklingError 로 크래시.
-# 신뢰된 자체 체크포인트이므로 numpy 관련 global 을 allowlist 해 정상 로드.
-try:
-    import numpy as _np
-    import torch.serialization as _ts
-    _safe = [_np.ndarray, _np.dtype]
-    for _m in ("numpy._core.multiarray", "numpy.core.multiarray"):
-        try:
-            _mod = __import__(_m, fromlist=["_reconstruct", "scalar"])
-            _safe += [getattr(_mod, "_reconstruct", None), getattr(_mod, "scalar", None)]
-        except Exception:
-            pass
-    try:
-        import numpy.dtypes as _ndt
-        _safe += [getattr(_ndt, _n) for _n in dir(_ndt) if _n.endswith("DType")]
-    except Exception:
-        pass
-    _ts.add_safe_globals([x for x in _safe if x is not None])
-except Exception as _e:
-    print(f"[GDPO] add_safe_globals(numpy) 실패(무시): {_e}")
 
 
 
@@ -283,8 +127,7 @@ class GDPOTrainer(Trainer):
         # 이전처럼 인코더 분리를 할 필요가 없음.
         if peft_config is not None:
             model = get_peft_model(model, peft_config)
-            # [hyj] gradient_checkpointing + 얼린 base 조합에서 fresh LoRA 로 grad 가
-            # 흐르도록 임베딩 출력에 requires_grad 재적용 (fresh LoRA 경로 필수).
+            # gradient_checkpointing + 얼린 base 조합에서 grad가 흐르도록 재적용 (안전).
             if hasattr(model, "enable_input_require_grads"):
                 model.enable_input_require_grads()
 
@@ -292,17 +135,10 @@ class GDPOTrainer(Trainer):
 
         # Reference model
         self.beta = args.beta
-        # PEFT 모델이면 disable_adapter()로 ref 역할 → ref_model 메모리 절약(~14GB).
-        # compute_loss에 이미 disable_adapter 분기가 구현돼 있음.
-        _is_peft_model = is_peft_available() and isinstance(model, PeftModel)
         if self.beta == 0.0:
             self.ref_model = None
         elif ref_model is not None:
             self.ref_model = ref_model
-        elif _is_peft_model:
-            # PEFT 사용 시 adapter disable로 ref 역할 (메모리 절약)
-            print("[GDPO] PEFT model detected → ref_model=None (use disable_adapter path)")
-            self.ref_model = None
         elif is_deepspeed_zero3_enabled():
             self.ref_model = video_SALMONN2_plus.from_pretrained(
                 model.config._name_or_path,
@@ -312,6 +148,7 @@ class GDPOTrainer(Trainer):
         elif peft_config is None:
             self.ref_model = create_reference_model(model)
         else:
+            # PEFT 사용 시 adapter disable로 ref 역할
             self.ref_model = None
 
 
@@ -346,8 +183,8 @@ class GDPOTrainer(Trainer):
             do_sample=True,
             temperature=self.temperature,
             top_p=1.0,
-            top_k=50,                 # [hyj] base config top_k=1 override (다양성 확보)
-            repetition_penalty=1.0,   # [hyj] time token 반복 페널티 제거
+            top_k=50,
+            repetition_penalty=1.0,
             num_return_sequences=self.num_generations,
             pad_token_id=pad_token_id,
         )
@@ -507,10 +344,6 @@ class GDPOTrainer(Trainer):
 
         device = self.accelerator.device
 
-        # torchrun 환경에선 model이 DistributedDataParallel(또는 Accelerate wrap)로 감싸짐.
-        # .config / .get_base_model() 등 model 내부 attr 접근은 unwrap 후로 통일.
-        _unwrapped = self.accelerator.unwrap_model(model)
-
         # ── 입력 추출 (VS2+ 데이터셋 필드) ──
         prompt_ids = inputs["input_ids"].to(device)
         prompt_mask = inputs["attention_mask"].to(device)
@@ -524,32 +357,6 @@ class GDPOTrainer(Trainer):
                 prompt_end_idx = answer_start[0].item()
                 prompt_ids = prompt_ids[:, :prompt_end_idx]
                 prompt_mask = prompt_mask[:, :prompt_end_idx]
-
-        # [TTI-DBG] ⑤ 실제 generation 입력(prompt_ids)에 time-marker 가 살아있는지 = TTI 최종 도달 검증.
-        #   여기까지 마커가 보이면 dataset→collator→trainer 경로가 TTI 를 보존한 것.
-        # 재개(resume) 시에도 처음 N step 은 찍히도록, 첫 compute_loss 의 step 을 기준점으로.
-        if TTI_DEBUG and self.accelerator.is_main_process and getattr(self, "_tti_dbg_step0", None) is None:
-            self._tti_dbg_step0 = self.state.global_step
-        if (TTI_DEBUG and self.accelerator.is_main_process
-                and self.state.global_step < self._tti_dbg_step0 + TTI_DEBUG_STEPS):
-            _id_range = getattr(_unwrapped.config, "time_token_id_range", None)
-            _n_mark = count_time_markers(prompt_ids[0], _id_range)
-            _tti_dbg(f"⑤ step {self.state.global_step}: prompt_len={prompt_ids.size(1)}, "
-                     f"model.config.time_token_id_range={_id_range}, "
-                     f"#time_markers_in_prompt={_n_mark}")
-            if _id_range is not None and _n_mark == 0:
-                _tti_dbg("⚠️ WARNING: tti ON(range set) 인데 prompt 에 time-marker 0개 "
-                         "(데이터 마커 미삽입 의심 — rope ON 분기와 불일치)")
-            # vision_start 주변 인터리빙 육안 확인 (마커 + video_pad)
-            try:
-                _vs_id = self.processing_class.convert_tokens_to_ids("<|vision_start|>")
-                _row = prompt_ids[0].tolist()
-                if _vs_id in _row:
-                    _p = _row.index(_vs_id)
-                    _dec = self.processing_class.decode(_row[_p:_p + 40], skip_special_tokens=False)
-                    _tti_dbg(f"   prompt[vision_start:+40]= {_dec!r}")
-            except Exception as _e:
-                _tti_dbg(f"   vision_start 슬라이스 디코드 실패: {_e}")
 
 
         # 멀티모달 입력
@@ -595,20 +402,13 @@ class GDPOTrainer(Trainer):
 
         # ── Generate completions ──
         all_completion_ids = []
-        # TODO : 추후 확인 필요
-        # VS2+가 generate 반환하는거에 따라 달라질 수 있음
         prompt_length = prompt_ids.size(1)
 
-        # generate 동안 gradient checkpointing 비활성화.
-        # ⚠️ DDP/PeftModel 래퍼는 gradient_checkpointing_disable 를 노출 안 하거나(hasattr=False)
-        #    내부 디코더 레이어까지 전파 안 될 수 있어, 모듈을 직접 순회해 강제 OFF.
-        for _m in model.modules():
-            if hasattr(_m, "gradient_checkpointing"):
-                _m.gradient_checkpointing = False
+        # generate 동안 비활성화
+        if hasattr(model, "gradient_checkpointing_disable"):
+            model.gradient_checkpointing_disable()
 
         # 일단 캐싱 구현 X
-        # TODO : generate 반환에 따라 나중에
-        # 캐싱 구현 가능성 있음
         # non-None kwargs만 전달 (HF generate의 model_kwargs validation 통과용)
         gen_kwargs = {
             "input_ids": prompt_ids,
@@ -617,8 +417,8 @@ class GDPOTrainer(Trainer):
             "do_sample": True,
             "temperature": self.temperature,
             "top_p": 1.0,
-            "top_k": 50,                # [hyj] base config top_k=1 override (다양성 확보)
-            "repetition_penalty": 1.0,  # [hyj] base config 1.05 override (time token 반복 페널티 제거)
+            "top_k": 50,                # base config의 top_k=1 override (다양성 확보)
+            "repetition_penalty": 1.0,  # base config의 1.05 override (time token 반복 페널티 제거)
         }
         if pixel_values_videos is not None:
             gen_kwargs["pixel_values_videos"] = pixel_values_videos
@@ -637,17 +437,19 @@ class GDPOTrainer(Trainer):
                 if hasattr(unwrapped_model, "get_base_model")
                 else unwrapped_model
             )
-            # [hyj] 첫 step 에서 실제 generation 설정 확인 (top_k inherit 여부 등)
+            # [DEBUG] 첫 step에서 실제 generation 설정 확인 (top_k inherit 여부 등)
             if self.accelerator.is_main_process and self.state.global_step == 0:
-                gc = raw_model.generation_config
+                print(f"[GDPO DEBUG] gen_kwargs keys: {list(gen_kwargs.keys())}")
                 print(f"[GDPO DEBUG] gen_kwargs (sampling): do_sample={gen_kwargs.get('do_sample')}, "
-                      f"temperature={gen_kwargs.get('temperature')}, top_p={gen_kwargs.get('top_p')}, "
-                      f"top_k={gen_kwargs.get('top_k', '<not set>')}, "
-                      f"repetition_penalty={gen_kwargs.get('repetition_penalty', '<not set>')}")
+                      f"temperature={gen_kwargs.get('temperature')}, "
+                      f"top_p={gen_kwargs.get('top_p')}, "
+                      f"top_k={gen_kwargs.get('top_k', '<not set>')}")
+                gc = raw_model.generation_config
                 print(f"[GDPO DEBUG] raw_model.generation_config: "
                       f"do_sample={getattr(gc, 'do_sample', None)}, "
                       f"temperature={getattr(gc, 'temperature', None)}, "
-                      f"top_p={getattr(gc, 'top_p', None)}, top_k={getattr(gc, 'top_k', None)}, "
+                      f"top_p={getattr(gc, 'top_p', None)}, "
+                      f"top_k={getattr(gc, 'top_k', None)}, "
                       f"repetition_penalty={getattr(gc, 'repetition_penalty', None)}")
             for _ in range(self.num_generations):
                 gen_ids = raw_model.generate(**gen_kwargs)
@@ -655,16 +457,9 @@ class GDPOTrainer(Trainer):
                 gen_ids = gen_ids[:, prompt_length:]
                 all_completion_ids.append(gen_ids)
 
-        # generate 끝나고 gradient checkpointing 재활성화 (모듈 직접 순회 — 래퍼 우회).
-        #   GC 는 긴 멀티모달 시퀀스에 필수(끄면 OOM). TTI-on 의 recompute divergence 는
-        #   별도 추적/수정 중. (use_reentrant=False, 기본 determinism_check)
-        import functools as _functools
-        from torch.utils.checkpoint import checkpoint as _torch_checkpoint
-        _gc_func = _functools.partial(_torch_checkpoint, use_reentrant=False)
-        for _m in model.modules():
-            if hasattr(_m, "gradient_checkpointing"):
-                _m.gradient_checkpointing = True
-                _m._gradient_checkpointing_func = _gc_func
+        # generate 끝나고 활성화
+        if hasattr(model, "gradient_checkpointing_enable"):
+            model.gradient_checkpointing_enable()
 
         # 패딩 후 결합
         import torch.nn.functional as F
@@ -692,6 +487,15 @@ class GDPOTrainer(Trainer):
 
         comp_len = completion_ids.size(1)
 
+        # DDP/PEFT wrap을 모두 벗긴 raw model (config / visual / audio / embed_tokens 접근용)
+        unwrapped_model = self.accelerator.unwrap_model(model)
+        raw_encode_model = (
+            unwrapped_model.get_base_model()
+            if hasattr(unwrapped_model, "get_base_model")
+            else unwrapped_model
+        )
+        model_cfg = raw_encode_model.config
+
         # completion에서 비디오/오디오 placeholder 토큰 제거 (logprob 계산 시 feature 수 불일치 방지)
         _VIDEO_TOKEN_ID = 151656
         _AUDIO_TOKEN_ID = 151657 if hasattr(self, '_audio_token_id') else None
@@ -699,8 +503,8 @@ class GDPOTrainer(Trainer):
         completion_ids_clean = completion_ids.clone()
         completion_ids_clean[completion_ids_clean == _VIDEO_TOKEN_ID] = pad_id
         # 모델 config에서 audio_token_id 확인
-        if hasattr(_unwrapped.config, 'audio_token_id'):
-            completion_ids_clean[completion_ids_clean == _unwrapped.config.audio_token_id] = pad_id
+        if hasattr(model_cfg, 'audio_token_id'):
+            completion_ids_clean[completion_ids_clean == model_cfg.audio_token_id] = pad_id
 
         # ── Per-token log probs (policy) ──
         # 원본 prompt(반복 전) + 각 completion을 개별 결합 (비디오 토큰 수 일치를 위해)
@@ -708,8 +512,6 @@ class GDPOTrainer(Trainer):
         prompt_mask_single = prompt_mask[:1]
 
         # ── Encoding cache (비디오/오디오 encoder는 frozen이므로 step당 1회만 인코딩) ──
-        # DDP+PEFT wrap을 벗긴 base model.
-        raw_encode_model = _unwrapped.get_base_model() if hasattr(_unwrapped, "get_base_model") else _unwrapped
         cached_video_embeds = None
         cached_audio_embeds = None
         with torch.no_grad():
@@ -720,7 +522,7 @@ class GDPOTrainer(Trainer):
                 af = audio_feature.type(raw_encode_model.audio.dtype)
                 cached_audio_embeds = raw_encode_model.audio(af).flatten(0, 1)
 
-        _AUDIO_TOKEN_ID_CFG = getattr(_unwrapped.config, "audio_token_id", None)
+        _AUDIO_TOKEN_ID_CFG = getattr(model_cfg, "audio_token_id", None)
 
         def _build_cached_inputs_embeds(pc_ids):
             """pc_ids에 대한 inputs_embeds 생성.
@@ -805,9 +607,6 @@ class GDPOTrainer(Trainer):
             completions = [c.replace(tok, "") for c in completions]
         completions = [re.sub(r"<\|im_start\|>\s*\w+\s*", "", c).strip() for c in completions]
 
-        if self.accelerator.is_main_process:
-            print(f"[GDPO SAMPLE] completion[0][:200]: {completions[0][:200]}")
-
         # Compute rewards
         rewards_per_func = torch.zeros(len(completions), len(self.reward_funcs), device=device)
         gt_intervals_repeated = [gt_intervals] * self.num_generations
@@ -822,15 +621,15 @@ class GDPOTrainer(Trainer):
         rewards = rewards_per_func.sum(dim=1)
         advantages = self._compute_gdpo_advantages(rewards_per_func, rewards)
 
-        # ── [hyj] 디버그: GT/예측 세그먼트를 raw 토큰 + 초 단위 둘 다 출력 (rank 0) ──
+        # 디버깅용: raw token + 초 단위 디코딩 둘 다 출력
         _SEG_CAPTURE_DEBUG = re.compile(
             r"[Ff]rom\s+((?:<t\d>){1,4}<tdot><t\d>)\s+to\s+((?:<t\d>){1,4}<tdot><t\d>)"
         )
-
         def _extract_segments(text):
             """raw + sec 두 형태 추출.
             'From <t0>...<t5> to <t0>...<t9>. ...' →
-              raw: 'from <t0><t0><t5><tdot><t2> to <t0><t1><t3><tdot><t9>', sec: '(5.2, 13.9)'"""
+              raw: 'from <t0><t0><t5><tdot><t2> to <t0><t1><t3><tdot><t9>',
+              sec: '(5.2, 13.9)'"""
             raw_segs, sec_segs = [], []
             for s_str, e_str in _SEG_CAPTURE_DEBUG.findall(text):
                 raw_segs.append(f"from {s_str} to {e_str}")
@@ -838,31 +637,26 @@ class GDPOTrainer(Trainer):
                 e = decode_vtg_time(e_str)
                 if s is not None and e is not None:
                     sec_segs.append(f"({s:.1f}, {e:.1f})")
-            # 유효 세그먼트가 없으면(파싱 실패/이상출력) 실제 모델 출력 raw 를 그대로 보여줘 디버깅 가능하게.
-            if raw_segs:
-                raw_str = ", ".join(raw_segs)
-            else:
-                _shown = text.strip()
-                raw_str = f"[no valid segment] 실제출력({len(_shown)}자): {_shown[:200]!r}"
+            raw_str = ", ".join(raw_segs) if raw_segs else "[no valid segment]"
             sec_str = ", ".join(sec_segs) if sec_segs else "[no valid segment]"
             return raw_str, sec_str
 
+        # GT raw 토큰 형태 복원 — labels에서 다시 디코딩
+        gt_raw_str = "[none]"
+        if raw_labels is not None:
+            _gt_ids = raw_labels[0][raw_labels[0] != -100]
+            if len(_gt_ids) > 0:
+                gt_answer_raw = self.processing_class.decode(_gt_ids, skip_special_tokens=False)
+                gt_raw_segs = [f"from {s} to {e}" for s, e in _SEG_CAPTURE_DEBUG.findall(gt_answer_raw)]
+                if gt_raw_segs:
+                    gt_raw_str = ", ".join(gt_raw_segs)
+        gt_sec_str = ", ".join(f"({s:.1f}, {e:.1f})" for s, e in gt_intervals) if gt_intervals else "[none]"
         if self.accelerator.is_main_process:
-            # GT raw 토큰 형태 복원 — labels 에서 다시 디코딩
-            gt_raw_str = "[none]"
-            if raw_labels is not None:
-                _gt_ids = raw_labels[0][raw_labels[0] != -100]
-                if len(_gt_ids) > 0:
-                    gt_answer_raw = self.processing_class.decode(_gt_ids, skip_special_tokens=False)
-                    gt_raw_segs = [f"from {s} to {e}" for s, e in _SEG_CAPTURE_DEBUG.findall(gt_answer_raw)]
-                    if gt_raw_segs:
-                        gt_raw_str = ", ".join(gt_raw_segs)
-            gt_sec_str = ", ".join(f"({s:.1f}, {e:.1f})" for s, e in gt_intervals) if gt_intervals else "[none]"
             print(f"[GDPO SAMPLES] GT raw: {gt_raw_str}")
             print(f"[GDPO SAMPLES] GT sec: {gt_sec_str}")
             for gi, c in enumerate(completions):
                 pred_raw, pred_sec = _extract_segments(c)
-                iou_val = rewards_per_func[gi, 1].item() if rewards_per_func.size(1) > 1 else float("nan")
+                iou_val = rewards_per_func[gi, 1].item()
                 print(f"  [{gi}] iou={iou_val:.3f}")
                 print(f"       raw: {pred_raw}")
                 print(f"       sec: {pred_sec}")
@@ -928,23 +722,16 @@ class GDPOTrainer(Trainer):
 # 모델 로딩 (VS2+)
 # ============================================================
 
-def load_model_and_tokenizer(model_path, model_base, tti_mode="off"):
-    """VS2+ (Qwen2.5-VL 기반) 모델 로딩.
-
-    tti_mode:
-      - "off": base config의 time_token_id_range를 무시(None으로 덮어씀).
-               rope_index가 OFF 분기를 타도록 강제. 데이터에 time marker가
-               섞여있지 않을 때 사용.
-      - "on" : base config 그대로 사용. 데이터에 time marker가 포함된 경우.
-    """
-    print(f"[GDPO] Loading VS2+ model (tti_mode={tti_mode})")
+def load_model_and_tokenizer(model_path, model_base):
+    """VS2+ (Qwen2.5-VL 기반) 모델 로딩."""
+    print(f"[GDPO] Loading VS2+ model")
     print(f"[GDPO]   model_path (SFT ckpt): {model_path}")
     print(f"[GDPO]   model_base: {model_base}")
 
     # 토크나이저 로드
     tok_path = model_path if os.path.isdir(model_path) and os.path.exists(os.path.join(model_path, "tokenizer.json")) else model_base
     print(f"[GDPO] Loading tokenizer from: {tok_path}")
-    tokenizer = AutoTokenizer.from_pretrained(tok_path, model_max_length=10000, padding_side="left")
+    tokenizer = AutoTokenizer.from_pretrained(tok_path, model_max_length=6000, padding_side="left")
 
     # 모델 로드
     print(f"[GDPO] Loading base model from: {model_base}")
@@ -953,38 +740,6 @@ def load_model_and_tokenizer(model_path, model_base, tti_mode="off"):
         attn_implementation="sdpa",
         torch_dtype=torch.bfloat16,
     )
-
-    # TTI mode 적용: OFF 모드일 때 base config의 time_token_id_range를 비활성화.
-    # base "video_salmonn2_plus_7B_time_tokens"는 time_token_id_range가 박혀있어
-    # 이대로 두면 rope_index가 항상 TTI-ON 분기를 타서, 데이터에 time marker가
-    # 없는 경우 IndexError가 발생함.
-    if tti_mode == "off":
-        if getattr(model.config, "time_token_id_range", None) is not None:
-            print(f"[GDPO] tti_mode=off → clearing model.config.time_token_id_range "
-                  f"(was {model.config.time_token_id_range})")
-            model.config.time_token_id_range = None
-        if getattr(model.config, "time_marker_token_len", None):
-            model.config.time_marker_token_len = None
-    else:
-        # tti_mode == "on": 경로 B(머지 모델)는 config 에 time_token_id_range 가 없을 수 있음
-        # (SFT 머지 과정에서 유실). 데이터(special_token 마커)와 일치시키려면 토크나이저에서
-        # 복원해 모델 config 에 세팅 → generation 시 모델 내부 rope 도 ON(fixed-position) 분기를
-        # 타게 함. (경로 A 의 time-token base 는 이미 들어있어 이 분기 무영향.)
-        if getattr(model.config, "time_token_id_range", None) is None:
-            t0 = tokenizer.convert_tokens_to_ids("<t0>")
-            tdot = tokenizer.convert_tokens_to_ids("<tdot>")
-            if isinstance(t0, int) and isinstance(tdot, int) and t0 >= 0 and tdot >= 0:
-                model.config.time_token_id_range = (min(t0, tdot), max(t0, tdot))
-                model.config.time_marker_token_len = 5
-                print(f"[GDPO] tti_mode=on + config 에 time_token_id_range 없음(경로B 머지모델) "
-                      f"→ 토크나이저에서 복원: {model.config.time_token_id_range}, marker_len=5")
-            else:
-                print("[GDPO] ⚠️ tti_mode=on 인데 <t0>/<tdot> 토큰 ID 확인 실패 "
-                      "→ time_token_id_range 미설정 (desync 유지)")
-    # [TTI-DBG] ① 최종 model.config 상태 확인 (ON 모드는 기존에 미출력이었음)
-    _tti_dbg(f"① load_model: tti_mode={tti_mode} | "
-             f"model.config.time_token_id_range={getattr(model.config, 'time_token_id_range', None)} | "
-             f"time_marker_token_len={getattr(model.config, 'time_marker_token_len', None)}")
     # resize_token_embeddings 호출 금지 — base는 vocab_size=152064 (Qwen 패딩 포함)로
     # 유지해야 SFT adapter의 modules_to_save(embed_tokens/lm_head, 152064 rows)와 맞음.
     model = model.to(torch.bfloat16)
@@ -994,54 +749,14 @@ def load_model_and_tokenizer(model_path, model_base, tti_mode="off"):
     # modules_to_save=[model.embed_tokens, lm_head]는 PeftModel 로딩 시 자동 복원되므로
     # time token 임베딩 수동 복원 불필요.
     adapter_config_path = os.path.join(model_path, "adapter_config.json")
-    adapter_loaded = os.path.isdir(model_path) and os.path.exists(adapter_config_path)
-    if adapter_loaded:
-        # ── (경로 A) adapter 이어학습 : SFT LoRA adapter 를 base 위에 로드 ──
+    if os.path.isdir(model_path) and os.path.exists(adapter_config_path):
         print(f"[GDPO] Loading LoRA adapter: {model_path}")
         audio_layers = model.audio.layers
         del model.audio.layers
         model = PeftModel.from_pretrained(model, model_path, is_trainable=True)
         model.model.audio.layers = audio_layers
-
-        # ── RL 학습대상 제한 (adapter 이어학습 경로 전용) ──────────────────
-        # puvalor 계열 어댑터는 LoRA(q,k,v,o) + visual.merger + audio.qformer/q_tokens/
-        # audio_proj + embed_tokens + lm_head 까지 전부 trainable 로 로드된다. 하지만
-        # RL(GRPO)은 단일 LR(5e-6) 이라 SFT 의 per-module LR(merger 1e-5, audio 2e-5 등)을
-        # 재현할 수 없고, noisy reward gradient 로 aligner 까지 흔들면 SFT 가 만든 멀티모달
-        # grounding 이 손상될 위험이 크다. → policy 중심으로 학습대상을 제한:
-        #   학습: LoRA(q,k,v) + embed_tokens + lm_head
-        #   freeze: o_proj LoRA, visual.merger, audio.qformer/q_tokens/audio_proj
-        _KEEP_LORA = ("q_proj", "k_proj", "v_proj")   # o_proj 제외
-        _KEEP_SAVE = ("embed_tokens", "lm_head")      # merger / audio.* 제외
-        _kept_names, _frozen_names = [], []
-        for n, p in model.named_parameters():
-            if not p.requires_grad:
-                continue
-            keep = any(m in n for m in _KEEP_LORA) if "lora_" in n \
-                else any(m in n for m in _KEEP_SAVE)
-            if keep:
-                _kept_names.append(n)
-            else:
-                p.requires_grad_(False)
-                _frozen_names.append(n)
-
-        def _mod_summary(names):
-            tags = ("q_proj", "k_proj", "v_proj", "o_proj", "visual.merger",
-                    "audio.qformer", "audio.q_tokens", "audio.audio_proj",
-                    "embed_tokens", "lm_head")
-            return sorted({m for n in names for m in tags if m in n})
-
-        _n_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        print(f"[GDPO] RL trainable 제한 → 학습 모듈: {_mod_summary(_kept_names)}")
-        print(f"[GDPO]                      freeze 모듈: {_mod_summary(_frozen_names)}")
-        print(f"[GDPO] trainable params: {_n_train/1e6:.1f}M")
-        # ─────────────────────────────────────────────────────────────────
     else:
-        # ── (경로 B) fresh LoRA : 머지 모델을 그대로 두고 main() 의 config.lora 로
-        #    새 LoRA 를 씌운다. get_peft_model 이 비-LoRA 파라미터를 자동 freeze 하므로
-        #    여기서 별도 trainable 제한 불필요(embed/lm_head 도 자동 freeze). ──
-        print("[GDPO] No LoRA adapter found → fresh RL LoRA 경로 "
-              "(main 의 config.lora 로 새 LoRA 적용 예정)")
+        print("[GDPO] No LoRA adapter found, using base model")
 
     # gradient_checkpointing + 얼린 base 조합에서 grad가 흐르게 하려면
     # 얼린 embedding 출력에 requires_grad=True가 필요.
@@ -1081,7 +796,7 @@ def load_config(config_path: str) -> dict:
 # 리워드 함수
 # ============================================================
 
-def make_reward_functions(format_reward, iou_reward):
+def make_reward_functions():
     def _format_reward(completions, **kwargs):
         return [format_reward(c) for c in completions]
 
@@ -1089,9 +804,17 @@ def make_reward_functions(format_reward, iou_reward):
         gt = gt_intervals or [[] for _ in completions]
         return [iou_reward(c, g) for c, g in zip(completions, gt)]
 
+    def _timestamp_reward(completions, gt_intervals=None, **kwargs):
+        return [timestamp_reward(c) for c in completions]
+
+    def _modality_reward(completions, gt_intervals=None, **kwargs):
+        return [modality_reward(c) for c in completions]
+
     _format_reward.__name__ = "format"
     _iou_reward.__name__ = "iou"
-    return [_format_reward, _iou_reward]
+    _timestamp_reward.__name__ = "timestamp"
+    _modality_reward.__name__ = "modality"
+    return [_format_reward, _iou_reward, _timestamp_reward, _modality_reward]
 
 
 # ============================================================
@@ -1105,20 +828,11 @@ def main():
     parser.add_argument("--model_base", default=None)
     parser.add_argument("--dataset_path", default=None)
     parser.add_argument("--output_dir", default=None)
-    parser.add_argument("--max_steps", type=int, default=None,
-                        help="smoke-test 등에서 step 수 제한. >0이면 num_train_epochs 무시.")
-    parser.add_argument("--run_name", type=str, default=None,
-                        help="wandb/tracker run name 재정의. 없으면 config.logging.run_name 사용.")
-    parser.add_argument("--tti_mode", type=str, default=None, choices=[None, "off", "on"],
-                        help="TTI 모드. off=time_token_id_range 무시 / on=base config 그대로. "
-                             "기본값은 config.model.tti_mode 또는 'off'.")
-    parser.add_argument("--reward_module", type=str, default=None,
-                        help="reward 함수 모듈명. reward_functions(기본, iou=MUSEG r_M) | "
-                             "reward_functions_rM_fp(iou=r_M-0.2*FP). "
-                             "없으면 config.reward.module 또는 reward_functions.")
     parser.add_argument("--resume_from_checkpoint", type=str, default=None,
-                        help="'True'=output_dir 내 최신 체크포인트 자동 재개, 또는 체크포인트 경로. "
-                             "미지정=처음부터.")
+                        help="'True'=output_dir 내 최신 체크포인트 자동 재개, 또는 체크포인트 경로. 미지정=처음부터.")
+    parser.add_argument("--base_interval", type=float, default=None,
+                        help="video frame density(초/프레임) override. SFT=0.2(~2.9fps,128cap). "
+                             "미지정=trainer 기본 2(~0.5fps). jsy: SFT 학습조건 맞추려면 0.2.")
     cli = parser.parse_args()
 
     cfg = load_config(cli.config) if cli.config else {}
@@ -1142,44 +856,18 @@ def main():
     if model_path is None or dataset_path is None:
         parser.error("--model_path와 --dataset_path 필수")
 
-    # ── CLI 인자 + 실행 환경 기록 (train.log 처럼 저장경로에 별도 보존) ──
-    # rank-0 에서만 기록. output_dir 가 아직 없을 수 있으니 생성.
-    # 무엇으로 돌린 런인지(주입한 인자 + 실제 커맨드라인) 사후 재현용.
-    if _is_rank0():
-        os.makedirs(output_dir, exist_ok=True)
-        _args_record = {
-            "cli_args": vars(cli),                       # 파싱된 argparse 인자
-            "argv": sys.argv,                            # 실제 커맨드라인 (python ... --config ...)
-            "resolved": {                                # config 와 병합된 최종값(일부)
-                "model_path": model_path,
-                "model_base": model_base,
-                "dataset_path": dataset_path,
-                "output_dir": output_dir,
-            },
-            "cwd": os.getcwd(),
-        }
-        # 기존 파일이 있으면(=resume 등 재실행) 덮어쓰지 않고 번호를 붙여 이력 보존.
-        #   cli_args.json → cli_args.1.json → cli_args.2.json ...
-        _args_path = os.path.join(output_dir, "cli_args.json")
-        if os.path.exists(_args_path):
-            _n = 1
-            while os.path.exists(os.path.join(output_dir, f"cli_args.{_n}.json")):
-                _n += 1
-            _args_path = os.path.join(output_dir, f"cli_args.{_n}.json")
-        with open(_args_path, "w", encoding="utf-8") as _f:
-            json.dump(_args_record, _f, ensure_ascii=False, indent=2)
-        print(f"[GDPO] CLI 인자 기록: {_args_path}")
-
     # GDPO 파라미터
     num_generations = _get(None, "gdpo", "num_generations", default=8)
     max_completion_length = _get(None, "gdpo", "max_completion_length", default=512)
     beta = _get(None, "gdpo", "beta", default=0.04)
-    reward_weights = _get(None, "gdpo", "reward_weights", default=[1.0, 1.0, 1.0])
-    # [hyj] temperature 를 config 에서 읽어 GRPOConfig 로 전달 (기존 cdh 는 누락 → 항상 기본값).
     temperature = float(_get(None, "gdpo", "temperature", default=1.0))
+    # [format, iou, timestamp, modality] 4채널.
+    reward_weights = _get(None, "gdpo", "reward_weights",
+                          default=[1.0, 1.0, 1.0, 1.0])
 
     # 학습 파라미터
     num_epochs = _get(None, "training", "num_train_epochs", default=1)
+    max_steps = _get(None, "training", "max_steps", default=-1)
     batch_size = _get(None, "training", "per_device_train_batch_size", default=1)
     grad_accum = _get(None, "training", "gradient_accumulation_steps", default=4)
     lr = float(_get(None, "training", "learning_rate", default=5e-6))
@@ -1189,59 +877,34 @@ def main():
     logging_steps = _get(None, "logging", "logging_steps", default=1)
     save_steps = _get(None, "logging", "save_steps", default=500)
     save_total_limit = _get(None, "logging", "save_total_limit", default=3)
-    report_to = _get(None, "logging", "report_to", default="tensorboard")
-    run_name = _get(cli.run_name, "logging", "run_name", default=os.path.basename(output_dir))
-
-    # TTI 모드 결정 (cli > config.model.tti_mode > "off")
-    tti_mode = _get(cli.tti_mode, "model", "tti_mode", default="off")
-    # tti_mode → 데이터셋 입력 마커 포맷 매핑.
-    #   on  : special_token 마커를 video/audio 청크 사이에 인터리빙 (rope ON 분기와 짝)
-    #   off : 마커 미삽입 (rope OFF 분기와 짝)
-    # 모델 config(time_token_id_range) 와 데이터셋(tti_time_format) 양쪽이 일치해야 함.
-    tti_time_format = "special_token" if tti_mode == "on" else "off"
 
     # Model
-    model, tokenizer = load_model_and_tokenizer(model_path, model_base, tti_mode=tti_mode)
+    model, tokenizer = load_model_and_tokenizer(model_path, model_base)
 
-    # ── [hyj] PEFT — RL용 fresh LoRA (경로 B) ──────────────────────────────
-    # model_path 가 SFT-머지 모델(adapter_config.json 없음)일 때, SFT 어댑터를 다시
-    # 얹지 않고 머지 weight 위에 새 LoRA 를 만들어 RL 학습한다. ref 모델은 GDPOTrainer 가
-    # LoRA disable 로 처리(=SFT 정책).  config.lora.enabled=true 일 때만 활성.
-    #   ⚠️ adapter 이어학습(경로 A)을 쓸 거면 config 의 lora.enabled 를 false 로 둘 것
-    #      (이미 PeftModel 인 model 에 또 LoRA 를 씌우면 이중 적용됨).
+    # PEFT — RL용 fresh LoRA
+    # base(salmonn2p_..._v2)는 SFT가 이미 머지된 모델이므로 SFT 어댑터를 다시 얹지 않고
+    # 새 LoRA를 만들어 RL 학습한다. ref 모델은 GDPOTrainer가 LoRA disable로 처리(=SFT 정책).
     peft_config = None
     if _get(None, "lora", "enabled", default=False):
-        if isinstance(model, PeftModel):
-            print("[GDPO] ⚠️ 이미 LoRA adapter 가 로드된 모델인데 config.lora.enabled=true "
-                  "→ fresh LoRA 적용을 건너뜀 (이중 적용 방지). adapter 이어학습으로 진행.")
-        else:
-            lora_r = int(_get(None, "lora", "r", default=32))
-            lora_alpha = int(_get(None, "lora", "lora_alpha", default=64))
-            lora_dropout = float(_get(None, "lora", "lora_dropout", default=0.05))
-            # LLM attention(q/k/v/o_proj)만 타깃 — audio(whisper)/visual 제외 (SFT와 동일 범위).
-            target_modules = [
-                n for n, _ in model.named_modules()
-                if n.startswith("model.layers.")
-                and n.split(".")[-1] in ("q_proj", "k_proj", "v_proj", "o_proj")
-            ]
-            # embed_tokens / lm_head 도 학습 (modules_to_save → full trainable copy).
-            #   time-token 임베딩 등을 RL 로 미세조정. 경로 A(adapter)와 학습 범위 일치.
-            #   ref(=disable_adapter)는 original(=SFT 머지본) 을 쓰므로 KL 기준은 SFT 정책 유지.
-            #   끄려면 config 의 lora.train_embeddings: false.
-            train_emb = bool(_get(None, "lora", "train_embeddings", default=True))
-            modules_to_save = ["embed_tokens", "lm_head"] if train_emb else None
-            peft_config = LoraConfig(
-                r=lora_r,
-                lora_alpha=lora_alpha,
-                lora_dropout=lora_dropout,
-                target_modules=target_modules,
-                modules_to_save=modules_to_save,
-                bias="none",
-                task_type="CAUSAL_LM",
-            )
-            print(f"[GDPO] Fresh RL LoRA: r={lora_r}, alpha={lora_alpha}, "
-                  f"#target_modules={len(target_modules)} (LLM attn q/k/v/o), "
-                  f"modules_to_save={modules_to_save}")
+        lora_r = int(_get(None, "lora", "r", default=32))
+        lora_alpha = int(_get(None, "lora", "lora_alpha", default=64))
+        lora_dropout = float(_get(None, "lora", "lora_dropout", default=0.05))
+        # LLM attention(q/k/v/o_proj)만 타깃 — audio(whisper)/visual 제외 (SFT와 동일 범위).
+        target_modules = [
+            n for n, _ in model.named_modules()
+            if n.startswith("model.layers.")
+            and n.split(".")[-1] in ("q_proj", "k_proj", "v_proj", "o_proj")
+        ]
+        peft_config = LoraConfig(
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            target_modules=target_modules,
+            bias="none",
+            task_type="CAUSAL_LM",
+        )
+        print(f"[GDPO] Fresh RL LoRA: r={lora_r}, alpha={lora_alpha}, "
+              f"#target_modules={len(target_modules)} (LLM attn only)")
 
     # Dataset — VS2+ LazySupervisedDataset 사용
     print(f"[GDPO] Loading dataset from {dataset_path}")
@@ -1254,23 +917,19 @@ def main():
     class GDPODataArgs:
         dataset_use: str = ""
         model_type: str = "qwen2.5vl"
-        video_max_frames: int = 128         # ⚠️ SFT 이상값 미확정 (note에 512 언급) — 일단 128 유지
-        video_min_frames: int = 64          # SFT 이상값
-        base_interval: float = 0.2          # SFT 이상값 (fps5). 이전 2(fps0.5)에서 변경
+        video_max_frames: int = 128         # SFT와 동일
+        video_min_frames: int = 4
+        base_interval: float = 2
         max_pixels: int = 176400            # SFT와 동일 (28*28*225)
         min_pixels: int = 784               # SFT와 동일 (28*28)
-        video_max_frame_pixels: int = 28224 # SFT 이상값 (이전 25088)
-        video_min_frame_pixels: int = 784   # SFT 이상값 (이전 3136)
+        video_max_frame_pixels: int = 25088 # SFT와 동일
+        video_min_frame_pixels: int = 3136  # SFT와 동일
         video_max_total_pixels: int = 1664 * 28 * 28
         video_min_total_pixels: int = 256 * 28 * 28
         run_test: bool = False
         do_sample: bool = False
         num_sample: int = 1
         train_type: str = "sft"
-        # 입력 측 TTI 마커 포맷. tti_mode 에서 파생 (on→special_token, off→off).
-        # LazySupervisedDataset 가 이 값으로 video/audio 청크 사이에 마커를 인터리빙.
-        # 이 값이 없으면 dataset 은 기본 "off" → special 모드인데도 마커 미삽입 → rope ON 분기와 불일치.
-        tti_time_format: str = "off"
         feature_size: int = 128
         chunk_length: int = 30
         hop_length: int = 160
@@ -1279,21 +938,10 @@ def main():
         audio_processor: object = None      # SFT에서 필요
 
     data_args = GDPODataArgs()
+    if cli.base_interval is not None:
+        data_args.base_interval = cli.base_interval
+        print(f"[GDPO] base_interval override = {cli.base_interval} (default였다면 2)")
     data_args.dataset_use = dataset_path
-    data_args.tti_time_format = tti_time_format
-    print(f"[GDPO] tti_mode={tti_mode} → data_args.tti_time_format={tti_time_format}")
-    # [TTI-DBG] ② config(model.time_token_id_range) ↔ data(tti_time_format) 정합성.
-    #   special_token ↔ id_range 있음, off ↔ id_range None 이어야 짝이 맞음.
-    if TTI_DEBUG and _is_rank0():
-        _mc_range = getattr(model.config, "time_token_id_range", None)
-        _has_range = (_mc_range is not None)
-        _want_markers = (tti_time_format == "special_token")
-        _tti_dbg(f"② main: tti_mode={tti_mode}, tti_time_format={tti_time_format}, "
-                 f"model.config.time_token_id_range={_mc_range}")
-        if _has_range != _want_markers:
-            _tti_dbg(f"⚠️ WARNING desync: tti_time_format={tti_time_format} 인데 "
-                     f"model.config.time_token_id_range={_mc_range} "
-                     f"(ON↔range, OFF↔None 이어야 함) — rope 분기/마커 불일치 가능")
     data_args.image_processor = Qwen2VLImageProcessorFast.from_pretrained(model_base)
     data_args.audio_processor = WhisperFeatureExtractor(
         feature_size=data_args.feature_size,
@@ -1308,18 +956,21 @@ def main():
     )
     print(f"[GDPO] Dataset size: {len(dataset)}")
 
-    # Reward — 모듈 선택 (단일 trainer, import 대상만 교체)
-    reward_module = _get(cli.reward_module, "reward", "module", default="reward_functions")
-    _format_reward, _iou_reward = load_reward_module(reward_module)
-    print(f"[GDPO] reward_module={reward_module}  "
-          f"(iou 구현체={getattr(_iou_reward, '__name__', '?')})")
-    reward_funcs = make_reward_functions(_format_reward, _iou_reward)
+    # Reward
+    reward_funcs = make_reward_functions()
+    # reward_weights 길이를 reward_funcs 개수에 맞춤 (config 가 옛 2/3채널이어도 안전).
+    if len(reward_weights) < len(reward_funcs):
+        reward_weights = list(reward_weights) + [1.0] * (len(reward_funcs) - len(reward_weights))
+    elif len(reward_weights) > len(reward_funcs):
+        reward_weights = list(reward_weights)[:len(reward_funcs)]
+    print(f"[GDPO] Reward funcs: {[f.__name__ for f in reward_funcs]}")
     print(f"[GDPO] Reward weights: {reward_weights}")
 
     # GRPOConfig
-    grpo_kwargs = dict(
+    grpo_args = GRPOConfig(
         output_dir=output_dir,
         num_train_epochs=num_epochs,
+        max_steps=max_steps,
         per_device_train_batch_size=batch_size,
         gradient_accumulation_steps=grad_accum,
         learning_rate=lr,
@@ -1336,18 +987,12 @@ def main():
         seed=seed,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
-        report_to=report_to,
-        run_name=run_name,
+        report_to="wandb",
         logging_dir=os.path.join(output_dir, "logs"),
         remove_unused_columns=False,
     )
-    # max_steps: cli > config.training.max_steps (>0 일 때만 적용; epoch 무시)
-    _max_steps = _get(cli.max_steps, "training", "max_steps", default=None)
-    if _max_steps is not None and int(_max_steps) > 0:
-        grpo_kwargs["max_steps"] = int(_max_steps)
-    grpo_args = GRPOConfig(**grpo_kwargs)
 
-    # Trainer  ([hyj] peft_config 전달 → 경로 B 일 때 fresh LoRA 적용)
+    # Trainer
     trainer = GDPOTrainer(
         model=model,
         reward_funcs=reward_funcs,
@@ -1358,7 +1003,7 @@ def main():
         peft_config=peft_config,
     )
 
-    # Train ([hyj] resume 지원: 'True'=최신 체크포인트 자동 / 경로=특정 체크포인트 / None=처음부터)
+    # Train (resume 지원: 'True'=최신 체크포인트 자동, 경로=특정 체크포인트, None=처음부터)
     _rc = cli.resume_from_checkpoint
     if _rc in ("", "None"):
         _rc = None
