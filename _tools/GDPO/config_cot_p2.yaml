@@ -1,0 +1,55 @@
+# ============================================================
+# GDPO CoT P2 실험 config (TimeR1 스타일 <timestep>, v8 머지본 위 경로 B)
+#   reward_functions_cot_p2 = 3채널 [format, iou, timestamp(content)]
+#   데이터 = unav100_v2_p2.json (think에 <timestep>X.X to Y.Y</timestep>)
+# ============================================================
+
+model:
+  model_path: ${SFT_CKPT}        # CLI --model_path 로 salmonn2p_7b_unav_v8 (머지본)
+  model_base: ${BASE_MODEL}      # CLI --model_base 로 동일 머지본
+  tti_mode: "on"
+
+data:
+  dataset_path: ${TRAIN_DIR}/unav100_v2_p2.json
+
+lora:
+  enabled: true                  # 경로 B (머지본 위 fresh LoRA)
+  r: 32
+  lora_alpha: 64
+  lora_dropout: 0.05
+  train_embeddings: false        # embed/lm_head freeze → 메모리 절약
+
+gdpo:
+  num_generations: 8
+  max_completion_length: 256
+  beta: 0.00
+  temperature: 1.0
+  reward_weights: [1.0, 1.0, 0.5]   # [format, iou, timestamp] (P2 3채널)
+
+training:
+  output_dir: output/gdpo_vs2plus
+  num_train_epochs: 1
+  max_steps: 500
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 2   # 2-GPU DDP → effective batch 4
+  learning_rate: 5e-6
+  warmup_ratio: 0.05
+  lr_scheduler_type: cosine
+  bf16: true
+  seed: 2024
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+
+logging:
+  logging_steps: 1
+  save_steps: 100
+  save_total_limit: 10
+  report_to: wandb
+  run_name: null
+
+reward:
+  module: reward_functions_cot_p2
+
+ref_model:
+  enabled: true

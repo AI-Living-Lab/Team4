@@ -1,0 +1,77 @@
+# ============================================================
+# GDPO clip-higher (DAPO) 테스트용 config — gdpo_trainer_clip.py 전용
+#
+# 공용 config.yaml 사본 + 아래 2가지만 다름:
+#   1) clip 섹션 추가 (num_iterations=2 → clip-higher 실제 binding)
+#   2) gradient_accumulation_steps: 1  (μ>1 필수. 안 그러면 한 optimizer step 안에서
+#      μ 재사용이 끝나 weight 미변동 → r≈1 → clip 무력)
+#
+# 모델/데이터 경로는 CLI(--model_path/--model_base/--dataset_path)로 직접 전달.
+# ============================================================
+
+# 모델 설정
+model:
+  model_path: ${SFT_CKPT}
+  model_base: ${BASE_MODEL}
+  tti_mode: "on"
+
+# 데이터 설정
+data:
+  dataset_path: ${TRAIN_DIR}/unav100_v2.json
+
+# Target Modules
+lora:
+  enabled: true
+  r: 32
+  lora_alpha: 64
+  lora_dropout: 0.05
+  train_embeddings: false
+
+# GDPO 설정
+gdpo:
+  num_generations: 8
+  max_completion_length: 256
+  beta: 0.00
+  temperature: 1.0
+  reward_weights: [1.0, 1.0]
+
+# DAPO clip-higher
+clip:
+  enabled: true
+  epsilon: 0.2           # ε_low
+  epsilon_high: 0.28     # ε_high (>ε_low = clip-higher)
+  num_iterations: 2      # μ: 한 rollout 을 μ 번 재사용 (μ>1 이라야 clip 작동)
+                         # ⚠️ μ 를 바꾸면 아래 training.max_steps = 400×μ 도 함께 수정할 것
+
+# 학습 설정
+training:
+  output_dir: output/gdpo_vs2plus_clip
+  num_train_epochs: 1
+  max_steps: 2000                          # v2(grad_accum2·500step·2GPU=고유 2000 prompt) 와 데이터량 일치.
+                                           #   μ=2/accum1/2GPU 에선 고유 prompt 수 = max_steps. (CLI --max_steps 로도 override)
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 1           # ⚠️ μ>1 필수 (config.yaml 은 4)
+  learning_rate: 5e-6
+  warmup_ratio: 0.05
+  lr_scheduler_type: cosine                # v2(config_v2_rM_fp) 와 동일하게 cosine
+  bf16: true
+  seed: 2024
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+
+# 저장/로깅
+logging:
+  logging_steps: 1
+  save_steps: 200
+  save_total_limit: 10
+  report_to: wandb
+  run_name: null
+
+# reward 설정
+reward:
+  module: reward_functions
+
+# ref 모델
+ref_model:
+  enabled: true

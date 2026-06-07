@@ -16,15 +16,6 @@ gdpo_trainer_tti.py (VS2+ / Qwen2.5-VL 버전)
     - resume_from_checkpoint 지원
     - rank-0 한정 로깅 + raw/sec segment 디버그 출력
     - get_peft_model 후 enable_input_require_grads 재적용
-  clip 버전(gdpo_trainer_clip.py)에서 통합:
-    - DAPO clip-higher (ε_high>ε_low) clipped surrogate loss (config.clip.*)
-    - μ(num_iterations)>1 rollout 재사용 — _RepeatSampler + rollout 캐시
-      (_generate_rollout/_completion_logps 분리). μ=1 이면 기존 GDPO 와 수치 동일.
-    - ratio / clip_frac 진단 메트릭 로깅
-    - reward 채널은 가변(CoT 포함)으로 유지 — clip 경로와 무관하게 동작
-    ⚠️ clip-higher 는 공용 기본값에서 OFF (config.yaml: clip.num_iterations=1 →
-       μ=1 이라 clip 미작동 = 기존 GDPO 와 수치 동일). 켜려면 clip.num_iterations>1 +
-       training.gradient_accumulation_steps=1 로 설정(또는 config_clip.yaml / CLI override).
 
 두 가지 학습 경로 (model_path 가 무엇이냐로 자동 분기):
   (A) adapter 이어학습 : model_path=SFT LoRA adapter, model_base=time-token base
@@ -109,19 +100,11 @@ CLI 인자 (모두 선택; 미지정 시 config.yaml → 내부 기본값 순으
                             on=base config 유지(rope ON 분기, 데이터에 마커 필요).
                             (config: model.tti_mode / 기본 off)
   --reward_module str       reward 함수 모듈명. (config: reward.module / 기본 reward_functions)
-                              reward_functions       → 채널 [format, iou(=MUSEG r_M)]
+                              reward_functions       → iou = MUSEG r_M
                               reward_functions_rM_fp  → iou = r_M - K*n_unmatched_pred (FP penalty)
                               reward_functions_prec   → iou = r_M - λ*outside_ratio (precision penalty)
                               reward_functions_rM_cov → iou = r_M - γ*coverage_excess (길이편향 억제)
                               reward_functions_f1     → iou = F1(best-match) 베이스라인
-                              reward_functions_rM_sep → 채널 [format, len, global(F1), local]
-                                                        (학습신호 세분화 — multi-seg 붕괴 대응)
-                            ── 채널 호환 (load_reward_module) ──
-                            모듈이 REWARD_CHANNELS=[(name,fn,needs_gt),...] 를 선언하면 그대로
-                            사용(임의 채널 수/이름). 없으면 format_reward/iou_reward(+옵션
-                            timestamp/modality) convention 으로 조립. → 새 채널 reward 를
-                            추가해도 trainer 무수정. reward_weights 길이는 채널 수에 자동정렬,
-                            wandb 는 rewards/<채널명> 으로 자동 로깅.
   --resume_from_checkpoint  'True'=output_dir 내 최신 체크포인트 자동 재개 /
                             <경로>=특정 체크포인트 / 미지정=처음부터.
 
@@ -129,19 +112,8 @@ CLI 인자 (모두 선택; 미지정 시 config.yaml → 내부 기본값 순으
   - 경로A(adapter 이어학습): config 의 lora.enabled=false 로 둘 것 (PeftModel 이중 적용 방지).
   - 경로B(fresh LoRA)     : config 의 lora.enabled=true.
 
-config 파일:
-  - config.yaml       : 팀 공용 기본 (clip 섹션 포함하되 num_iterations=1 → clip-higher OFF = 기존 GDPO 동일)
-  - config_clip.yaml  : clip-higher 실험 (μ=2 + grad_accum=1)
-  - config_sep.yaml   : 학습신호 세분화(reward_functions_rM_sep, 4채널) + clip-higher 실험
-
-clip-higher (config.clip.*):
-  clipped surrogate loss = -min( r·A, clip(r, 1-ε_low, 1+ε_high)·A ).  μ(num_iterations)>1 이라야
-  r=exp(new-old)≠1 → clip 이 실제 binding. μ>1 은 grad_accum=1 필수(아니면 r≈1 → 무력).
-
 디버그 env:
   TTI_DEBUG=1 [TTI_DEBUG_STEPS=3]   rank-0 한정, 첫 N step 동안 TTI 정합성 계측 출력.
-  LEN_REWARD_MODE=binary|graded     reward_functions_rM_sep 의 len 채널 모드 (기본 binary).
-                                    graded=1-|n_pred-n_gt|/max — near-collapse 에서 gradient 생존.
 """
 
 import argparse
@@ -196,53 +168,13 @@ sys.path.insert(0, _THIS_DIR)
 
 
 def load_reward_module(module_name: str):
-    """reward 모듈을 동적 로드해 채널 spec 리스트 [(name, fn, needs_gt), ...] 반환.
-
-    채널 호환 규약 (두 가지 — 모듈이 어느 쪽이든 자유롭게 선택):
-      (1) REWARD_CHANNELS 선언 모듈 (권장, 임의 채널 수/이름)
-            모듈이 REWARD_CHANNELS = [(name:str, fn:callable, needs_gt:bool), ...] 를
-            정의하면 그대로 사용한다. 채널 개수·이름·순서는 모듈이 전적으로 결정.
-            예) reward_functions_rM_sep → [format, len, global, local]
-            (needs_gt=True 면 fn(completion, gt) 로, False 면 fn(completion) 로 호출됨.)
-      (2) convention 모듈 (레거시, 하위호환)
-            REWARD_CHANNELS 가 없으면 함수명 규약으로 조립:
-              필수: format_reward, iou_reward
-              옵션: timestamp_reward, modality_reward (CoT 모듈에만; 없으면 무시)
-            예) reward_functions / reward_functions_rM_fp(_cot)
-
-    trainer 본체는 반환된 spec(이름/개수)에 무관하게 동작한다:
-      - reward_weights 길이는 채널 수에 맞춰 main()에서 자동조정
-      - wandb 메트릭은 채널 __name__ 으로 자동 로깅(rewards/<name>)
-    → 새 채널을 가진 reward 모듈을 추가해도 trainer 수정 불필요.
+    """reward 모듈을 동적 로드해 (format_reward, iou_reward) 반환.
+      reward_functions      → iou_reward = MUSEG r_M
+      reward_function_rM_fp  → iou_reward = r_M - 0.2 * n_unmatched_pred (FP penalty)
     """
     import importlib
     mod = importlib.import_module(module_name)
-
-    # (1) 모듈이 채널 스펙을 직접 선언 → 그대로 사용 (임의 채널 호환)
-    raw = getattr(mod, "REWARD_CHANNELS", None)
-    if raw is not None:
-        specs = []
-        for ch in raw:
-            if not (isinstance(ch, (tuple, list)) and len(ch) == 3):
-                raise ValueError(
-                    f"[GDPO] {module_name}.REWARD_CHANNELS 항목은 (name, fn, needs_gt) "
-                    f"3-tuple 이어야 함: {ch!r}")
-            name, fn, needs_gt = ch
-            if not callable(fn):
-                raise ValueError(f"[GDPO] reward 채널 '{name}' 의 fn 이 callable 이 아님: {fn!r}")
-            specs.append((str(name), fn, bool(needs_gt)))
-        if not specs:
-            raise ValueError(f"[GDPO] {module_name}.REWARD_CHANNELS 가 비어 있음")
-        return specs
-
-    # (2) 레거시 convention fallback (기존 모듈 무영향)
-    specs = [("format", mod.format_reward, False),   # (name, fn, needs_gt)
-             ("iou", mod.iou_reward, True)]
-    for name in ("timestamp", "modality"):           # 옵션 (CoT)
-        fn = getattr(mod, f"{name}_reward", None)
-        if fn is not None:
-            specs.append((name, fn, True))
-    return specs
+    return mod.format_reward, mod.iou_reward
 
 RewardFunc = Union[str, PreTrainedModel, Callable[[list, list], list[float]]]
 
@@ -283,9 +215,7 @@ def count_time_markers(ids, id_range) -> int:
 try:
     import numpy as _np
     import torch.serialization as _ts
-    import _codecs as _cod
-    # _codecs.encode: numpy random state 직렬화에 포함됨 → rng_state_*.pth 로드 시 필요
-    _safe = [_np.ndarray, _np.dtype, _cod.encode]
+    _safe = [_np.ndarray, _np.dtype]
     for _m in ("numpy._core.multiarray", "numpy.core.multiarray"):
         try:
             _mod = __import__(_m, fromlist=["_reconstruct", "scalar"])
@@ -921,14 +851,10 @@ class GDPOTrainer(Trainer):
             gt_sec_str = ", ".join(f"({s:.1f}, {e:.1f})" for s, e in gt_intervals) if gt_intervals else "[none]"
             print(f"[GDPO SAMPLES] GT raw: {gt_raw_str}")
             print(f"[GDPO SAMPLES] GT sec: {gt_sec_str}")
-            # 채널 이름은 reward_funcs 의 __name__ (load_reward_module 가 부여) → 하드코딩 인덱스 X.
-            # 모듈마다 채널 구성이 달라도(format/iou | format/len/global/local | +CoT) 그대로 출력.
-            _chan_names = [getattr(f, "__name__", f"ch{j}") for j, f in enumerate(self.reward_funcs)]
             for gi, c in enumerate(completions):
                 pred_raw, pred_sec = _extract_segments(c)
-                _vals = ", ".join(f"{nm}={rewards_per_func[gi, j].item():.3f}"
-                                  for j, nm in enumerate(_chan_names))
-                print(f"  [{gi}] {_vals}")
+                iou_val = rewards_per_func[gi, 1].item() if rewards_per_func.size(1) > 1 else float("nan")
+                print(f"  [{gi}] iou={iou_val:.3f}")
                 print(f"       raw: {pred_raw}")
                 print(f"       sec: {pred_sec}")
 
@@ -1211,22 +1137,17 @@ def load_config(config_path: str) -> dict:
 # 리워드 함수
 # ============================================================
 
-def make_reward_functions(specs):
-    """load_reward_module 의 spec 리스트 [(name, fn, needs_gt), ...] → trainer 용 콜러블 리스트.
-    needs_gt=False(format) 는 completion 만, True(iou/timestamp/modality) 는 (completion, gt) 로 호출.
-    채널 수 가변 — 비-CoT(2개)·CoT(4개) 동일 경로."""
-    out = []
-    for name, fn, needs_gt in specs:
-        if needs_gt:
-            def _r(completions, gt_intervals=None, _fn=fn, **kwargs):
-                gt = gt_intervals or [[] for _ in completions]
-                return [_fn(c, g) for c, g in zip(completions, gt)]
-        else:
-            def _r(completions, _fn=fn, **kwargs):
-                return [_fn(c) for c in completions]
-        _r.__name__ = name
-        out.append(_r)
-    return out
+def make_reward_functions(format_reward, iou_reward):
+    def _format_reward(completions, **kwargs):
+        return [format_reward(c) for c in completions]
+
+    def _iou_reward(completions, gt_intervals=None, **kwargs):
+        gt = gt_intervals or [[] for _ in completions]
+        return [iou_reward(c, g) for c, g in zip(completions, gt)]
+
+    _format_reward.__name__ = "format"
+    _iou_reward.__name__ = "iou"
+    return [_format_reward, _iou_reward]
 
 
 # ============================================================
@@ -1458,19 +1379,10 @@ def main():
 
     # Reward — 모듈 선택 (단일 trainer, import 대상만 교체)
     reward_module = _get(cli.reward_module, "reward", "module", default="reward_functions")
-    _specs = load_reward_module(reward_module)
-    reward_funcs = make_reward_functions(_specs)
-    _chan_names = [n for n, _, _ in _specs]
-    print(f"[GDPO] reward_module={reward_module}  채널={_chan_names} "
-          f"(iou 구현체={getattr(_specs[1][1], '__name__', '?')})")
-    # reward_weights 길이를 채널 수에 맞춤 (비-CoT 2채널은 그대로, CoT 4채널은 패딩/절단)
-    if len(reward_weights) != len(reward_funcs):
-        if len(reward_weights) > len(reward_funcs):
-            reward_weights = list(reward_weights)[:len(reward_funcs)]
-        else:
-            reward_weights = list(reward_weights) + [1.0] * (len(reward_funcs) - len(reward_weights))
-        print(f"[GDPO] ⚠️ reward_weights 길이 자동조정 → {reward_weights} (채널 {len(reward_funcs)}개). "
-              f"CoT 4채널은 명시 권장: baseline [1,1,0,0] / guard [1,1,0.5,0.5]")
+    _format_reward, _iou_reward = load_reward_module(reward_module)
+    print(f"[GDPO] reward_module={reward_module}  "
+          f"(iou 구현체={getattr(_iou_reward, '__name__', '?')})")
+    reward_funcs = make_reward_functions(_format_reward, _iou_reward)
     print(f"[GDPO] Reward weights: {reward_weights}")
 
     # GRPOConfig

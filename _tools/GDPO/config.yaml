@@ -1,5 +1,22 @@
 # ============================================================
 # GDPO Training Configuration (VS2+ / Qwen2.5-VL)
+#
+# ⚠️ IMPORTANT
+# 이 파일(config.yaml)은 팀 공용 기본 설정 파일입니다.
+# 단순 실험 목적으로 값을 직접 수정하지 마세요.
+#
+# 설정을 바꿔서 실험할 경우:
+#   1) CLI 인자로 override 하거나
+#   2) config_tti.yaml, config_rM_cov.yaml 등 별도 config 파일을 생성하세요.
+#
+# 예:
+#   python gdpo_trainer.py \
+#     --config config.yaml \
+#     --tti_mode on
+#
+# 공용으로 적용할 가치가 충분히 검증된 변경사항만
+# 최종적으로 이 파일에 반영합니다.
+#
 # source paths.env
 # python _tools/GDPO/gdpo_trainer.py --config _tools/GDPO/config.yaml
 # ============================================================
@@ -8,7 +25,7 @@
 model:
   model_path: ${SFT_CKPT}                    # SFT 체크포인트 경로 (LoRA adapter)
   model_base: ${BASE_MODEL}                  # VS2+ 베이스 모델 (time_tokens 추가됨)
-  tti_mode: "off"
+  tti_mode: "on"
 
 # 데이터 설정
 data:
@@ -20,22 +37,36 @@ lora:
   r: 32
   lora_alpha: 64
   lora_dropout: 0.05
-  train_embeddings: true     # embed_tokens/lm_head 도 학습(modules_to_save). false 면 LoRA(q/k/v/o)만.
+  train_embeddings: false    # embed_tokens/lm_head 도 학습(modules_to_save). false 면 LoRA(q/k/v/o)만.
 
 # GDPO 설정
 gdpo:
   num_generations: 8                       # 8
   max_completion_length: 256               # 256
-  beta: 0.04                               # 0.04
-  temperature: 1.5
-  reward_weights: [1.0, 1.0]               # [format, iou]
+  beta: 0.00                               # 0.04 -> 0.00로 수정 (26.06.04)
+  temperature: 1.0                         # 1.5 -> 1.0로 수정 (26.06.04)
+  reward_weights: [1.0, 1.0, 0.0, 0.0]               # [format, iou]
+
+# DAPO clip-higher (gdpo_trainer_clip.py 통합 → gdpo_trainer.py 가 clip.* 를 읽음)
+#   clipped surrogate: loss = -min( r·A, clip(r, 1-ε_low, 1+ε_high)·A ).
+#   ⚠️ clip 이 실제로 binding 되려면 μ(num_iterations)>1 이 필요하고, μ>1 은
+#      gradient_accumulation_steps=1 도 함께 요구한다(아래 training 의 4 와 충돌).
+#      공용 기본값은 μ=1(=현 GDPO 와 수치 동일)으로 둔다 — 즉 이 섹션은 기본 비활성.
+#      clip-higher 실험은 CLI override 또는 config_clip.yaml(μ=2 + grad_accum=1) 사용.
+clip:
+  enabled: true
+  epsilon: 0.2           # ε_low
+  epsilon_high: 0.28     # ε_high (>ε_low = clip-higher)
+  num_iterations: 1      # μ: 한 rollout 재사용 횟수. 1=clip 미작동(=GDPO 동일).
+                         #    >1 로 켜려면 training.gradient_accumulation_steps=1 도 함께 수정할 것.
 
 # 학습 설정
 training:
+  output_dir: output/gdpo_vs2plus          # 체크포인트/로그 저장 경로 (CLI --output_dir 로 override)
   num_train_epochs: 1
-  max_steps: 1000
+  max_steps: 500
   per_device_train_batch_size: 1
-  gradient_accumulation_steps: 4
+  gradient_accumulation_steps: 4           #  effective batch 4 유지하도록 gpu개수에 따라 수정할 것
   learning_rate: 5e-6
   warmup_ratio: 0.05
   lr_scheduler_type: cosine
@@ -49,8 +80,13 @@ training:
 logging:
   logging_steps: 1
   save_steps: 100
-  save_total_limit: 5
+  save_total_limit: 10
   report_to: wandb
+  run_name: null                           # wandb/tracker run 이름. null 이면 output_dir basename 사용 (CLI --run_name 로 override)
+
+# reward 설정
+reward:
+  module: reward_functions                 # reward 함수 모듈명 (reward_functions | reward_functions_rM_fp | reward_functions_prec | reward_functions_rM_cov | reward_functions_f1). CLI --reward_module 로 override
 
 # ref 모델
 ref_model:
