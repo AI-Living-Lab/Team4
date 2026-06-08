@@ -37,7 +37,9 @@ lora:
   r: 32
   lora_alpha: 64
   lora_dropout: 0.05
-  train_embeddings: false    # embed_tokens/lm_head 도 학습(modules_to_save). false 면 LoRA(q/k/v/o)만.
+  train_embeddings: false    # embed_tokens 를 modules_to_save 로 full-train. false=LoRA(q/k/v/o)만.
+  train_lm_head: false       # lm_head 를 modules_to_save 로 full-train (embed 와 독립 토글).
+                             #   둘 다 false → q/k/v/o LoRA 만(통합 기본). config_*sep*.yaml 은 lm_head:true.
 
 # GDPO 설정
 gdpo:
@@ -45,20 +47,23 @@ gdpo:
   max_completion_length: 256               # 256
   beta: 0.00                               # 0.04 -> 0.00로 수정 (26.06.04)
   temperature: 1.0                         # 1.5 -> 1.0로 수정 (26.06.04)
-  reward_weights: [1.0, 1.0, 0.0, 0.0]               # [format, iou]
+  reward_weights: [1.0, 1.0, 0.0, 0.0]               # [format, iou]. 채널 수는 reward 모듈에 자동정렬.
+  multi_seg_weight: 1.0                     # [sep2] GT>=2 prompt advantage ×w. 1.0=off(통합 기본).
+                                            #   >1(예 1.5)로 켜면 multi-segment 붕괴 대응. config_*sep*.yaml 참고.
 
-# DAPO clip-higher (gdpo_trainer_clip.py 통합 → gdpo_trainer.py 가 clip.* 를 읽음)
+# DAPO clip-higher (통합 트레이너 gdpo_trainer.py 가 clip.* 를 읽음)
 #   clipped surrogate: loss = -min( r·A, clip(r, 1-ε_low, 1+ε_high)·A ).
-#   ⚠️ clip 이 실제로 binding 되려면 μ(num_iterations)>1 이 필요하고, μ>1 은
-#      gradient_accumulation_steps=1 도 함께 요구한다(아래 training 의 4 와 충돌).
+#   ⚠️ clip 이 실제로 binding 되려면 μ(num_iterations)>1 이 필요하다(μ=1 → r≈1 → 무작동).
+#      ✅ [clip2 통합] grad_accum>1 도 지원 — block-repeat sampler 가 μ iteration 사이에
+#         optimizer.step() 을 보장하므로 더는 grad_accum=1 을 강제하지 않는다.
 #      공용 기본값은 μ=1(=현 GDPO 와 수치 동일)으로 둔다 — 즉 이 섹션은 기본 비활성.
-#      clip-higher 실험은 CLI override 또는 config_clip.yaml(μ=2 + grad_accum=1) 사용.
+#      clip-higher 실험은 CLI override 또는 config_clip*.yaml / config_*sep*.yaml(μ=2) 사용.
 clip:
   enabled: true
   epsilon: 0.2           # ε_low
   epsilon_high: 0.28     # ε_high (>ε_low = clip-higher)
   num_iterations: 1      # μ: 한 rollout 재사용 횟수. 1=clip 미작동(=GDPO 동일).
-                         #    >1 로 켜려면 training.gradient_accumulation_steps=1 도 함께 수정할 것.
+                         #    >1 로 켜면 clip 작동. grad_accum>1 과 병행 가능(block-repeat sampler).
 
 # 학습 설정
 training:
@@ -86,7 +91,13 @@ logging:
 
 # reward 설정
 reward:
-  module: reward_functions                 # reward 함수 모듈명 (reward_functions | reward_functions_rM_fp | reward_functions_prec | reward_functions_rM_cov | reward_functions_f1). CLI --reward_module 로 override
+  # reward 함수 모듈명. 채널 수/이름은 모듈의 REWARD_CHANNELS(또는 함수명 규약)로 자동 결정 →
+  # 트레이너 수정 없이 교체 가능. CLI --reward_module 로 override.
+  #   2채널 [format, iou]   : reward_functions(기본) | reward_functions_rM_fp | reward_functions_prec
+  #                           | reward_functions_rM_cov | reward_functions_f1
+  #   4채널 [format,len,global,local] : reward_functions_rM_sep | reward_functions_rM_sep2 (sep2: +multi_seg_weight)
+  #   CoT(<think>/<answer>) : reward_functions_rM_fp_cot(4ch) | reward_functions_cot_p2/p3(3ch) | reward_functions_cot_p4(2ch)
+  module: reward_functions
 
 # ref 모델
 ref_model:

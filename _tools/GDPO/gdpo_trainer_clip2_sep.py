@@ -1,44 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-gdpo_trainer.py (VS2+ / Qwen2.5-VL 버전) — 팀 공용 통합 트레이너
+gdpo_trainer_clip2_sep.py (VS2+ / Qwen2.5-VL 버전)
 
-  ★ 통합본 — 그동안 분리돼 있던 변형(clip / sep2 / clip2_sep / CoT)을 단일 트레이너로
-    흡수. 모든 기능은 config/CLI 플래그로 켜고 끄며, 기본값(config.yaml)은 기존 GDPO 와
-    수치적으로 동일하게 동작한다(아래 "기본값 = 기존 GDPO" 참고).
-    레거시 변형 파일(gdpo_trainer_clip.py / _sep2.py / _clip2_sep.py / _f1_cot.py)은
-    버전관리용으로 보존하되, 신규 학습은 이 파일을 쓴다.
-
-    통합된 기능:
-      - [clip-higher] DAPO clipped surrogate (ε_high>ε_low). config.clip.*.
-        clipped surrogate loss = -min( r·A, clip(r, 1-ε_low, 1+ε_high)·A ).
-      - [μ rollout 재사용] num_iterations(μ)>1 이면 한 rollout 을 μ 번 정책 업데이트에
-        재사용 → r≠1 이라야 clip 이 binding. μ=1 이면 기존 GDPO 와 수치 동일.
-      - [grad_accum 호환] block-repeat sampler([p0..p_{N-1}]×μ)로 HF 가 N microbatch
-        마다 optimizer.step() → **μ iteration 사이에 policy 가 실제로 업데이트**되어
-        grad_accum>1 이어도 clip 의 r≠1 이 유지된다. effective batch = grad_accum(N) × num_gpu.
-        (단순 HF grad_accum 은 μ 재사용이 한 step 에 묶여 r≈1 → clip 무력. 그래서 순서를
-         block-repeat 로 바꾸는 게 핵심.)
-      - [rollout 캐시] prompt-시그니처 키 캐시(슬롯/카운터 X). microbatch 순서가
+  ★ clip2_sep 변형 — gdpo_trainer_sep2.py 베이스 + gradient_accumulation 지원.
+    reward_functions_rM_sep2.py + config_clip2_sep2.yaml 와 함께 사용.
+    추가/보장점:
+      - [grad_accum] effective batch = grad_accum(N) × num_gpu. block-repeat sampler
+        ([p0..p_{N-1}]×μ)로 HF 가 N microbatch 마다 optimizer.step() → **μ iteration
+        사이에 policy 가 실제로 업데이트**되어 PPO/GRPO clip 의 r≠1 이 유지된다.
+        (단순 HF grad_accum 처럼 step 을 뒤로 미루면 μ 재사용이 한 step 에 묶여 r≈1 →
+         clip 무력. 그래서 block-repeat 로 순서를 바꾸는 게 핵심.)
+      - [캐시] rollout 을 prompt-시그니처 키로 캐시(슬롯/카운터 X). microbatch 순서가
         DDP/블록반복으로 흩어져도 잘못된 재사용/크래시 없음(불일치=miss→재생성).
-        μ 도달 엔트리는 즉시 evict → 캐시 크기 ~grad_accum. old_logps 는 fresh 시점 1회
-        스냅샷, reuse 는 그 R 그대로.
-      - [sep2] gdpo.multi_seg_weight(기본 1.0=off): GT>=2 prompt advantage ×w (single
-        prior 상쇄). clip-higher on/off 모두 호환(advantage 공통 경로).
-        _compute_gdpo_advantages 의 prompt별 num_generations 그룹 정규화는 grad_accum 무관.
-      - [동적 reward 채널] --reward_module 로 채널 수/이름 가변(REWARD_CHANNELS 선언 또는
-        함수명 규약). CoT(<think>/<answer>) reward 모듈도 동일 경로로 지원 — 트레이너는
-        raw completion 만 넘기고 채널 파싱은 reward 모듈이 담당. 별도 CoT 트레이너 불필요.
-      - [modules_to_save 분리] lora.train_embeddings / lora.train_lm_head 개별 토글.
-      - [진단 로깅] ratio / clip_frac / gen_entropy / advantage 통계(wandb).
+        μ 도달 엔트리는 즉시 evict → 캐시 크기 ~grad_accum.
+      - [old_logps 고정] fresh 시점 1회 스냅샷(_generate_rollout), reuse 는 그 R 그대로.
+      - [advantage 그룹통계 보존] _compute_gdpo_advantages 는 prompt별 num_generations 그룹
+        내부 정규화 — grad_accum 과 무관(microbatch=prompt 1개 그대로).
       - [loss 이중스케일 없음] HF(training_step)가 loss/=grad_accum 1회만 수행, 본 코드는
         나누지 않음(per-prompt 평균 반환).
-
-    기본값 = 기존 GDPO: config.yaml(num_iterations=1, multi_seg_weight=1.0,
-      train_lm_head=false)로 돌리면 통합 전 동작과 수치 동일. clip-higher / sep2 등은
-      config_clip*.yaml / config_*sep*.yaml / CLI override 로 켠다.
+      - [sep2 유지] gdpo.multi_seg_weight(기본 1.5): GT>=2 prompt advantage ×w (single prior 상쇄).
+        clip-higher on/off 모두 호환(advantage 공통 경로).
+    (이하 베이스 설명 그대로)
 
 ────────────────────────────────────────────────────────
+gdpo_trainer_tti.py (VS2+ / Qwen2.5-VL 버전)
+
   [cdh/gdpo_trainer.py에 hyj/gdpo_trainer_rM_fp.py 의 최신 로직을 융합한버전]
   cdh 베이스에서 유지:
     - tti_mode (off/on): base config 의 time_token_id_range 활성/비활성 처리
@@ -59,9 +46,8 @@ gdpo_trainer.py (VS2+ / Qwen2.5-VL 버전) — 팀 공용 통합 트레이너
     - ratio / clip_frac 진단 메트릭 로깅
     - reward 채널은 가변(CoT 포함)으로 유지 — clip 경로와 무관하게 동작
     ⚠️ clip-higher 는 공용 기본값에서 OFF (config.yaml: clip.num_iterations=1 →
-       μ=1 이라 clip 미작동 = 기존 GDPO 와 수치 동일). 켜려면 clip.num_iterations>1.
-       [통합] grad_accum>1 과 병행 가능(block-repeat sampler) — 더는 grad_accum=1 강제 아님.
-       (config_clip.yaml / config_*sep*.yaml / CLI override.)
+       μ=1 이라 clip 미작동 = 기존 GDPO 와 수치 동일). 켜려면 clip.num_iterations>1 +
+       training.gradient_accumulation_steps=1 로 설정(또는 config_clip.yaml / CLI override).
 
 두 가지 학습 경로 (model_path 가 무엇이냐로 자동 분기):
   (A) adapter 이어학습 : model_path=SFT LoRA adapter, model_base=time-token base
@@ -166,20 +152,14 @@ CLI 인자 (모두 선택; 미지정 시 config.yaml → 내부 기본값 순으
   - 경로A(adapter 이어학습): config 의 lora.enabled=false 로 둘 것 (PeftModel 이중 적용 방지).
   - 경로B(fresh LoRA)     : config 의 lora.enabled=true.
 
-config 파일(모두 이 통합 트레이너로 실행):
-  - config.yaml            : 팀 공용 기본 (num_iterations=1, multi_seg_weight=1.0 → 기존 GDPO 동일)
-  - config_clip.yaml       : clip-higher 실험 (μ=2)
-  - config_clip_sep.yaml   : 세분화 reward(reward_functions_rM_sep, 4채널) + clip-higher
-  - config_clip2_sep2.yaml : 세분화 reward(sep2) + clip-higher + grad_accum>1(block-repeat)
-  - config_clip2_sep2_mu1.yaml : sep2 + grad_accum>1, clip OFF(μ=1, 순수 GDPO + 큰 배치)
-  - config_v2_rM_fp.yaml   : reward_functions_rM_fp (r_M + FP 페널티)
-  - config_cot*.yaml       : CoT(<think>/<answer>) reward(reward_functions_*cot*) + CoT 데이터셋
+config 파일:
+  - config.yaml       : 팀 공용 기본 (clip 섹션 포함하되 num_iterations=1 → clip-higher OFF = 기존 GDPO 동일)
+  - config_clip.yaml  : clip-higher 실험 (μ=2 + grad_accum=1)
+  - config_sep.yaml   : 학습신호 세분화(reward_functions_rM_sep, 4채널) + clip-higher 실험
 
 clip-higher (config.clip.*):
   clipped surrogate loss = -min( r·A, clip(r, 1-ε_low, 1+ε_high)·A ).  μ(num_iterations)>1 이라야
-  r=exp(new-old)≠1 → clip 이 실제 binding.
-  [통합] grad_accum>1 도 지원 — block-repeat sampler 가 μ iteration 사이 optimizer.step() 을
-  보장하므로 grad_accum=1 강제 아님(effective batch = grad_accum × num_gpu).
+  r=exp(new-old)≠1 → clip 이 실제 binding. μ>1 은 grad_accum=1 필수(아니면 r≈1 → 무력).
 
 디버그 env:
   TTI_DEBUG=1 [TTI_DEBUG_STEPS=3]   rank-0 한정, 첫 N step 동안 TTI 정합성 계측 출력.
@@ -551,7 +531,7 @@ class GDPOTrainer(Trainer):
         # prior(single 편향, 4:6)를 상쇄한다. w=1.0 이면 sep1 과 동일 동작.
         # ⚠️ clip-higher on/off 무관: advantage 는 _generate_rollout 에서 산출되어 두 loss
         #    경로(clip_higher / 순수 GDPO)가 공통으로 R["advantages"] 를 쓰므로 자동 호환.
-        self.multi_seg_weight = float(getattr(args, "multi_seg_weight", 1.0))  # 1.0=off(통합 기본)
+        self.multi_seg_weight = float(getattr(args, "multi_seg_weight", 1.5))
 
 
         # Data collator — VS2+
@@ -1487,8 +1467,8 @@ def main():
     num_iterations = int(_get(None, "clip", "num_iterations", default=1))
 
     # [sep2] multi-segment(GT>=2) prompt advantage 가중치 (config: gdpo.multi_seg_weight)
-    #   통합 기본 1.0(=off, 기존 GDPO 동일). >1 이면 GT>=2 prompt advantage ×w → single prior(4:6) 상쇄.
-    multi_seg_weight = float(_get(None, "gdpo", "multi_seg_weight", default=1.0))
+    #   기본 1.5. 1.0 이면 sep1 과 동일. single prior(4:6) 상쇄용.
+    multi_seg_weight = float(_get(None, "gdpo", "multi_seg_weight", default=1.5))
 
     # 학습 파라미터
     num_epochs = _get(None, "training", "num_train_epochs", default=1)
@@ -1541,8 +1521,7 @@ def main():
             # [sep2] modules_to_save 를 embed_tokens / lm_head 개별 토글로 분리.
             #   embed_tokens / lm_head 는 modules_to_save → full trainable copy.
             #   ref(=disable_adapter)는 original(=SFT 머지본) 을 쓰므로 KL 기준은 SFT 정책 유지.
-            #   통합 기본: 둘 다 false → q/k/v/o LoRA 만. 예) lm_head 만 학습하려면
-            #   train_embeddings:false + train_lm_head:true (config_*sep*.yaml 참고).
+            #   이번 실험: q/k/v/o LoRA + lm_head 만 (embed OFF) = train_embeddings:false, train_lm_head:true.
             train_emb = bool(_get(None, "lora", "train_embeddings", default=False))
             train_lm_head = bool(_get(None, "lora", "train_lm_head", default=False))
             modules_to_save = [m for m, on in (("embed_tokens", train_emb),

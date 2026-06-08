@@ -1,44 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-gdpo_trainer.py (VS2+ / Qwen2.5-VL 버전) — 팀 공용 통합 트레이너
+gdpo_trainer_sep2.py (VS2+ / Qwen2.5-VL 버전)
 
-  ★ 통합본 — 그동안 분리돼 있던 변형(clip / sep2 / clip2_sep / CoT)을 단일 트레이너로
-    흡수. 모든 기능은 config/CLI 플래그로 켜고 끄며, 기본값(config.yaml)은 기존 GDPO 와
-    수치적으로 동일하게 동작한다(아래 "기본값 = 기존 GDPO" 참고).
-    레거시 변형 파일(gdpo_trainer_clip.py / _sep2.py / _clip2_sep.py / _f1_cot.py)은
-    버전관리용으로 보존하되, 신규 학습은 이 파일을 쓴다.
-
-    통합된 기능:
-      - [clip-higher] DAPO clipped surrogate (ε_high>ε_low). config.clip.*.
-        clipped surrogate loss = -min( r·A, clip(r, 1-ε_low, 1+ε_high)·A ).
-      - [μ rollout 재사용] num_iterations(μ)>1 이면 한 rollout 을 μ 번 정책 업데이트에
-        재사용 → r≠1 이라야 clip 이 binding. μ=1 이면 기존 GDPO 와 수치 동일.
-      - [grad_accum 호환] block-repeat sampler([p0..p_{N-1}]×μ)로 HF 가 N microbatch
-        마다 optimizer.step() → **μ iteration 사이에 policy 가 실제로 업데이트**되어
-        grad_accum>1 이어도 clip 의 r≠1 이 유지된다. effective batch = grad_accum(N) × num_gpu.
-        (단순 HF grad_accum 은 μ 재사용이 한 step 에 묶여 r≈1 → clip 무력. 그래서 순서를
-         block-repeat 로 바꾸는 게 핵심.)
-      - [rollout 캐시] prompt-시그니처 키 캐시(슬롯/카운터 X). microbatch 순서가
-        DDP/블록반복으로 흩어져도 잘못된 재사용/크래시 없음(불일치=miss→재생성).
-        μ 도달 엔트리는 즉시 evict → 캐시 크기 ~grad_accum. old_logps 는 fresh 시점 1회
-        스냅샷, reuse 는 그 R 그대로.
-      - [sep2] gdpo.multi_seg_weight(기본 1.0=off): GT>=2 prompt advantage ×w (single
-        prior 상쇄). clip-higher on/off 모두 호환(advantage 공통 경로).
-        _compute_gdpo_advantages 의 prompt별 num_generations 그룹 정규화는 grad_accum 무관.
-      - [동적 reward 채널] --reward_module 로 채널 수/이름 가변(REWARD_CHANNELS 선언 또는
-        함수명 규약). CoT(<think>/<answer>) reward 모듈도 동일 경로로 지원 — 트레이너는
-        raw completion 만 넘기고 채널 파싱은 reward 모듈이 담당. 별도 CoT 트레이너 불필요.
-      - [modules_to_save 분리] lora.train_embeddings / lora.train_lm_head 개별 토글.
-      - [진단 로깅] ratio / clip_frac / gen_entropy / advantage 통계(wandb).
-      - [loss 이중스케일 없음] HF(training_step)가 loss/=grad_accum 1회만 수행, 본 코드는
-        나누지 않음(per-prompt 평균 반환).
-
-    기본값 = 기존 GDPO: config.yaml(num_iterations=1, multi_seg_weight=1.0,
-      train_lm_head=false)로 돌리면 통합 전 동작과 수치 동일. clip-higher / sep2 등은
-      config_clip*.yaml / config_*sep*.yaml / CLI override 로 켠다.
+  ★ sep2 변형 — gdpo_trainer.py 베이스 + multi-segment advantage 가중.
+    reward_functions_rM_sep2.py(len=graded+multi-pred1 floor)와 함께 사용.
+    추가점:
+      - config gdpo.multi_seg_weight (기본 1.5): GT>=2 prompt 의 advantage 를 w 배.
+        GDPO per-prompt 정규화로 reward 절대값은 multi-우대를 못 전달 → 정규화 이후
+        advantage 를 직접 가중해 data prior(single 편향, multi:single≈4:6)를 상쇄.
+        w=1.0 이면 gdpo_trainer.py(sep1) 와 수치 동일.
+      - clip-higher on/off 모두 호환: advantage 는 _generate_rollout 에서 산출되어
+        clip_higher / 순수 GDPO 두 loss 경로가 공통으로 R["advantages"] 를 쓴다.
+    (이하 베이스 gdpo_trainer.py 의 설명 그대로)
 
 ────────────────────────────────────────────────────────
+gdpo_trainer_tti.py (VS2+ / Qwen2.5-VL 버전)
+
   [cdh/gdpo_trainer.py에 hyj/gdpo_trainer_rM_fp.py 의 최신 로직을 융합한버전]
   cdh 베이스에서 유지:
     - tti_mode (off/on): base config 의 time_token_id_range 활성/비활성 처리
@@ -59,9 +37,8 @@ gdpo_trainer.py (VS2+ / Qwen2.5-VL 버전) — 팀 공용 통합 트레이너
     - ratio / clip_frac 진단 메트릭 로깅
     - reward 채널은 가변(CoT 포함)으로 유지 — clip 경로와 무관하게 동작
     ⚠️ clip-higher 는 공용 기본값에서 OFF (config.yaml: clip.num_iterations=1 →
-       μ=1 이라 clip 미작동 = 기존 GDPO 와 수치 동일). 켜려면 clip.num_iterations>1.
-       [통합] grad_accum>1 과 병행 가능(block-repeat sampler) — 더는 grad_accum=1 강제 아님.
-       (config_clip.yaml / config_*sep*.yaml / CLI override.)
+       μ=1 이라 clip 미작동 = 기존 GDPO 와 수치 동일). 켜려면 clip.num_iterations>1 +
+       training.gradient_accumulation_steps=1 로 설정(또는 config_clip.yaml / CLI override).
 
 두 가지 학습 경로 (model_path 가 무엇이냐로 자동 분기):
   (A) adapter 이어학습 : model_path=SFT LoRA adapter, model_base=time-token base
@@ -166,20 +143,14 @@ CLI 인자 (모두 선택; 미지정 시 config.yaml → 내부 기본값 순으
   - 경로A(adapter 이어학습): config 의 lora.enabled=false 로 둘 것 (PeftModel 이중 적용 방지).
   - 경로B(fresh LoRA)     : config 의 lora.enabled=true.
 
-config 파일(모두 이 통합 트레이너로 실행):
-  - config.yaml            : 팀 공용 기본 (num_iterations=1, multi_seg_weight=1.0 → 기존 GDPO 동일)
-  - config_clip.yaml       : clip-higher 실험 (μ=2)
-  - config_clip_sep.yaml   : 세분화 reward(reward_functions_rM_sep, 4채널) + clip-higher
-  - config_clip2_sep2.yaml : 세분화 reward(sep2) + clip-higher + grad_accum>1(block-repeat)
-  - config_clip2_sep2_mu1.yaml : sep2 + grad_accum>1, clip OFF(μ=1, 순수 GDPO + 큰 배치)
-  - config_v2_rM_fp.yaml   : reward_functions_rM_fp (r_M + FP 페널티)
-  - config_cot*.yaml       : CoT(<think>/<answer>) reward(reward_functions_*cot*) + CoT 데이터셋
+config 파일:
+  - config.yaml       : 팀 공용 기본 (clip 섹션 포함하되 num_iterations=1 → clip-higher OFF = 기존 GDPO 동일)
+  - config_clip.yaml  : clip-higher 실험 (μ=2 + grad_accum=1)
+  - config_sep.yaml   : 학습신호 세분화(reward_functions_rM_sep, 4채널) + clip-higher 실험
 
 clip-higher (config.clip.*):
   clipped surrogate loss = -min( r·A, clip(r, 1-ε_low, 1+ε_high)·A ).  μ(num_iterations)>1 이라야
-  r=exp(new-old)≠1 → clip 이 실제 binding.
-  [통합] grad_accum>1 도 지원 — block-repeat sampler 가 μ iteration 사이 optimizer.step() 을
-  보장하므로 grad_accum=1 강제 아님(effective batch = grad_accum × num_gpu).
+  r=exp(new-old)≠1 → clip 이 실제 binding. μ>1 은 grad_accum=1 필수(아니면 r≈1 → 무력).
 
 디버그 env:
   TTI_DEBUG=1 [TTI_DEBUG_STEPS=3]   rank-0 한정, 첫 N step 동안 TTI 정합성 계측 출력.
@@ -390,35 +361,6 @@ class _RepeatSampler:
                 yield idx
 
 
-class _BlockRepeatSampler:
-    """base sampler 를 block_size(N)개씩 묶어, 각 블록을 num_repeat(μ)번 연속 반복.
-       → [p0..p_{N-1}] ×μ,  [pN..p_{2N-1}] ×μ, ...  (마지막 부분 블록 <N 은 drop)
-
-    grad_accum=N 과 함께 쓰면 microbatch 순서가 'i,j,i,j'(블록반복) 가 되어, HF 가
-    N microbatch 마다 optimizer.step() 할 때 **μ iteration 사이에 policy 가 실제로
-    업데이트**된다(= PPO/GRPO clip 의 r≠1 보장). N=1 → _RepeatSampler 와 동일(각 인덱스
-    μ번). μ=1 → base 를 N청크로 1회 = 표준 grad_accum(블록 누적)."""
-    def __init__(self, base_sampler, block_size: int, num_repeat: int):
-        self.base_sampler = base_sampler
-        self.N = max(1, int(block_size))
-        self.mu = max(1, int(num_repeat))
-
-    def __len__(self):
-        n_full = len(self.base_sampler) // self.N      # 부분 블록 drop
-        return n_full * self.N * self.mu
-
-    def __iter__(self):
-        block = []
-        for idx in self.base_sampler:
-            block.append(idx)
-            if len(block) == self.N:
-                for _ in range(self.mu):
-                    for j in block:
-                        yield j
-                block = []
-        # 마지막 부분 블록(<N)은 버린다 (캐시 정렬 단순화)
-
-
 # ============================================================
 # GDPOTrainer
 # ============================================================
@@ -532,26 +474,22 @@ class GDPOTrainer(Trainer):
 
         # ── μ (num_iterations): 한 rollout 을 μ 번 정책 업데이트에 재사용 ──────────
         # μ>1 이라야 old(생성시점 snapshot) 와 현재 정책이 갈라져 r=exp(new-old)≠1 →
-        # clip-higher 가 실제 binding 됨. μ=1 이면 매 step 재생성(=순수 GDPO 동작).
+        # clip-higher 가 실제 binding 됨. μ=1 이면 매 step 재생성(=현재 GDPO 동작).
+        #   ⚠️ μ>1 은 RepeatSampler(_get_train_sampler) 로 같은 샘플을 μ 번 연속 내보내고,
+        #      compute_loss 가 첫 호출에만 생성→캐시, 이후 μ-1 번은 캐시 재사용한다.
+        #      한 optimizer step=한 rollout 이 깔끔하려면 grad_accum=1 권장.
         self.num_iterations = max(1, int(getattr(args, "num_iterations", 1)))
-
-        # ── [clip2] grad_accum 지원 (effective batch ≥ N×num_gpu) ────────────
-        # block-repeat sampler 로 microbatch 순서를 'i,j,i,j' 로 만들고, HF 가 N(grad_accum)
-        # microbatch 마다 optimizer.step() → μ iteration 사이에 policy 가 업데이트되어 clip
-        # 의 r≠1 이 유지된다. 캐시는 **prompt 시그니처 키**로 관리(슬롯/카운터 X) → DDP 가
-        # microbatch 순서를 흩어도 잘못된 재사용/크래시 없음(시그니처 불일치=cache miss→재생성).
-        #   _rollout_cache: sig -> {"R": rollout, "uses": int}. μ 도달 엔트리는 즉시 evict(embed 해제).
-        self.grad_accum = max(1, int(getattr(args, "gradient_accumulation_steps", 1)))
-        self._rollout_cache = {}
+        self._rollout = None        # 캐시된 rollout 상태(dict). _generate_rollout 가 채움.
+        self._rollout_uses = 0      # 현재 rollout 의 누적 재사용 횟수 (μ 도달 시 재생성)
 
         # ── [sep2] multi-segment(GT>=2) prompt 의 advantage 가중 ──────────────
-        # GDPO 는 prompt 그룹 내부에서 advantage 를 정규화하므로(한 microbatch=한 prompt) reward
+        # GDPO 는 prompt 그룹 내부에서 advantage 를 정규화하므로(한 step=한 prompt) reward
         # 절대값으로는 "multi 가 single 보다 중요"가 전달되지 않는다(정규화로 제거). 대신
         # multi-GT step 의 (정규화된) advantage 를 w 배 해서 gradient mass 를 키워, 데이터
         # prior(single 편향, 4:6)를 상쇄한다. w=1.0 이면 sep1 과 동일 동작.
         # ⚠️ clip-higher on/off 무관: advantage 는 _generate_rollout 에서 산출되어 두 loss
         #    경로(clip_higher / 순수 GDPO)가 공통으로 R["advantages"] 를 쓰므로 자동 호환.
-        self.multi_seg_weight = float(getattr(args, "multi_seg_weight", 1.0))  # 1.0=off(통합 기본)
+        self.multi_seg_weight = float(getattr(args, "multi_seg_weight", 1.5))
 
 
         # Data collator — VS2+
@@ -601,29 +539,11 @@ class GDPOTrainer(Trainer):
         return inputs
 
     def _get_train_sampler(self, *args, **kwargs):
-        # [clip2] block-repeat 순서로 공급.
-        #   ⚠️ accelerate 가 배치를 rank 들에 **round-robin** 으로 분배한다(BatchSamplerShard,
-        #      split_batches=False). 따라서 글로벌 block_size 를 grad_accum 으로만 잡으면
-        #      분배 후 각 rank 가 [a,a](인접반복)를 받아 → grad_accum 이 a_fresh·a_cached 를
-        #      같은 optimizer step 에 묶음 → policy 업데이트 없이 r≈1 → clip 무력 + effective
-        #      batch 도 grad_accum 만큼 안 늘어남(같은 prompt 중복).
-        #   ✅ block_size = grad_accum × num_processes 로 잡으면, round-robin 분배 후 각 rank 가
-        #      정확히 [p0..p_{N-1}]×μ (N=grad_accum, **서로 다른** prompt) 를 받는다:
-        #        global [a,b,c,d]×μ  --round-robin(G=2)-->  rank0=[a,c]×μ, rank1=[b,d]×μ
-        #      → μ 사이 policy 업데이트(clip r≠1) + effective batch = grad_accum × num_processes.
-        #      (1 GPU 면 ×1 → block_size=grad_accum, 그대로 정상.)
+        # μ>1 이면 base sampler 를 _RepeatSampler 로 감싸 같은 샘플을 μ 번 연속 공급.
         base = super()._get_train_sampler(*args, **kwargs)
-        if base is not None and (self.num_iterations > 1 or self.grad_accum > 1):
-            world = max(1, int(getattr(self.accelerator, "num_processes", 1)))
-            return _BlockRepeatSampler(base, block_size=self.grad_accum * world,
-                                       num_repeat=self.num_iterations)
+        if self.num_iterations > 1 and base is not None:
+            return _RepeatSampler(base, self.num_iterations)
         return base
-
-    def _prompt_sig(self, inputs):
-        """prompt 식별용 경량 시그니처(충돌 사실상 0). 캐시 키로 사용 → 순서 무관 정확."""
-        t = inputs["input_ids"][0]
-        return (int(t.shape[0]), int(t.sum().item()),
-                int(t[::7].sum().item()), int(t.float().square().sum().item()))
 
     # ============================================================
     # Per-token log probabilities (VS2+ API)
@@ -634,7 +554,7 @@ class GDPOTrainer(Trainer):
         pixel_values_videos=None, video_grid_thw=None,
         audio_feature=None, audio_lengths=None,
         position_ids=None, second_per_grid_ts=None,
-        inputs_embeds=None, return_entropy=False,
+        inputs_embeds=None,
     ):
         """VS2+의 sft_forward
         → logits
@@ -671,21 +591,14 @@ class GDPOTrainer(Trainer):
         input_ids = input_ids.clamp(0, vocab_size - 1)
 
         per_token_logps = []
-        entropies = [] if return_entropy else None
         for logits_row, input_ids_row in zip(logits, input_ids):
             log_probs = logits_row.log_softmax(dim=-1)
             token_log_prob = torch.gather(
                 log_probs, dim=1, index=input_ids_row.unsqueeze(1)
             ).squeeze(1)
             per_token_logps.append(token_log_prob)
-            if return_entropy:
-                # 정책 분포 엔트로피 H=-Σ p·logp (position별, vocab 합). 로깅용이라 detach.
-                entropies.append((-(log_probs.exp() * log_probs).sum(dim=-1)).detach())
 
-        logps = torch.stack(per_token_logps)
-        if return_entropy:
-            return logps, torch.stack(entropies)
-        return logps
+        return torch.stack(per_token_logps)
 
 
 
@@ -728,14 +641,12 @@ class GDPOTrainer(Trainer):
     # compute_loss 
     # ============================================================
 
-    def _completion_logps(self, model, R, raw_encode_model, return_entropy=False):
+    def _completion_logps(self, model, R, raw_encode_model):
         """캐시된 completion 에 대해 per-token logps 계산.
-        grad 흐름 여부(no_grad/grad)는 호출하는 쪽 컨텍스트가 결정한다.
-        return_entropy=True 면 (logps, entropy[num_gen, comp_len]) 반환 (로깅용, detach)."""
+        grad 흐름 여부(no_grad/grad)는 호출하는 쪽 컨텍스트가 결정한다."""
         _VIDEO_TOKEN_ID = 151656
         comp_len = R["comp_len"]
         all_logps = []
-        all_ent = [] if return_entropy else None
         for g in range(self.num_generations):
             pc_ids = torch.cat([R["prompt_ids_single"], R["completion_ids_clean"][g:g + 1]], dim=1)
             pc_mask = torch.cat([R["prompt_mask_single"], R["completion_mask"][g:g + 1]], dim=1)
@@ -751,24 +662,15 @@ class GDPOTrainer(Trainer):
                 mask_exp = mask.unsqueeze(-1).expand_as(text_embeds)
                 a = R["cached_audio_embeds"].to(text_embeds.device, text_embeds.dtype)
                 text_embeds = text_embeds.masked_scatter(mask_exp, a)
-            _out = self._get_per_token_logps(
+            g_logps = self._get_per_token_logps(
                 model, pc_ids, pc_mask,
                 video_grid_thw=R["video_grid_thw"],
                 audio_lengths=R["audio_lengths"],
                 second_per_grid_ts=R["second_per_grid_ts"],
                 inputs_embeds=text_embeds,
-                return_entropy=return_entropy,
             )
-            if return_entropy:
-                g_logps, g_ent = _out
-                g_ent = g_ent[:, -comp_len:] if comp_len > 0 else g_ent[:, :0]
-                all_ent.append(g_ent)
-            else:
-                g_logps = _out
             g_logps = g_logps[:, -comp_len:] if comp_len > 0 else g_logps[:, :0]
             all_logps.append(g_logps)
-        if return_entropy:
-            return torch.cat(all_logps, dim=0), torch.cat(all_ent, dim=0)
         return torch.cat(all_logps, dim=0)
 
     def _generate_rollout(self, model, inputs):
@@ -1071,42 +973,25 @@ class GDPOTrainer(Trainer):
 
         _unwrapped = self.accelerator.unwrap_model(model)
 
-        # ── [clip2] prompt-시그니처 키 rollout 캐시 (순서 무관·DDP 안전) ──────────
-        #   같은 prompt 가 μ 번 들어오면 첫 호출에만 생성→캐시, 이후 μ-1 번 재사용.
-        #   캐시 키 = prompt 시그니처 → microbatch 순서가 흩어져도(블록반복/DDP) 잘못된
-        #   재사용/크래시 없음(불일치=miss→재생성). μ 도달 엔트리는 즉시 evict(embed 해제).
-        sig = self._prompt_sig(inputs)
-        entry = self._rollout_cache.get(sig)
-        if entry is None or entry["uses"] >= self.num_iterations:
-            # fresh: 새 rollout 생성(이때 old_logps 스냅샷 고정). cache miss(μ_iter≥1) 도 여기서 self-heal.
-            R = self._generate_rollout(model, inputs)
-            entry = {"R": R, "uses": 1}
-            self._rollout_cache[sig] = entry
-            fresh = True
-        else:
-            entry["uses"] += 1          # reuse: old_logps 는 고정(R 그대로), policy 만 갱신됨 → r≠1
-            R = entry["R"]
-            fresh = False
-        # μ 도달 → evict(embed 캐시 해제). 캐시 크기 ~grad_accum 로 bound.
-        if entry["uses"] >= self.num_iterations:
-            self._rollout_cache.pop(sig, None)
-        # 비정상적으로 캐시가 커지면(순서 교란) 오래된 것부터 정리(메모리 가드)
-        while len(self._rollout_cache) > self.grad_accum + 1:
-            self._rollout_cache.pop(next(iter(self._rollout_cache)))
+        # ── rollout 캐시 관리: μ 번마다 새로 생성, 그 사이엔 캐시 재사용 ──
+        #   (RepeatSampler 가 같은 샘플을 μ 번 연속 공급하므로 distinct 데이터 손실 없음)
+        need_new = (self._rollout is None) or (self._rollout_uses >= self.num_iterations)
+        if need_new:
+            self._rollout = self._generate_rollout(model, inputs)
+            self._rollout_uses = 0
+        self._rollout_uses += 1
+        R = self._rollout
         if self.accelerator.is_main_process and self.num_iterations > 1:
             print(f"[GDPO ROLLOUT] step={self.state.global_step} "
-                  f"uses={entry['uses']}/{self.num_iterations} ({'fresh' if fresh else 'cached'}) "
-                  f"cache={len(self._rollout_cache)}")
+                  f"reuse {self._rollout_uses}/{self.num_iterations} ({'fresh' if need_new else 'cached'})")
 
         comp_len = R["comp_len"]
         completion_mask = R["completion_mask"]
         advantages = R["advantages"]
 
         # ── 새 정책 per-token logps (grad O) — 캐시된 completion 에 대해 재계산 ──
-        #    return_entropy=True → 정책 분포 엔트로피도 함께(로깅용, detach).
         raw_encode_model = _unwrapped.get_base_model() if hasattr(_unwrapped, "get_base_model") else _unwrapped
-        per_token_logps, gen_entropy = self._completion_logps(
-            model, R, raw_encode_model, return_entropy=True)
+        per_token_logps = self._completion_logps(model, R, raw_encode_model)
 
         # old(behavior) logps: μ>1 이면 생성시점 스냅샷, μ=1 이면 현재 정책 detach(=ratio 1).
         old_per_token_logps = R["old_per_token_logps"]
@@ -1158,16 +1043,6 @@ class GDPOTrainer(Trainer):
         completion_length = self.accelerator.gather_for_metrics(completion_mask.sum(1)).float().mean().item()
         self._metrics["completion_length"].append(completion_length)
 
-        # [wandb] Generation Entropy — 정책 분포 엔트로피(completion 토큰 평균). 붕괴 시 하락.
-        with torch.no_grad():
-            _em = completion_mask.float()
-            _ent = (gen_entropy * _em).sum() / _em.sum().clamp(min=1)
-            self._metrics["gen_entropy"].append(self.accelerator.gather_for_metrics(_ent).mean().item())
-            # [wandb] Advantage 통계 (group-norm + multi_seg_weight 반영 후 실제 사용값)
-            self._metrics["advantage_mean"].append(self.accelerator.gather_for_metrics(advantages).mean().item())
-            self._metrics["advantage_std"].append(self.accelerator.gather_for_metrics(advantages).std().item())
-            self._metrics["advantage_abs_mean"].append(self.accelerator.gather_for_metrics(advantages.abs()).mean().item())
-
         reward_per_func = self.accelerator.gather_for_metrics(rewards_per_func).mean(0)
         for i, reward_func in enumerate(self.reward_funcs):
             fname = getattr(reward_func, "__name__", f"func_{i}")
@@ -1196,10 +1071,6 @@ class GDPOTrainer(Trainer):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-        # [clip2] 여기서 반환하는 loss 는 'prompt 1개'에 대한 평균(토큰/그룹 평균)이며,
-        # grad_accum 으로 나누지 않는다. HF Trainer.training_step 이
-        # (model_accepts_loss_kwargs=False 이므로) loss/=gradient_accumulation_steps 로 한 번만
-        # 스케일 → N microbatch 누적 시 N-prompt 평균이 됨. 이중 스케일 없음.
         return loss
 
     # ============================================================
@@ -1487,8 +1358,8 @@ def main():
     num_iterations = int(_get(None, "clip", "num_iterations", default=1))
 
     # [sep2] multi-segment(GT>=2) prompt advantage 가중치 (config: gdpo.multi_seg_weight)
-    #   통합 기본 1.0(=off, 기존 GDPO 동일). >1 이면 GT>=2 prompt advantage ×w → single prior(4:6) 상쇄.
-    multi_seg_weight = float(_get(None, "gdpo", "multi_seg_weight", default=1.0))
+    #   기본 1.5. 1.0 이면 sep1 과 동일. single prior(4:6) 상쇄용.
+    multi_seg_weight = float(_get(None, "gdpo", "multi_seg_weight", default=1.5))
 
     # 학습 파라미터
     num_epochs = _get(None, "training", "num_train_epochs", default=1)
@@ -1541,8 +1412,7 @@ def main():
             # [sep2] modules_to_save 를 embed_tokens / lm_head 개별 토글로 분리.
             #   embed_tokens / lm_head 는 modules_to_save → full trainable copy.
             #   ref(=disable_adapter)는 original(=SFT 머지본) 을 쓰므로 KL 기준은 SFT 정책 유지.
-            #   통합 기본: 둘 다 false → q/k/v/o LoRA 만. 예) lm_head 만 학습하려면
-            #   train_embeddings:false + train_lm_head:true (config_*sep*.yaml 참고).
+            #   이번 실험: q/k/v/o LoRA + lm_head 만 (embed OFF) = train_embeddings:false, train_lm_head:true.
             train_emb = bool(_get(None, "lora", "train_embeddings", default=False))
             train_lm_head = bool(_get(None, "lora", "train_lm_head", default=False))
             modules_to_save = [m for m, on in (("embed_tokens", train_emb),
@@ -1684,18 +1554,12 @@ def main():
     print(f"[GDPO] clip-higher: enabled={clip_enabled}, ε_low={epsilon_low}, ε_high={epsilon_high}, {_clip_state}")
     print(f"[GDPO sep2] multi_seg_weight(w)={multi_seg_weight} "
           f"({'multi-GT advantage ×w' if multi_seg_weight != 1.0 else 'w=1 → sep1 동일'})")
-    # [clip2] grad_accum 지원 — block-repeat sampler 로 μ iteration 사이에 step 이 일어나므로
-    #   grad_accum>1 이어도 clip 이 정상 binding (기존 'grad_accum=1 필수' 경고는 더 이상 해당 없음).
-    _N = int(grad_accum)
-    _world = int(os.environ.get("WORLD_SIZE", "1"))
-    _eff_batch = _N * _world
-    print(f"[GDPO clip2] grad_accum(N)={_N}, world_size={_world} → effective batch(distinct prompt/step)={_eff_batch}")
-    print(f"[GDPO clip2] block-repeat sampler: 한 블록 N={_N} prompt 를 μ={grpo_args.num_iterations}번 반복 "
-          f"→ N microbatch 마다 step (μ 사이 policy 업데이트). "
-          f"고유 prompt 총량 = max_steps × N × world / μ")
-    if _eff_batch < 4:
-        print(f"[GDPO clip2] ⚠️ effective batch={_eff_batch} (<4). reward 추정/gradient noisy 할 수 있음 "
-              f"→ grad_accum 또는 GPU 수 ↑ 권장.")
+    # μ>1 인데 grad_accum>1 이면 한 optimizer step 안에서 μ 재사용이 끝나 weight 가 안 움직여
+    # r≈1 → clip 무력. (RepeatSampler 의 i,i,..가 같은 step 에 묶임) → grad_accum=1 강력 권장.
+    if grpo_args.num_iterations > 1 and int(grad_accum) > 1:
+        print(f"[GDPO] ⚠️ μ={grpo_args.num_iterations} 인데 grad_accum={grad_accum}>1 → 같은 optimizer "
+              f"step 안에서 μ 재사용이 끝나 weight 미변동 → r≈1, clip-higher 무력. "
+              f"gradient_accumulation_steps=1 로 설정 권장.")
 
     # Trainer  ([hyj] peft_config 전달 → 경로 B 일 때 fresh LoRA 적용)
     trainer = GDPOTrainer(
