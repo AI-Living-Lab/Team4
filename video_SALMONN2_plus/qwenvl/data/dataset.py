@@ -894,6 +894,7 @@ class LazySupervisedDataset(Dataset):
 
                 data_dict["prompt"] = sources[0]["conversations"][0]
                 data_dict["ref"] = sources[0]["conversations"][1]["value"]
+                data_dict["gt_label"] = sources[0].get("gt_label", None)
                 data_dict["should_use"] = sources[0].get("should_use", True)
                 data_dict.pop("chosen_ids", None)
                 data_dict.pop("reject_ids", None)

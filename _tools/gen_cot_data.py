@@ -34,6 +34,14 @@ P2_PROMPT = ("<video>\n" + _Q + " Output your thought process in <think> </think
              "including specific time ranges (xx.xx to xx.xx) in <timestep> </timestep> tags.\n" + _FMT)
 P4_PROMPT = ("<video>\n" + _Q + " Reason inside <think> </think> tags.\n" + _FMT)
 
+# P5 (다중발생 열거): "몇 번 일어나는지 세고 각각 짚어라" — under-prediction(blanket) 직격. joint 잔재 제거.
+_P5_INSTR = ("\nThe event may occur MULTIPLE times. Output your thought process in <think> </think> tags. "
+             "Then give the relevant segments as the answer. For example, if it occurs 2 times:\n"
+             "<think>The event occurs 2 times, ...</think>"
+             "<answer>From <tX><tX><tX><tdot><tX> to <tX><tX><tX><tdot><tX>. "
+             "From <tX><tX><tX><tdot><tX> to <tX><tX><tX><tdot><tX>.</answer>")
+P5_PROMPT = "<video>\n" + _Q + _P5_INSTR
+
 
 def parse_answer(ans_value):
     """원본 gpt value 에서 <answer>..</answer> 추출 + 토큰→초 세그먼트.
@@ -53,13 +61,17 @@ def make_think(segs, mode):
     if mode == "p2":
         body = ", ".join(f"<timestep>{r}</timestep>" for r in ranges)
         return f"<think>The event occurs at {body} seconds.</think>"
+    if mode == "p5":
+        n = len(ranges)
+        items = "; ".join(f"{i+1}) {r}" for i, r in enumerate(ranges))
+        return f"<think>The event occurs {n} time(s): {items} seconds.</think>"
     return f"<think>The relevant event spans {', '.join(ranges)} seconds.</think>"
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--src", required=True)
-    ap.add_argument("--mode", choices=["p2", "p4"], required=True)
+    ap.add_argument("--mode", choices=["p2", "p4", "p5"], required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--limit", type=int, default=-1, help="미니검증용 앞 N개만")
     args = ap.parse_args()
@@ -67,7 +79,7 @@ def main():
     data = json.load(open(args.src))
     if args.limit > 0:
         data = data[: args.limit]
-    prompt = P2_PROMPT if args.mode == "p2" else P4_PROMPT
+    prompt = {"p2": P2_PROMPT, "p4": P4_PROMPT, "p5": P5_PROMPT}[args.mode]
 
     out, skipped = [], 0
     for it in data:

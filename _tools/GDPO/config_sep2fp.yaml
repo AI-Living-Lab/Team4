@@ -1,0 +1,72 @@
+# ============================================================
+# sep2fp (non-CoT) fallback — config_sep2_cotp5.yaml 의 비-CoT 버전.
+#   reward_functions_sep2fp (5채널 [format,len,global,local,fp], completion 전체 파싱)
+#   데이터 = unav100_v2.json (non-CoT, "From X to Y." 직접 답)
+#   cotp5가 OOM나면 이걸로 (CoT 없이) 돌리는 용도.
+#   μ=2 (clip-higher), grad_accum=1, GPU 2개.
+#
+#   실행:
+#     CUDA_VISIBLE_DEVICES=<g1,g2> setsid nohup torchrun --standalone --nproc_per_node=2 \
+#       --master_port=<port> _tools/GDPO/gdpo_trainer.py --config _tools/GDPO/config_sep2fp.yaml \
+#       --model_path $CKPT_DIR/base/salmonn2p_7b_unav_v8 --model_base $CKPT_DIR/base/salmonn2p_7b_unav_v8 \
+#       --dataset_path $TRAIN_DIR/unav100_v2.json --reward_module reward_functions_sep2fp \
+#       --tti_mode on --output_dir ... --run_name sft_7b_unav_v8_rl_rMsep2fp_clip_mu2 ...
+# ============================================================
+
+model:
+  model_path: ${SFT_CKPT}
+  model_base: ${BASE_MODEL}
+  tti_mode: "on"
+
+data:
+  dataset_path: ${TRAIN_DIR}/unav100_v2.json
+
+lora:
+  enabled: true
+  r: 32
+  lora_alpha: 64
+  lora_dropout: 0.05
+  train_embeddings: false
+  train_lm_head: true
+
+gdpo:
+  num_generations: 8
+  max_completion_length: 256
+  beta: 0.00
+  temperature: 1.0
+  reward_weights: [1.0, 1.0, 1.0, 1.0, 1.0]   # [format, len, global, local, fp]
+  multi_seg_weight: 1.5
+
+clip:
+  enabled: true
+  epsilon: 0.2
+  epsilon_high: 0.28
+  num_iterations: 2            # μ=2 (clip-higher)
+
+training:
+  output_dir: output/gdpo_sep2fp
+  num_train_epochs: 1
+  max_steps: 1000
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 1
+  learning_rate: 5e-6
+  warmup_ratio: 0.05
+  lr_scheduler_type: cosine
+  bf16: true
+  seed: 2024
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+
+logging:
+  logging_steps: 1
+  save_steps: 100
+  save_total_limit: 10
+  report_to: wandb
+  run_name: null
+
+reward:
+  module: reward_functions_sep2fp
+
+ref_model:
+  enabled: true

@@ -1,0 +1,54 @@
+# ============================================================
+# GDPO CoT P3 실험 config (<time> 태그 강제 think, v8 머지본 위 경로 B)
+#   reward_functions_cot_p3 = 3채널 [format, iou, timestamp(content)]
+#   데이터 = unav100_v2_p3.json (think 에 <time>From <tok> to <tok></time> 다중 허용)
+#   P2(자유 think 토큰범위) 대비 P3(각 구간 <time> 로 감싸기) 비교용.
+# ============================================================
+
+model:
+  model_path: ${SFT_CKPT}        # CLI --model_path 로 salmonn2p_7b_unav_v8 (머지본)
+  model_base: ${BASE_MODEL}      # CLI --model_base 로 동일 머지본
+  tti_mode: "on"
+
+data:
+  dataset_path: ${TRAIN_DIR}/unav100_v2_p3.json
+
+lora:
+  enabled: true                  # 경로 B (머지본 위 fresh LoRA)
+  r: 32
+  lora_alpha: 64
+  lora_dropout: 0.05
+  train_embeddings: false        # embed/lm_head freeze → 메모리 절약
+
+gdpo:
+  num_generations: 8
+  max_completion_length: 256
+  beta: 0.00
+  temperature: 1.0
+  reward_weights: [1.0, 1.0, 0.5]   # [format, iou, timestamp] (P3 3채널)
+
+training:
+  output_dir: output/gdpo_vs2plus
+  num_train_epochs: 1
+  max_steps: 500
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 2   # 2-GPU DDP → effective batch 4
+  learning_rate: 5e-6
+  warmup_ratio: 0.05
+  lr_scheduler_type: cosine
+  bf16: true
+  seed: 2024
+  gradient_checkpointing: false    # GC off → 메모리↑ 속도↑ (GPU 1,3 fresh 49GB 에서 시도)
+
+logging:
+  logging_steps: 1
+  save_steps: 100
+  save_total_limit: 10
+  report_to: wandb
+  run_name: null
+
+reward:
+  module: reward_functions_cot_p3
+
+ref_model:
+  enabled: true

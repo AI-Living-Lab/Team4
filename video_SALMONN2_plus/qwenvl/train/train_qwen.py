@@ -401,6 +401,41 @@ def train(attn_implementation="flash_attention_2"):
             model.cuda()
 
         result = []
+        tt_debug = []  # [TT_DEBUG] 생성 원본 토큰 ID 분석 누적
+
+        def _tt_classify(gen_ids):
+            """생성된 원본 토큰 ID 가 real 타임토큰(151666~151676)인지 BPE subword 인지 판정.
+            real 이면 decode(skip_special_tokens=True)에서 사라지고, subword 면 그대로 남는다."""
+            import re as _re
+            TIME_LO, TIME_HI = 151666, 151676   # <t0>..<t9>,<tdot> (added_tokens.json)
+            ids = [int(x) for x in gen_ids]
+            n_real = sum(1 for i in ids if TIME_LO <= i <= TIME_HI)
+            toks = tokenizer.convert_ids_to_tokens(ids)
+            dec_keep = tokenizer.decode(ids, skip_special_tokens=False)
+            dec_strip = tokenizer.decode(ids, skip_special_tokens=True)
+            n_markers = len(_re.findall(r"<t\d>|<tdot>", dec_keep))
+            if n_real == 0 and n_markers > 0:
+                verdict = "BPE_SUBWORD"          # 텍스트엔 <t..> 있는데 real id 0개 → 글자조각
+            elif n_real > 0 and n_real >= n_markers:
+                verdict = "REAL_TIME_TOKEN"
+            elif n_real > 0:
+                verdict = "MIXED"
+            else:
+                verdict = "NO_TIME_MARKER"
+            region = [[i, t] for i, t in zip(ids, toks)
+                      if (TIME_LO <= i <= TIME_HI) or (t in ("<", "t", ">", "tdot"))
+                      or (isinstance(t, str) and t.strip("Ġ▁").isdigit())][:24]
+            return {
+                "verdict": verdict,
+                "n_real_timetoken": n_real,
+                "n_markers_in_text": n_markers,
+                "gen_len": len(ids),
+                "decode_skip_true": dec_strip,
+                "decode_skip_false": dec_keep,
+                "region_tokens": region,
+                "raw_ids_head": ids[:40],
+            }
+
         test_data = data_module["train_dataset"]
         loader = DataLoader(
             test_data,
@@ -416,6 +451,7 @@ def train(attn_implementation="flash_attention_2"):
                     "image": inputs.pop("image", None),
                     "prompt": inputs.pop("prompt", None),
                     "ref": inputs.pop("ref", None),
+                    "gt_label": inputs.pop("gt_label", None),
                     "audio": inputs.pop("audio", None),
                     "use_audio": inputs.pop("use_audio", False),
                     "should_use": inputs.pop("should_use", True),
@@ -439,6 +475,16 @@ def train(attn_implementation="flash_attention_2"):
                                 top_p=0.9)
                         output_trimmed = outputs[0, len(inputs["input_ids"][0]):]
                         output_text = tokenizer.decode(output_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+                        if os.environ.get("TT_DEBUG", "0") == "1":
+                            _ti = _tt_classify(output_trimmed.tolist())
+                            _ti["idx"] = len(tt_debug)
+                            tt_debug.append(_ti)
+                            print(f"[TT-DBG] #{_ti['idx']} verdict={_ti['verdict']} "
+                                  f"real={_ti['n_real_timetoken']} markers_in_text={_ti['n_markers_in_text']} "
+                                  f"gen_len={_ti['gen_len']}", flush=True)
+                            print(f"         skip=True : {_ti['decode_skip_true'][:140]!r}", flush=True)
+                            print(f"         skip=False: {_ti['decode_skip_false'][:140]!r}", flush=True)
+                            print(f"         region   : {_ti['region_tokens'][:16]}", flush=True)
                     if data_args.num_sample == 1:
                         res_i["pred"] = output_text
                     else:
@@ -451,7 +497,17 @@ def train(attn_implementation="flash_attention_2"):
                 result.append(res_i)
         with open(os.path.join(training_args.output_dir, training_args.run_name, f"test_results_rank{pred_rank}.json"), "w") as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
-        
+
+        if os.environ.get("TT_DEBUG", "0") == "1":
+            _dbg_path = os.path.join(training_args.output_dir, training_args.run_name,
+                                     f"time_token_debug_rank{pred_rank}.json")
+            with open(_dbg_path, "w") as f:
+                json.dump(tt_debug, f, indent=2, ensure_ascii=False)
+            from collections import Counter as _Counter
+            _summary = dict(_Counter(d["verdict"] for d in tt_debug))
+            print(f"[TT-DBG] ===== SUMMARY (n={len(tt_debug)}) verdict 분포: {_summary} =====", flush=True)
+            print(f"[TT-DBG] 상세 저장: {_dbg_path}", flush=True)
+
         return
 
 if __name__ == "__main__":

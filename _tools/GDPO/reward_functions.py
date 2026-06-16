@@ -12,8 +12,13 @@ reward_functions.py
   2. iou_reward    — GT interval별 best temporal IoU 평균 (0~1)
 """
 
+import os
 import re
 from typing import List, Tuple
+
+# r_M = w·r_G + (1-w)·r_L 의 r_G 가중. env RM_RG_WEIGHT 로 오버라이드 (blanket 억제 sweep용).
+# 미설정 시 0.5 → 0.5·(r_G+r_L) 로 기존과 100% 동일 (backward compatible).
+RM_RG_WEIGHT = float(os.environ.get("RM_RG_WEIGHT", "0.5"))
 
 
 # "From X to Y[.]" 한 segment 매칭
@@ -405,7 +410,7 @@ def r_M(
             local_scores.append(0.0)
     r_L = sum(local_scores) / n
 
-    return 0.5 * (r_G + r_L)
+    return RM_RG_WEIGHT * r_G + (1.0 - RM_RG_WEIGHT) * r_L
 
 
 # trainer/외부 호출용 export 이름 — 구현은 MUSEG r_M.

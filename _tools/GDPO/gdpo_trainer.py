@@ -673,14 +673,16 @@ class GDPOTrainer(Trainer):
         per_token_logps = []
         entropies = [] if return_entropy else None
         for logits_row, input_ids_row in zip(logits, input_ids):
-            log_probs = logits_row.log_softmax(dim=-1)
-            token_log_prob = torch.gather(
-                log_probs, dim=1, index=input_ids_row.unsqueeze(1)
+            # 메모리 절약: full log_softmax([seq,vocab]) 상주 복사 없이 logp = logit − logsumexp
+            token_logit = torch.gather(
+                logits_row, dim=1, index=input_ids_row.unsqueeze(1)
             ).squeeze(1)
-            per_token_logps.append(token_log_prob)
+            per_token_logps.append(token_logit - torch.logsumexp(logits_row, dim=-1))
             if return_entropy:
                 # 정책 분포 엔트로피 H=-Σ p·logp (position별, vocab 합). 로깅용이라 detach.
+                log_probs = logits_row.log_softmax(dim=-1)
                 entropies.append((-(log_probs.exp() * log_probs).sum(dim=-1)).detach())
+                del log_probs
 
         logps = torch.stack(per_token_logps)
         if return_entropy:
@@ -995,7 +997,7 @@ class GDPOTrainer(Trainer):
             completions = [c.replace(tok, "") for c in completions]
         completions = [re.sub(r"<\|im_start\|>\s*\w+\s*", "", c).strip() for c in completions]
         if self.accelerator.is_main_process:
-            print(f"[GDPO SAMPLE] completion[0][:200]: {completions[0][:200]}")
+            print(f"[GDPO SAMPLE] completion[0]: {completions[0]}")
 
         # ── Rewards + advantages ──
         rewards_per_func = torch.zeros(len(completions), len(self.reward_funcs), device=device)
@@ -1025,21 +1027,20 @@ class GDPOTrainer(Trainer):
                 r"[Ff]rom\s+((?:<t\d>){1,4}<tdot><t\d>)\s+to\s+((?:<t\d>){1,4}<tdot><t\d>)"
             )
 
-            def _extract_segments(text):
-                raw_segs, sec_segs = [], []
-                for s_str, e_str in _SEG_CAPTURE_DEBUG.findall(text):
-                    raw_segs.append(f"from {s_str} to {e_str}")
+            def _think_raw(text):
+                m = re.search(r"<think>(.*?)</think>", text, re.S)
+                return m.group(1).strip() if m else "[no <think>]"
+
+            def _answer_tuples(text):
+                m = re.search(r"<answer>(.*?)</answer>", text, re.S)
+                ans = m.group(1) if m else text
+                segs = []
+                for s_str, e_str in _SEG_CAPTURE_DEBUG.findall(ans):
                     s = decode_vtg_time(s_str)
                     e = decode_vtg_time(e_str)
                     if s is not None and e is not None:
-                        sec_segs.append(f"({s:.1f}, {e:.1f})")
-                if raw_segs:
-                    raw_str = ", ".join(raw_segs)
-                else:
-                    _shown = text.strip()
-                    raw_str = f"[no valid segment] 실제출력({len(_shown)}자): {_shown[:200]!r}"
-                sec_str = ", ".join(sec_segs) if sec_segs else "[no valid segment]"
-                return raw_str, sec_str
+                        segs.append(f"({s:.1f}, {e:.1f})")
+                return ", ".join(segs) if segs else None   # None = answer 파싱 실패
 
             gt_raw_str = "[none]"
             if raw_labels is not None:
@@ -1056,12 +1057,15 @@ class GDPOTrainer(Trainer):
             # 모듈마다 채널 구성이 달라도(format/iou | format/len/global/local | +CoT) 그대로 출력.
             _chan_names = [getattr(f, "__name__", f"ch{j}") for j, f in enumerate(self.reward_funcs)]
             for gi, c in enumerate(completions):
-                pred_raw, pred_sec = _extract_segments(c)
                 _vals = ", ".join(f"{nm}={rewards_per_func[gi, j].item():.3f}"
                                   for j, nm in enumerate(_chan_names))
+                _ans = _answer_tuples(c)
                 print(f"  [{gi}] {_vals}")
-                print(f"       raw: {pred_raw}")
-                print(f"       sec: {pred_sec}")
+                print(f"       think:  {_think_raw(c)}")          # 원본 그대로
+                if _ans is not None:
+                    print(f"       answer: {_ans}")               # (s, e) 튜플
+                else:
+                    print(f"       answer: [parse fail] 원본: {c}")  # 파싱 실패 → 전체 원본
 
         return R
 
@@ -1105,8 +1109,8 @@ class GDPOTrainer(Trainer):
         # ── 새 정책 per-token logps (grad O) — 캐시된 completion 에 대해 재계산 ──
         #    return_entropy=True → 정책 분포 엔트로피도 함께(로깅용, detach).
         raw_encode_model = _unwrapped.get_base_model() if hasattr(_unwrapped, "get_base_model") else _unwrapped
-        per_token_logps, gen_entropy = self._completion_logps(
-            model, R, raw_encode_model, return_entropy=True)
+        per_token_logps = self._completion_logps(
+            model, R, raw_encode_model, return_entropy=False)  # entropy off (메모리 절약; μ=1 진단 불필요)
 
         # old(behavior) logps: μ>1 이면 생성시점 스냅샷, μ=1 이면 현재 정책 detach(=ratio 1).
         old_per_token_logps = R["old_per_token_logps"]
@@ -1158,12 +1162,8 @@ class GDPOTrainer(Trainer):
         completion_length = self.accelerator.gather_for_metrics(completion_mask.sum(1)).float().mean().item()
         self._metrics["completion_length"].append(completion_length)
 
-        # [wandb] Generation Entropy — 정책 분포 엔트로피(completion 토큰 평균). 붕괴 시 하락.
+        # [wandb] Advantage 통계 (group-norm + multi_seg_weight 반영 후 실제 사용값)
         with torch.no_grad():
-            _em = completion_mask.float()
-            _ent = (gen_entropy * _em).sum() / _em.sum().clamp(min=1)
-            self._metrics["gen_entropy"].append(self.accelerator.gather_for_metrics(_ent).mean().item())
-            # [wandb] Advantage 통계 (group-norm + multi_seg_weight 반영 후 실제 사용값)
             self._metrics["advantage_mean"].append(self.accelerator.gather_for_metrics(advantages).mean().item())
             self._metrics["advantage_std"].append(self.accelerator.gather_for_metrics(advantages).std().item())
             self._metrics["advantage_abs_mean"].append(self.accelerator.gather_for_metrics(advantages.abs()).mean().item())
@@ -1392,6 +1392,317 @@ def make_reward_functions(specs):
 
 
 # ============================================================
+# [VAL] Validation-set 평가 (in-trainer, reload 없음) — toggle 가능
+#
+# checkpoint selection 용. val.enabled(또는 --val_path) 일 때만 동작; 없으면 기존 동작 동일.
+# save_steps 마다(on_save) 현재 메모리 정책으로 val 프롬프트를 greedy 생성 →
+#   segment mIoU(pairwise) + pairwise F1_avg(θ=0.1/0.3/0.5/0.7/0.9) → 둘 평균(combined).
+# 지표 정의는 eval/eval_miou.py 의 pairwise 블록과 1:1 동일하게 복제.
+# val_metrics.jsonl 에 step별 append + wandb 로깅. 종료 후 select_best_ckpt.py 로 best 선택.
+# ============================================================
+VAL_THRESHOLDS = [0.1, 0.3, 0.5, 0.7, 0.9]
+# 시간토큰 "From <t..> to <t..>" 파싱 (eval_miou.py 와 동일 정규식/디코드)
+_VAL_TOKTIME = r"(?:<t\d>)+(?:<tdot>(?:<t\d>)+)?"
+_VAL_TOK_SEG = re.compile(rf"({_VAL_TOKTIME})\s*(?:to|-|–|—|~)\s*({_VAL_TOKTIME})", re.IGNORECASE)
+
+
+def _val_fix(s, e, max_time):
+    if e <= s:
+        e = min(s + 0.1, max_time)
+    return [min(s, max_time), min(e, max_time)]
+
+
+def _val_decode_tok(token_str, max_time):
+    if "<tdot>" in token_str:
+        a, _, b = token_str.partition("<tdot>")
+        ip = re.findall(r"<t(\d)>", a)
+        dp = re.findall(r"<t(\d)>", b)
+    else:
+        ip = re.findall(r"<t(\d)>", token_str)
+        dp = []
+    if not ip:
+        return None
+    return min(int("".join(ip)) + (int(dp[0]) / 10.0 if dp else 0.0), max_time)
+
+
+def _val_parse_tokens(text, max_time):
+    out = []
+    for sa, sb in _VAL_TOK_SEG.findall(text or ""):
+        s, e = _val_decode_tok(sa, max_time), _val_decode_tok(sb, max_time)
+        if s is None or e is None:
+            continue
+        out.append(_val_fix(s, e, max_time))
+    return out
+
+
+def _val_extract_answer_scope(text):
+    """CoT: <answer>...</answer> 안만 (없으면 전체)."""
+    spans = re.findall(r"<answer>(.*?)</answer>", text or "", re.DOTALL | re.IGNORECASE)
+    return " ".join(spans) if spans else (text or "")
+
+
+def _val_tiou(a, b):
+    s = max(a[0], b[0]); e = min(a[1], b[1])
+    inter = max(0.0, e - s)
+    union = (a[1] - a[0]) + (b[1] - b[0]) - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _val_best_iou(seg, others):
+    return max((_val_tiou(seg, o) for o in others), default=0.0)
+
+
+def _val_merge(segs):
+    """겹치는 구간들을 disjoint union 으로 병합."""
+    if not segs:
+        return []
+    s = sorted([[float(a), float(b)] for a, b in segs], key=lambda x: x[0])
+    out = [s[0][:]]
+    for a, b in s[1:]:
+        if a <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], b)
+        else:
+            out.append([a, b])
+    return out
+
+
+def _val_total(segs):
+    return sum(e - s for s, e in segs)
+
+
+def _val_sample_iou(gt, pred):
+    """샘플당 1개 IoU (R-AVST all_iou): 전체 GT merge vs 전체 pred merge inter/union."""
+    g, p = _val_merge(gt), _val_merge(pred)
+    if not g and not p:
+        return 0.0
+    inter = 0.0
+    for gs, ge in g:
+        for ps, pe in p:
+            inter += max(0.0, min(ge, pe) - max(gs, ps))
+    union = _val_total(g) + _val_total(p) - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _val_mean(xs):
+    return sum(xs) / len(xs) if xs else 0.0
+
+
+def _val_frac_ge(arr, th):
+    return _val_mean([1.0 if x >= th else 0.0 for x in arr]) if arr else 0.0
+
+
+def compute_val_metrics(records):
+    """records: [{"gt": [[s,e]..], "pred": [[s,e]..]}]  → eval_miou.py 정의와 동일.
+
+    test 와 지표를 맞추기 위해 IoU 는 sample 법, F1 은 pairwise 법을 쓴다.
+      sample_miou  = 100 * mean_over_samples( all_iou(merge(gt), merge(pred)) )   ← eval_miou sample 블록
+      pairwise_miou= 100 * mean_over_all_GT_segs( best_iou(g, pred) )             ← (참고용)
+      f1_avg       = mean_over_θ( 2PR/(P+R) ),  R/P = pairwise best_iou≥θ frac    ← eval_miou pairwise 블록
+      combined     = (sample_miou + f1_avg) / 2          ← checkpoint selection 기준
+
+    호환: select_best_ckpt.py 가 읽는 키(seg_miou/f1_avg/combined)는 유지하되,
+          seg_miou 는 이제 **sample IoU** 값을 담는다(sample_miou 와 동일). pairwise 값은 pairwise_miou 로 별도 보존.
+    """
+    gt_iou_all, pred_iou_all, sample_ious = [], [], []
+    for r in records:
+        gt, pred = r["gt"], r["pred"]
+        if not gt:
+            continue
+        gt_iou_all.extend(_val_best_iou(g, pred) for g in gt)
+        pred_iou_all.extend(_val_best_iou(p, gt) for p in pred)
+        sample_ious.append(_val_sample_iou(gt, pred))
+    sample_miou = 100.0 * _val_mean(sample_ious)
+    pairwise_miou = 100.0 * _val_mean(gt_iou_all)
+    f1, rec, prc = {}, {}, {}
+    for t in VAL_THRESHOLDS:
+        R = _val_frac_ge(gt_iou_all, t)
+        P = _val_frac_ge(pred_iou_all, t)
+        rec[str(t)] = round(100.0 * R, 4)
+        prc[str(t)] = round(100.0 * P, 4)
+        f1[str(t)] = round(100.0 * (2 * P * R / (P + R) if (P + R) > 0 else 0.0), 4)
+    f1_avg = _val_mean(list(f1.values()))
+    n_parse_ok = sum(1 for r in records if r["pred"])
+    return {
+        "seg_miou": round(sample_miou, 4),      # ← sample IoU (select_best 호환 키)
+        "sample_miou": round(sample_miou, 4),
+        "pairwise_miou": round(pairwise_miou, 4),
+        "f1_avg": round(f1_avg, 4),
+        "combined": round((sample_miou + f1_avg) / 2.0, 4),
+        "R": rec, "P": prc, "F1": f1,
+        "n_samples": len(records),
+        "n_gt_segs": len(gt_iou_all),
+        "n_pred_segs": len(pred_iou_all),
+        "n_parse_ok": n_parse_ok,
+    }
+
+
+@torch.no_grad()
+def _val_greedy_generate(trainer, inputs, max_new_tokens):
+    """train 과 동일 멀티모달 입력으로 1샘플 greedy 생성 → completion 텍스트(특수토큰 유지)."""
+    model = trainer.model
+    acc = trainer.accelerator
+    device = acc.device
+    tok = trainer.processing_class
+
+    prompt_ids = inputs["input_ids"].to(device)
+    prompt_mask = inputs["attention_mask"].to(device)
+    labels = inputs.get("labels", None)
+    if labels is not None:
+        labels = labels.to(device)
+        answer_start = (labels[0] != -100).nonzero(as_tuple=True)[0]
+        if len(answer_start) > 0:
+            pe = answer_start[0].item()
+            prompt_ids = prompt_ids[:, :pe]
+            prompt_mask = prompt_mask[:, :pe]
+
+    pvv = inputs.get("pixel_values_videos", None)
+    if pvv is not None:
+        pvv = pvv.to(device=device, dtype=torch.bfloat16)
+    vgt = inputs.get("video_grid_thw", None)
+    if vgt is not None:
+        vgt = vgt.to(device)
+    af = inputs.get("audio_feature", None)
+    if af is not None:
+        af = af.to(device=device, dtype=torch.bfloat16)
+    al = inputs.get("audio_lengths", None)
+    # [VAL-FIX] 비디오 시간축 rope 스케일. 누락 시 time-token grounding 이 어긋나
+    #   eval 추론경로(train_qwen.py: **inputs 로 전달) 대비 mIoU 가 ~절반으로 깎인다.
+    spg = inputs.get("second_per_grid_ts", None)
+    if spg is not None and hasattr(spg, "to"):
+        spg = spg.to(device)
+
+    prompt_length = prompt_ids.size(1)
+    # generate 동안 gradient checkpointing 비활성화 (rollout 과 동일 패턴)
+    for _m in model.modules():
+        if hasattr(_m, "gradient_checkpointing"):
+            _m.gradient_checkpointing = False
+
+    gen_kwargs = {
+        "input_ids": prompt_ids,
+        "attention_mask": prompt_mask,
+        "max_new_tokens": max_new_tokens,
+        "do_sample": False,        # greedy (deterministic) — selection 재현성
+        "num_beams": 1,
+        "repetition_penalty": 1.0,
+    }
+    if pvv is not None:
+        gen_kwargs["pixel_values_videos"] = pvv
+    if vgt is not None:
+        gen_kwargs["video_grid_thw"] = vgt
+    if af is not None:
+        gen_kwargs["audio_feature"] = af
+    if al is not None:
+        gen_kwargs["audio_lengths"] = al
+    if spg is not None:
+        gen_kwargs["second_per_grid_ts"] = spg
+
+    import warnings as _warnings
+    with unwrap_model_for_generation(model, acc) as unwrapped_model:
+        raw_model = (
+            unwrapped_model.get_base_model()
+            if hasattr(unwrapped_model, "get_base_model")
+            else unwrapped_model
+        )
+        # greedy(do_sample=False)인데 model.generation_config 에 temperature/top_p/top_k 가
+        # 남아 매 샘플 UserWarning 이 뜬다(무해하지만 로그 스팸). 그 경고만 억제.
+        with _warnings.catch_warnings():
+            _warnings.filterwarnings("ignore", message=r"`do_sample` is set to `False`")
+            gen_ids = raw_model.generate(**gen_kwargs)
+    gen_ids = gen_ids[:, prompt_length:]
+
+    # gradient checkpointing 복구 (use_reentrant=False)
+    import functools as _ft
+    from torch.utils.checkpoint import checkpoint as _ckpt
+    _gcf = _ft.partial(_ckpt, use_reentrant=False)
+    for _m in model.modules():
+        if hasattr(_m, "gradient_checkpointing"):
+            _m.gradient_checkpointing = True
+            _m._gradient_checkpointing_func = _gcf
+
+    return tok.batch_decode(gen_ids, skip_special_tokens=False)[0]
+
+
+class ValEvalCallback(transformers.TrainerCallback):
+    """save_steps 마다 val 셋으로 greedy 평가 → val_metrics.jsonl + wandb. 학습은 종료시키지 않음."""
+
+    def __init__(self, trainer, val_dataset, val_json_path, out_dir,
+                 max_new_tokens=256, max_time=999.9, natural=False):
+        self.trainer = trainer
+        self.val_dataset = val_dataset
+        self.out_dir = out_dir
+        self.max_new_tokens = int(max_new_tokens)
+        self.max_time = float(max_time)
+        self.natural = bool(natural)
+        self.jsonl_path = os.path.join(out_dir, "val_metrics.jsonl")
+        # GT (각 샘플 자기 gt_segments 우선; eval_gt_matching 원칙)
+        raw = json.load(open(val_json_path))
+        self.gt_list = []
+        for x in raw:
+            segs = x.get("gt_segments") or []
+            self.gt_list.append([[float(s), float(e)] for s, e in segs])
+        assert len(self.gt_list) == len(val_dataset), (
+            f"val GT({len(self.gt_list)}) != dataset({len(val_dataset)}) — 순서/내용 불일치")
+
+    def on_save(self, args, state, control, **kwargs):
+        self._run(state)
+
+    def _run(self, state):
+        from accelerate.utils import gather_object
+        trainer = self.trainer
+        acc = trainer.accelerator
+        world = max(1, int(getattr(acc, "num_processes", 1)))
+        rank = int(getattr(acc, "process_index", 0))
+        step = int(state.global_step)
+
+        model = trainer.model
+        was_training = model.training
+        model.eval()
+        local = []
+        try:
+            for i in range(len(self.val_dataset)):
+                if i % world != rank:
+                    continue
+                inst = self.val_dataset[i]
+                batch = trainer.data_collator([inst])
+                text = _val_greedy_generate(trainer, batch, self.max_new_tokens)
+                scope = _val_extract_answer_scope(text) if self.natural else text
+                pred = _val_parse_tokens(scope, self.max_time)
+                local.append({"idx": i, "gt": self.gt_list[i], "pred": pred})
+        finally:
+            if was_training:
+                model.train()
+
+        gathered = gather_object(local)
+        if not acc.is_main_process:
+            return
+        # idx 기준 dedup(샤딩 안전) 후 metric
+        seen, recs = set(), []
+        for r in gathered:
+            if r["idx"] in seen:
+                continue
+            seen.add(r["idx"])
+            recs.append(r)
+        m = compute_val_metrics(recs)
+        m["step"] = step
+        os.makedirs(self.out_dir, exist_ok=True)
+        with open(self.jsonl_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(m, ensure_ascii=False) + "\n")
+        print(f"[VAL] step {step}: combined={m['combined']:.2f} "
+              f"(sample_miou={m['sample_miou']:.2f}, pairwise_miou={m['pairwise_miou']:.2f}, "
+              f"f1_avg={m['f1_avg']:.2f}) "
+              f"n={m['n_samples']} parse_ok={m['n_parse_ok']}")
+        try:
+            trainer.log({
+                "val/combined": m["combined"],
+                "val/seg_miou": m["seg_miou"],
+                "val/f1_avg": m["f1_avg"],
+                "val/n_pred_segs": m["n_pred_segs"],
+            })
+        except Exception as _e:
+            print(f"[VAL] wandb log 스킵: {_e}")
+
+
+# ============================================================
 # Main
 # ============================================================
 
@@ -1416,6 +1727,9 @@ def main():
     parser.add_argument("--resume_from_checkpoint", type=str, default=None,
                         help="'True'=output_dir 내 최신 체크포인트 자동 재개, 또는 체크포인트 경로. "
                              "미지정=처음부터.")
+    parser.add_argument("--val_path", type=str, default=None,
+                        help="[VAL] validation JSON. 지정 시 save_steps 마다 greedy 평가→val_metrics.jsonl. "
+                             "없으면 config.val.dataset_path/val.enabled 따름(기본 OFF).")
     cli = parser.parse_args()
 
     cfg = load_config(cli.config) if cli.config else {}
@@ -1532,11 +1846,16 @@ def main():
             lora_r = int(_get(None, "lora", "r", default=32))
             lora_alpha = int(_get(None, "lora", "lora_alpha", default=64))
             lora_dropout = float(_get(None, "lora", "lora_dropout", default=0.05))
-            # LLM attention(q/k/v/o_proj)만 타깃 — audio(whisper)/visual 제외 (SFT와 동일 범위).
+            # LLM 블록 타깃 suffix — config(lora.target_modules)로 오버라이드 가능.
+            #   기본: attention(q/k/v/o_proj)만 (audio/visual 제외, SFT와 동일 범위).
+            #   예) MLP까지 열려면 config 에 target_modules:[q_proj,k_proj,v_proj,o_proj,
+            #       gate_proj,up_proj,down_proj]. model.layers.* 한정은 그대로 유지.
+            _tm_suffixes = tuple(_get(None, "lora", "target_modules",
+                                      default=["q_proj", "k_proj", "v_proj", "o_proj"]))
             target_modules = [
                 n for n, _ in model.named_modules()
                 if n.startswith("model.layers.")
-                and n.split(".")[-1] in ("q_proj", "k_proj", "v_proj", "o_proj")
+                and n.split(".")[-1] in _tm_suffixes
             ]
             # [sep2] modules_to_save 를 embed_tokens / lm_head 개별 토글로 분리.
             #   embed_tokens / lm_head 는 modules_to_save → full trainable copy.
@@ -1557,7 +1876,7 @@ def main():
                 task_type="CAUSAL_LM",
             )
             print(f"[GDPO] Fresh RL LoRA: r={lora_r}, alpha={lora_alpha}, "
-                  f"#target_modules={len(target_modules)} (LLM attn q/k/v/o), "
+                  f"#target_modules={len(target_modules)} (suffixes={list(_tm_suffixes)}), "
                   f"modules_to_save={modules_to_save}")
 
     # Dataset — VS2+ LazySupervisedDataset 사용
@@ -1624,6 +1943,23 @@ def main():
         data_args=data_args,
     )
     print(f"[GDPO] Dataset size: {len(dataset)}")
+
+    # ── [VAL] validation 데이터셋 (train 과 동일 data_args, 경로만 교체) ──
+    #   토글: --val_path 주면 강제 ON / 없으면 config.val.enabled / 둘 다 없으면 OFF.
+    #   (val 블록 없는 이전 config·이전 호출과 100% 호환 — 기본 OFF = 기존 동작 동일)
+    val_path = _get(cli.val_path, "val", "dataset_path", default=None)
+    val_enabled = (cli.val_path is not None) or bool(_get(None, "val", "enabled", default=False))
+    val_dataset = None
+    if val_enabled and val_path:
+        val_data_args = GDPODataArgs()
+        val_data_args.dataset_use = val_path
+        val_data_args.tti_time_format = tti_time_format
+        val_data_args.image_processor = data_args.image_processor
+        val_data_args.audio_processor = data_args.audio_processor
+        val_dataset = LazySupervisedDataset(tokenizer=tokenizer, data_args=val_data_args)
+        print(f"[GDPO][VAL] val dataset: {val_path} (size={len(val_dataset)})")
+    elif val_enabled and not val_path:
+        print("[GDPO][VAL] ⚠️ val.enabled 인데 val_path 없음 → val 평가 비활성")
 
     # Reward — 모듈 선택 (단일 trainer, import 대상만 교체)
     reward_module = _get(cli.reward_module, "reward", "module", default="reward_functions")
@@ -1707,6 +2043,23 @@ def main():
         reward_weights=reward_weights,
         peft_config=peft_config,
     )
+
+    # ── [VAL] save_steps 마다 greedy 평가 콜백 부착 (checkpoint selection 용; val OFF면 스킵) ──
+    if val_dataset is not None:
+        val_max_new = int(_get(None, "val", "max_new_tokens", default=max_completion_length))
+        val_max_time = float(_get(None, "val", "max_time", default=999.9))
+        val_natural = bool(_get(None, "val", "natural", default=False))
+        trainer.add_callback(ValEvalCallback(
+            trainer=trainer,
+            val_dataset=val_dataset,
+            val_json_path=val_path,
+            out_dir=output_dir,
+            max_new_tokens=val_max_new,
+            max_time=val_max_time,
+            natural=val_natural,
+        ))
+        print(f"[GDPO][VAL] ValEvalCallback 부착 — save_steps({save_steps})마다 평가 "
+              f"(greedy, max_new={val_max_new}, max_time={val_max_time}) → {output_dir}/val_metrics.jsonl")
 
     # Train ([hyj] resume 지원: 'True'=최신 체크포인트 자동 / 경로=특정 체크포인트 / None=처음부터)
     _rc = cli.resume_from_checkpoint

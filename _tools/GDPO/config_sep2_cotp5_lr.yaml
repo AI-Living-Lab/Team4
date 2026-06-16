@@ -1,0 +1,64 @@
+# ============================================================
+# sep2 CoT(P5) — config_sep2_cotp5.yaml 의 LR 변형 (A/B 대조군)
+#   유일한 차이: learning_rate 5e-6→1e-5, lr_scheduler cosine→constant_with_warmup
+#   나머지(reward/데이터/clip/grad_accum/target/multi_seg_weight)는 config_sep2_cotp5.yaml 와 동일.
+#   목적: "LR↑(constant)이 성능에 도움되나" 단일변수 비교 (base=config_sep2_cotp5.yaml).
+# ============================================================
+
+model:
+  model_path: ${SFT_CKPT}
+  model_base: ${BASE_MODEL}
+  tti_mode: "on"
+
+data:
+  dataset_path: ${TRAIN_DIR}/unav100_v2_cotp5.json
+
+lora:
+  enabled: true
+  r: 32
+  lora_alpha: 64
+  lora_dropout: 0.05
+  train_embeddings: false
+  train_lm_head: true           # q/k/v/o LoRA + lm_head (MLP 타깃 미포함 — base 와 동일)
+
+gdpo:
+  num_generations: 8
+  max_completion_length: 256
+  beta: 0.00
+  temperature: 1.0
+  reward_weights: [1.0, 1.0, 1.0, 1.0, 1.0]   # [format, len, global, local, fp]
+  multi_seg_weight: 1.5
+
+clip:
+  enabled: true
+  epsilon: 0.2
+  epsilon_high: 0.28
+  num_iterations: 1            # μ=1 (clip inert+OOM 회피 → 순수 GDPO)
+
+training:
+  output_dir: output/gdpo_sep2_cotp5_lr
+  num_train_epochs: 1
+  max_steps: 1000
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 1
+  learning_rate: 1.0e-5                      # ★ 5e-6 → 1e-5
+  warmup_ratio: 0.05
+  lr_scheduler_type: constant_with_warmup    # ★ cosine → constant + warmup
+  bf16: true
+  seed: 2024
+  gradient_checkpointing: true     # OOM 대응 (worked example로 프롬프트 길어짐 + μ=2 캐시)
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+
+logging:
+  logging_steps: 1
+  save_steps: 100
+  save_total_limit: 10
+  report_to: wandb
+  run_name: null
+
+reward:
+  module: reward_functions_sep2_cotp5
+
+ref_model:
+  enabled: true

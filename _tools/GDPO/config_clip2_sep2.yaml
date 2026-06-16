@@ -1,0 +1,104 @@
+# ============================================================
+# GDPO 세분화 reward(sep2) + clip-higher + gradient accumulation 실험 config
+#   ▶ gdpo_trainer_clip2_sep.py + reward_functions_rM_sep2.py 전용. **GPU 2개 기준.**
+#
+#   4채널 [format, len, global, local]. 목적(multi-segment 붕괴 대응):
+#     - global = MUSEG F1(precision 내장) → '한 개 큰 세그먼트' attractor 제거
+#     - len(graded+multi-pred1 floor) + local(채널 분리) → 개수/위치 신호 보존·증폭
+#     - clip-higher(μ=2) → 탐색 유지로 붕괴 지연
+#     - [sep2] gdpo.multi_seg_weight → GT>=2 prompt advantage 가중(single prior 상쇄)
+#     - [clip2] gradient accumulation → effective batch ↑ (reward/gradient noise ↓)
+#
+#   모델/데이터 경로는 CLI(--model_path/--model_base/--dataset_path)로 직접 전달.
+# ------------------------------------------------------------
+#   [핵심 공식] clip2 는 grad_accum>1 지원 (block-repeat sampler 로 μ 사이 step 보장).
+#     effective batch(distinct prompt/step) = grad_accum(N) × num_gpu
+#     고유 prompt 총량        = max_steps × grad_accum × num_gpu / μ
+#     체크포인트 간격(prompt) = save_steps × grad_accum × num_gpu / μ
+#   → VRAM 여유는 num_generations↑ / gradient_checkpointing=false 로 활용.
+#   ⚠️ μ>1 캐시는 N개 rollout(embed 포함)을 동시 보관 → 메모리 ~N배. OOM 시 grad_accum↓ 또는 GC=true.
+# ============================================================
+#
+# ▶▶ 실행 (GPU 2개, 기본 / effective batch = 2×2 = 4) ◀◀
+#   export CUDA_VISIBLE_DEVICES=0,1
+#   torchrun --standalone --nproc_per_node=2 \
+#       _tools/GDPO/gdpo_trainer_clip2_sep.py --config <이 파일> \
+#       --model_path ... --model_base ... --dataset_path ...
+#
+# ┌──────────────────────────────────────────────────────────┐
+# │ ▶▶ GPU 1개로 학습할 때 (본문은 2 GPU 기준) ◀◀              │
+# │   이제 grad_accum 으로 effective batch 를 맞출 수 있다:     │
+# │     gradient_accumulation_steps : 2 → 4  (1×4 = eff batch 4)│
+# │   그러면 max_steps/save_steps 는 그대로 둬도 고유 prompt 동일:│
+# │     (max_steps×4×1/μ = max_steps×2×2/μ)                    │
+# │   실행은 torchrun 없이 python ... 또는 --nproc_per_node=1   │
+# │   per_device_train_batch_size : 1 (trainer 가 단일 prompt 가정, 변경 X)│
+# └──────────────────────────────────────────────────────────┘
+
+# 모델 설정
+model:
+  model_path: ${SFT_CKPT}
+  model_base: ${BASE_MODEL}
+  tti_mode: "on"
+
+# 데이터 설정
+data:
+  dataset_path: ${TRAIN_DIR}/unav100_v2.json
+
+# Target Modules
+lora:
+  enabled: true
+  r: 32
+  lora_alpha: 64
+  lora_dropout: 0.05
+  train_embeddings: false                   # embed_tokens 학습. 이번 실험은 OFF.
+  train_lm_head: true                       # q/k/v/o LoRA + lm_head 학습 (embed OFF)
+
+# GDPO 설정
+gdpo:
+  num_generations: 8                       # group 크기. VRAM 더 활용하려면 16~24
+  max_completion_length: 256
+  beta: 0.00
+  temperature: 1.0
+  reward_weights: [1.0, 1.0, 1.0, 1.0]     # [format, len, global, local]
+  multi_seg_weight: 1.5                     # GT>=2 prompt advantage ×w (single prior 상쇄). 1.0=off
+
+# DAPO clip-higher
+clip:
+  enabled: true
+  epsilon: 0.2           # ε_low
+  epsilon_high: 0.28     # ε_high (>ε_low = clip-higher)
+  num_iterations: 2      # μ: 한 rollout 을 μ 번 재사용 (μ>1 이라야 clip 작동)
+                         # ⚠️ μ 변경 시 max_steps(=고유prompt×μ/(N×gpu)) 도 함께 조정
+
+# 학습 설정 (★ GPU 2개 기준)
+training:
+  output_dir: output/gdpo_vs2plus_clip2_sep
+  num_train_epochs: 1
+  max_steps: 1000                          # 2 GPU/μ=2/N=2 → 고유 prompt = 1000×2×2/2 = 2000 (v2 일치)
+  per_device_train_batch_size: 1           # ⚠️ 1 고정 (trainer 가 단일 prompt 가정)
+  gradient_accumulation_steps: 2           # [clip2] N=2 → effective batch = 2×num_gpu (2GPU=4). block-repeat 로 clip 정상.
+  learning_rate: 5e-6
+  warmup_ratio: 0.05
+  lr_scheduler_type: cosine
+  bf16: true
+  seed: 2024
+  gradient_checkpointing: false            # VRAM 여유 활용. ⚠️ OOM(특히 N·μ 클 때) 시 true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+
+# 저장/로깅
+logging:
+  logging_steps: 1
+  save_steps: 100                          # 2 GPU/μ=2/N=2 → 200 고유 prompt 마다 저장 (10 ckpt)
+  save_total_limit: 10
+  report_to: wandb
+  run_name: null
+
+# reward 설정
+reward:
+  module: reward_functions_rM_sep2          # clip2_sep 전용 reward (len=graded+multi-pred1 floor)
+
+# ref 모델
+ref_model:
+  enabled: true
