@@ -1,6 +1,9 @@
 # checkpoint directories (keep folder structure)
 checkpoints*/
 
+# gradio runtime (auto-generated cert)
+.gradio/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

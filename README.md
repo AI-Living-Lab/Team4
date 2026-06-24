@@ -31,24 +31,26 @@ Repository reference: [video-SALMONN-2 GitHub](https://github.com/bytedance/vide
 
 ### 🔧 Environment Variables
 
-`paths.env.example` 를 복사하여 `paths.env` 를 만들고 수정:
+`paths.example.env` 를 복사하여 `paths.env` 를 만들고 각 서버 경로에 맞게 수정:
 
 ```bash
-cp paths.env.example paths.env
-# 필요 시 HF_TOKEN 채우고, BASE_DIR / DATA_DIR / CKPT_DIR 경로 조정
+cp paths.example.env paths.env
+# BASE_ROOT / DATA_ROOT 두 루트만 잡으면 나머지는 자동 파생. WANDB_API_KEY 채우기.
 ```
+
+> ⚠️ `paths.env` 는 `.gitignore` 대상(개인 키 포함) — 커밋 금지. 템플릿만 `paths.example.env` 로 관리.
 
 | 변수 | 의미 |
 |---|---|
-| `BASE_DIR`     | 이 레포 루트 |
-| `DATA_DIR`     | UnAV-100 등 외부 데이터 (`/workspace/datasets`) |
-| `CKPT_DIR`     | 체크포인트 루트 (`/workspace/checkpoints`) |
-| `JSON_DIR`     | `${BASE_DIR}/data` |
-| `TRAIN_DIR`    | `${JSON_DIR}/train` — 학습 JSON (`TRAINSET_FILE` 검색 위치) |
-| `TEST_DIR`     | `${JSON_DIR}/test` — 평가 chunk 디렉토리 |
-| `EVAL_DIR`     | `${BASE_DIR}/outputs` — 평가 결과 |
-| `HF_HOME`      | HuggingFace 캐시 |
-| `HF_TOKEN`     | HF Hub 업로드용 (선택) |
+| `BASE_ROOT`    | 프로젝트/데이터 JSON 의 공통 루트 |
+| `DATA_ROOT`    | 체크포인트·원본 데이터(영상 등)의 공통 루트 |
+| `BASE_DIR`     | 이 레포 루트 (`${BASE_ROOT}/master/Team4`) |
+| `CKPT_DIR`     | 체크포인트 루트 (`${DATA_ROOT}/checkpoints`) |
+| `DATA_DIR`     | UnAV-100 등 원본 데이터 (`${DATA_ROOT}/unav_100`) |
+| `TRAIN_DIR`    | 학습 JSON (`TRAINSET_FILE` 검색 위치) |
+| `TEST_DIR`     | 평가 chunk 디렉토리 |
+| `EVAL_DIR`     | 평가 결과 (`${BASE_ROOT}/outputs`) |
+| `WANDB_ENTITY` / `WANDB_API_KEY` | WandB 로그 (학습 시) |
 
 ### 📂 Directory Structure
 
@@ -66,19 +68,21 @@ Team4/
 │   │   ├── test_results_rank0.json
 │   │   └── inference.log
 │   └── base/{BASE_MODEL_ID}/{EVAL_TAG}/{TESTSET}/     # CKPT_STEP=base
-├── data/                                              # ${JSON_DIR}
+├── data/                                              # ${BASE_ROOT}/data
 │   ├── train/unav100_sft.json                         # ${TRAIN_DIR}
 │   ├── test/{TESTSET}/chunk_*.json                    # ${TEST_DIR}
 │   └── debug_interleave_samples.json
 ├── _tools/
-│   ├── sft/                                           # SFT 학습 + LoRA merge 도구
+│   ├── sft/                                           # SFT 학습 (train_salmonn2plus.sh) + time-token 추가
+│   ├── GDPO/                                          # RL(GDPO) 학습 — GDPO학습방법총정리 문서 참고
 │   ├── tti/                                           # TTI 회귀 검증 (run_all.sh)
 │   └── debug/                                         # debug_interleave dump
 └── eval/
-    ├── eval_salmonn2plus.sh                           # chunked 평가 + 자동 resume
-    ├── eval_3mode_chain.sh                            # off/special_token/natural_text 순차 평가
+    ├── eval.sh                                        # 통합 런처 (추론+resume / 평가)
+    ├── eval_miou.py                                   # 통합 평가기 (3종 summary JSON)
+    ├── _chunk_helpers.py                              # 청크 split/append/resume
     ├── config.yaml
-    └── eval_miou_multiseg.py
+    └── 통합평가방법총정리(26-06-08).md                # 평가 상세 가이드
 ```
 
 ## 🎯 Time-Token Interleaving (TTI)
@@ -121,63 +125,50 @@ bash _tools/sft/train_salmonn2plus.sh \
 
 **저장 위치**: `${CKPT_DIR}/${STAGE}/${MODEL_ID}/checkpoint-N/`
 
-### 2) LoRA Merge + HuggingFace 업로드
+### 2) RL 미세조정 (GDPO)
+
+SFT 정책을 temporal-IoU reward 로 강화학습. 상세는
+[_tools/GDPO/GDPO학습방법총정리(26-06-04).md](_tools/GDPO/GDPO학습방법총정리(26-06-04).md) 참고.
 
 ```bash
-bash _tools/sft/merge_and_push.sh \
-    MODEL_ID=salmonn2p_7b_unav_fps5_off \
-    CKPT=5000 \
-    PUSH=true PRIVATE=true \
-    REPO_ID=ewhaailab/salmonn2p-unav
+python _tools/GDPO/gdpo_trainer.py \
+    --config       _tools/GDPO/config.yaml \
+    --model_path   ${CKPT_DIR}/sft/salmonn2p_7b_unav_fps5_off \
+    --model_base   ${CKPT_DIR}/video_salmonn2_plus_7B_time_tokens \
+    --dataset_path ${TRAIN_DIR}/unav100_v2.json
 ```
-
-인증: `huggingface-cli login` 또는 `HF_TOKEN=hf_xxx`.
 
 ### 3) 평가
 
+통합 런처 `eval/eval.sh` + 평가기 `eval/eval_miou.py` 로 추론·평가를 수행한다.
+인자/출력 규칙 전체는 [eval/통합평가방법총정리(26-06-08).md](eval/통합평가방법총정리\(26-06-08\).md) 참고.
+
 ```bash
-# 가장 최근 체크포인트
-bash eval/eval_salmonn2plus.sh CKPT_MODEL_ID=salmonn2p_7b_unav_fps5_off
+cd eval
 
-# 특정 step
-bash eval/eval_salmonn2plus.sh CKPT_MODEL_ID=salmonn2p_7b_unav_fps5_off CKPT_STEP=1500
+# base+LoRA, 단일 JSON 추론+평가
+bash eval.sh STAGE=sft CKPT_MODEL_ID=salmonn2p_7b_unav_fps5_off CKPT_STEP=1500 \
+     TEST_JSON=${TEST_DIR}/unav100_v2_500.json GPUS=0
 
-# 추론 모드만 다르게 (config.yaml override)
-bash eval/eval_salmonn2plus.sh \
-    CKPT_MODEL_ID=salmonn2p_7b_unav_fps5_off CKPT_STEP=1500 \
-    TTI_TIME_FORMAT=natural_text
+# 추론 모드만 다르게 (config 보다 우선)
+bash eval.sh STAGE=sft CKPT_MODEL_ID=salmonn2p_7b_unav_fps5_off CKPT_STEP=1500 \
+     TEST_JSON=${TEST_DIR}/unav100_v2_500.json TTI_TIME_FORMAT=natural_text
 
 # 베이스 모델만
-bash eval/eval_salmonn2plus.sh CKPT_STEP=base
+bash eval.sh CKPT_STEP=base TEST_JSON=${TEST_DIR}/unav100_v2_500.json
+
+# 이미 추론된 결과만 재평가 (GPU 불필요)
+bash eval.sh MODE=eval RESULTS=<out_dir>/test_results_rank0.json TEST_JSON=<GT>.json
 ```
 
-**지원 인자**: `STAGE`, `CKPT_MODEL_ID`, `CKPT_STEP`, `BASE_MODEL_ID`, `TESTSET`, `GPUS`, `CONFIG`,
-`TTI_TIME_FORMAT` (config.yaml 보다 우선)
+> LoRA→base 머지는 `eval.sh` 가 추론 직전 **자동** 수행(청크 시 `.merged_model/` 캐시 재사용)한다.
+> 별도 merge/push 스크립트는 없다.
 
-**결과 저장 위치** (EVAL_TAG = `fps<N>_<format>` 자동 계산):
-- LoRA: `outputs/<stage>/<MODEL_ID>/<checkpoint-N>/<EVAL_TAG>/<TESTSET>/`
-- Base: `outputs/base/<BASE_MODEL_ID>/<EVAL_TAG>/<TESTSET>/`
+**주요 인자**: `MODE`, `CHUNK`, `STAGE`, `CKPT_MODEL_ID`, `CKPT_STEP`, `BASE_MODEL_ID`,
+`MERGED_MODEL`, `TEST_JSON`/`TESTSET`, `GPUS`, `TTI_TIME_FORMAT`, `NATURAL` (전체 표는 평가 문서 §3).
 
-같은 체크포인트를 여러 추론 모드로 비교하면 EVAL_TAG 가 달라 결과가 분리됨.
-
-### 4) 3-mode 추론 chain
-
-같은 체크포인트로 `off`, `special_token`, `natural_text` 세 모드를 순차 평가.
-
-```bash
-cd /workspace/tti_natural/Team4
-setsid nohup bash eval/eval_3mode_chain.sh \
-    STAGE=sft \
-    CKPT_MODEL_ID=salmonn2p_7b_unav_fps5_off \
-    CKPT_STEP=1500 \
-    BASE_MODEL_ID=base/video_salmonn2_plus_7B_time_tokens \
-    TESTSET=unav100 GPUS=0 \
-    < /dev/null > /tmp/eval_3mode_chain.log 2>&1 &
-disown
-```
-
-각 모드 결과는 다른 EVAL_TAG 폴더에 분리 저장 (`fps5_off/`, `fps5_tti/`, `fps5_natural/`).
-한 모드 실패해도 다음 모드는 계속 진행.
+**결과 저장 위치**: `${EVAL_DIR}/<branch>/fps<N>_<format>/<TESTSET_TAG>/` —
+같은 체크포인트를 여러 추론 모드로 비교하면 `fps<N>_<format>` 태그가 달라 결과가 분리됨.
 
 ## 🛠 Config 파일
 
@@ -185,7 +176,8 @@ disown
 
 | 파일 | 용도 | TTI 관련 키 |
 |---|---|---|
-| `_tools/sft/config.yaml` | 학습 (LoRA, optimizer, batch, …) | `BASE_INTERVAL`, `TTI_TIME_FORMAT` |
+| `_tools/sft/config.yaml`  | SFT 학습 (LoRA, optimizer, batch, …) | `BASE_INTERVAL`, `TTI_TIME_FORMAT` |
+| `_tools/GDPO/config.yaml` | GDPO(RL) 학습 (reward, clip, num_generations, …) | `tti_mode` |
 | `eval/config.yaml`        | 평가 (해상도, 프레임, deepspeed) | `BASE_INTERVAL`, `TTI_TIME_FORMAT` |
 
 다른 실험은 `cp config.yaml my_config.yaml` 후 수정해서 `CONFIG=my_config.yaml` 로 지정.
