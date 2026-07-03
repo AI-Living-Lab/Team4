@@ -1,3 +1,6 @@
+# 06.27 batch
+# 진단가이드 문서 남겨놨습니다.
+
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -1027,10 +1030,6 @@ class GDPOTrainer(Trainer):
                 r"[Ff]rom\s+((?:<t\d>){1,4}<tdot><t\d>)\s+to\s+((?:<t\d>){1,4}<tdot><t\d>)"
             )
 
-            def _think_raw(text):
-                m = re.search(r"<think>(.*?)</think>", text, re.S)
-                return m.group(1).strip() if m else "[no <think>]"
-
             def _answer_tuples(text):
                 m = re.search(r"<answer>(.*?)</answer>", text, re.S)
                 ans = m.group(1) if m else text
@@ -1061,11 +1060,11 @@ class GDPOTrainer(Trainer):
                                   for j, nm in enumerate(_chan_names))
                 _ans = _answer_tuples(c)
                 print(f"  [{gi}] {_vals}")
-                print(f"       think:  {_think_raw(c)}")          # 원본 그대로
+                print(f"       raw:    {c}")                      # 원본 예측 그대로
                 if _ans is not None:
                     print(f"       answer: {_ans}")               # (s, e) 튜플
                 else:
-                    print(f"       answer: [parse fail] 원본: {c}")  # 파싱 실패 → 전체 원본
+                    print(f"       answer: [parse fail]")          # 파싱 실패(원본은 위 raw 참고)
 
         return R
 
@@ -1623,32 +1622,63 @@ def _val_greedy_generate(trainer, inputs, max_new_tokens):
 
 
 class ValEvalCallback(transformers.TrainerCallback):
-    """save_steps 마다 val 셋으로 greedy 평가 → val_metrics.jsonl + wandb. 학습은 종료시키지 않음."""
+    """save_steps 마다 여러 val 셋으로 greedy 평가 → val_metrics.jsonl + wandb.
 
-    def __init__(self, trainer, val_dataset, val_json_path, out_dir,
+    각 세트를 개별로 찍고(val_<name>/*), 세트별 지표의 '평균'을 top-level
+    combined/seg_miou/f1_avg 로 저장한다 → select_best_ckpt.py 가 평균 기준으로
+    best step 을 고른다(세트 1개면 기존과 동일 동작). 학습은 종료시키지 않음.
+    """
+
+    def __init__(self, trainer, val_sets, out_dir,
                  max_new_tokens=256, max_time=999.9, natural=False):
+        # val_sets: list of (name, LazySupervisedDataset)
         self.trainer = trainer
-        self.val_dataset = val_dataset
         self.out_dir = out_dir
         self.max_new_tokens = int(max_new_tokens)
         self.max_time = float(max_time)
         self.natural = bool(natural)
         self.jsonl_path = os.path.join(out_dir, "val_metrics.jsonl")
-        # GT — val_dataset 과 '동일 순서'로 읽어야 한다. LazySupervisedDataset 가 내부에서
-        # list_data_dict 를 무조건 셔플하므로(dataset.py), 파일 원본 순서로 읽으면 예측↔GT 가
-        # 어긋난다. 셔플된 list_data_dict 에서 직접 gt_segments 를 읽어 정렬을 보장.
-        self.gt_list = []
-        for x in val_dataset.list_data_dict:
-            segs = x.get("gt_segments") or []
-            self.gt_list.append([[float(s), float(e)] for s, e in segs])
-        assert len(self.gt_list) == len(val_dataset), (
-            f"val GT({len(self.gt_list)}) != dataset({len(val_dataset)}) — 순서/내용 불일치")
+        # 각 세트의 GT — LazySupervisedDataset 가 list_data_dict 를 셔플하므로(dataset.py),
+        # 셔플된 순서 그대로 gt_segments 를 읽어 예측↔GT 정렬을 보장.
+        self.val_sets = []
+        for name, ds in val_sets:
+            gt_list = []
+            for x in ds.list_data_dict:
+                segs = x.get("gt_segments") or []
+                gt_list.append([[float(s), float(e)] for s, e in segs])
+            assert len(gt_list) == len(ds), (
+                f"val[{name}] GT({len(gt_list)}) != dataset({len(ds)}) — 순서/내용 불일치")
+            self.val_sets.append({"name": name, "ds": ds, "gt": gt_list})
 
     def on_save(self, args, state, control, **kwargs):
         self._run(state)
 
-    def _run(self, state):
+    def _eval_one(self, ds, gt_list, acc, world, rank):
+        """한 val 세트를 샤딩 greedy 평가 → (main process) metric dict / (그 외) None."""
         from accelerate.utils import gather_object
+        trainer = self.trainer
+        local = []
+        for i in range(len(ds)):
+            if i % world != rank:
+                continue
+            inst = ds[i]
+            batch = trainer.data_collator([inst])
+            text = _val_greedy_generate(trainer, batch, self.max_new_tokens)
+            scope = _val_extract_answer_scope(text) if self.natural else text
+            pred = _val_parse_tokens(scope, self.max_time)
+            local.append({"idx": i, "gt": gt_list[i], "pred": pred})
+        gathered = gather_object(local)   # collective — 모든 rank 가 호출해야 함
+        if not acc.is_main_process:
+            return None
+        seen, recs = set(), []
+        for r in gathered:
+            if r["idx"] in seen:
+                continue
+            seen.add(r["idx"])
+            recs.append(r)
+        return compute_val_metrics(recs)
+
+    def _run(self, state):
         trainer = self.trainer
         acc = trainer.accelerator
         world = max(1, int(getattr(acc, "num_processes", 1)))
@@ -1658,47 +1688,58 @@ class ValEvalCallback(transformers.TrainerCallback):
         model = trainer.model
         was_training = model.training
         model.eval()
-        local = []
+        per_set = {}   # name -> metric dict (main process only)
         try:
-            for i in range(len(self.val_dataset)):
-                if i % world != rank:
-                    continue
-                inst = self.val_dataset[i]
-                batch = trainer.data_collator([inst])
-                text = _val_greedy_generate(trainer, batch, self.max_new_tokens)
-                scope = _val_extract_answer_scope(text) if self.natural else text
-                pred = _val_parse_tokens(scope, self.max_time)
-                local.append({"idx": i, "gt": self.gt_list[i], "pred": pred})
+            for vs in self.val_sets:
+                m = self._eval_one(vs["ds"], vs["gt"], acc, world, rank)
+                if m is not None:
+                    per_set[vs["name"]] = m
         finally:
             if was_training:
                 model.train()
 
-        gathered = gather_object(local)
         if not acc.is_main_process:
             return
-        # idx 기준 dedup(샤딩 안전) 후 metric
-        seen, recs = set(), []
-        for r in gathered:
-            if r["idx"] in seen:
-                continue
-            seen.add(r["idx"])
-            recs.append(r)
-        m = compute_val_metrics(recs)
-        m["step"] = step
+
+        names = [vs["name"] for vs in self.val_sets]
+
+        def _avg(key):
+            return sum(per_set[n][key] for n in names) / len(names)
+
+        # top-level = 세트 평균 (select_best_ckpt.py 호환 키)
+        rec = {
+            "step": step,
+            "combined": round(_avg("combined"), 4),
+            "seg_miou": round(_avg("seg_miou"), 4),
+            "f1_avg": round(_avg("f1_avg"), 4),
+            "n_parse_ok": sum(per_set[n]["n_parse_ok"] for n in names),
+            "n_samples": sum(per_set[n]["n_samples"] for n in names),
+            "sets": per_set,
+        }
         os.makedirs(self.out_dir, exist_ok=True)
         with open(self.jsonl_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(m, ensure_ascii=False) + "\n")
-        print(f"[VAL] step {step}: combined={m['combined']:.2f} "
-              f"(sample_miou={m['sample_miou']:.2f}, pairwise_miou={m['pairwise_miou']:.2f}, "
-              f"f1_avg={m['f1_avg']:.2f}) "
-              f"n={m['n_samples']} parse_ok={m['n_parse_ok']}")
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+        parts = "  ||  ".join(
+            f"{n}: comb={per_set[n]['combined']:.2f}"
+            f"(mIoU={per_set[n]['sample_miou']:.2f},F1={per_set[n]['f1_avg']:.2f},"
+            f"parse_ok={per_set[n]['n_parse_ok']})"
+            for n in names)
+        print(f"[VAL] step {step}: AVG combined={rec['combined']:.2f} "
+              f"(seg_miou={rec['seg_miou']:.2f}, f1_avg={rec['f1_avg']:.2f})  ||  {parts}")
+
+        log = {
+            "val/combined": rec["combined"],
+            "val/seg_miou": rec["seg_miou"],
+            "val/f1_avg": rec["f1_avg"],
+        }
+        for n in names:
+            log[f"val_{n}/combined"] = per_set[n]["combined"]
+            log[f"val_{n}/seg_miou"] = per_set[n]["seg_miou"]
+            log[f"val_{n}/f1_avg"] = per_set[n]["f1_avg"]
+            log[f"val_{n}/n_pred_segs"] = per_set[n]["n_pred_segs"]
         try:
-            trainer.log({
-                "val/combined": m["combined"],
-                "val/seg_miou": m["seg_miou"],
-                "val/f1_avg": m["f1_avg"],
-                "val/n_pred_segs": m["n_pred_segs"],
-            })
+            trainer.log(log)
         except Exception as _e:
             print(f"[VAL] wandb log 스킵: {_e}")
 
@@ -1795,6 +1836,7 @@ def main():
     #   epsilon / epsilon_high : DAPO 권장값 0.2 / 0.28 (ε_high>ε_low = clip-higher).
     #   num_iterations(μ) : 한 rollout 을 μ 번 정책 업데이트에 재사용. μ>1 이라야 r≠1 →
     #       clip 이 실제 binding. μ=1 이면 r≈1 = 순수 GDPO 와 수치 동일.
+    #       ⚠️ μ>1 은 grad_accum=1 필수(아래 경고 참고).
     clip_enabled = bool(_get(None, "clip", "enabled", default=True))
     epsilon_low = float(_get(None, "clip", "epsilon", default=0.2))
     epsilon_high = float(_get(None, "clip", "epsilon_high", default=0.28))
@@ -1913,11 +1955,20 @@ def main():
         sampling_rate: int = 16000
         image_processor: object = None
         audio_processor: object = None      # SFT에서 필요
+        # [GDPO Tier1] 비디오 디코드 메모이즈 캐시 크기(0=OFF). μ>1 일 때만 켠다(아래 주입).
+        video_cache_size: int = 0
 
     data_args = GDPODataArgs()
     data_args.dataset_use = dataset_path
     data_args.tti_time_format = tti_time_format
+    # [GDPO Tier1] μ>1(clip-higher rollout 재사용)에서 block-repeat 가 같은 비디오를 μ 번
+    #   요청하지만 cached 패스는 디코드 결과를 버린다(헛디코딩 → 호스트 RAM 압박). 최근
+    #   grad_accum+1 개 비디오를 메모이즈해 재디코드를 생략 → batch(grad_accum) 키울 여유 확보.
+    #   μ=1 이면 재사용이 없어 0(OFF)=기존 동작. (캐시 호스트 RAM 비용 ~수십~백수십MB, 바운드)
+    data_args.video_cache_size = (int(grad_accum) + 1) if int(num_iterations) > 1 else 0
     print(f"[GDPO] tti_mode={tti_mode} → data_args.tti_time_format={tti_time_format}")
+    print(f"[GDPO Tier1] video_cache_size={data_args.video_cache_size} "
+          f"(μ={num_iterations}, grad_accum={grad_accum} → μ>1 일 때 헛디코딩 제거)")
     # [TTI-DBG] ② config(model.time_token_id_range) ↔ data(tti_time_format) 정합성.
     #   special_token ↔ id_range 있음, off ↔ id_range None 이어야 짝이 맞음.
     if TTI_DEBUG and _is_rank0():
@@ -1949,15 +2000,29 @@ def main():
     #   (val 블록 없는 이전 config·이전 호출과 100% 호환 — 기본 OFF = 기존 동작 동일)
     val_path = _get(cli.val_path, "val", "dataset_path", default=None)
     val_enabled = (cli.val_path is not None) or bool(_get(None, "val", "enabled", default=False))
-    val_dataset = None
+    val_sets = []   # list of (name, LazySupervisedDataset)
+
+    def _make_val_ds(path):
+        vda = GDPODataArgs()
+        vda.dataset_use = path
+        vda.tti_time_format = tti_time_format
+        vda.image_processor = data_args.image_processor
+        vda.audio_processor = data_args.audio_processor
+        return LazySupervisedDataset(tokenizer=tokenizer, data_args=vda)
+
     if val_enabled and val_path:
-        val_data_args = GDPODataArgs()
-        val_data_args.dataset_use = val_path
-        val_data_args.tti_time_format = tti_time_format
-        val_data_args.image_processor = data_args.image_processor
-        val_data_args.audio_processor = data_args.audio_processor
-        val_dataset = LazySupervisedDataset(tokenizer=tokenizer, data_args=val_data_args)
-        print(f"[GDPO][VAL] val dataset: {val_path} (size={len(val_dataset)})")
+        primary_name = str(_get(None, "val", "name", default="unav"))
+        val_sets.append((primary_name, _make_val_ds(val_path)))
+        print(f"[GDPO][VAL] val dataset[{primary_name}]: {val_path} (size={len(val_sets[-1][1])})")
+        # 추가 val 세트: config.val.extra = [{name, dataset_path}, ...] (없으면 단일 세트)
+        for ex in (_get(None, "val", "extra", default=None) or []):
+            ex_name = str(ex.get("name", f"val{len(val_sets)}"))
+            ex_path = ex.get("dataset_path")
+            if not ex_path:
+                print(f"[GDPO][VAL] ⚠️ extra val '{ex_name}' dataset_path 없음 → 스킵")
+                continue
+            val_sets.append((ex_name, _make_val_ds(ex_path)))
+            print(f"[GDPO][VAL] val dataset[{ex_name}]: {ex_path} (size={len(val_sets[-1][1])})")
     elif val_enabled and not val_path:
         print("[GDPO][VAL] ⚠️ val.enabled 인데 val_path 없음 → val 평가 비활성")
 
@@ -2045,21 +2110,22 @@ def main():
     )
 
     # ── [VAL] save_steps 마다 greedy 평가 콜백 부착 (checkpoint selection 용; val OFF면 스킵) ──
-    if val_dataset is not None:
+    if val_sets:
         val_max_new = int(_get(None, "val", "max_new_tokens", default=max_completion_length))
         val_max_time = float(_get(None, "val", "max_time", default=999.9))
         val_natural = bool(_get(None, "val", "natural", default=False))
         trainer.add_callback(ValEvalCallback(
             trainer=trainer,
-            val_dataset=val_dataset,
-            val_json_path=val_path,
+            val_sets=val_sets,
             out_dir=output_dir,
             max_new_tokens=val_max_new,
             max_time=val_max_time,
             natural=val_natural,
         ))
+        _names = ", ".join(n for n, _ in val_sets)
         print(f"[GDPO][VAL] ValEvalCallback 부착 — save_steps({save_steps})마다 평가 "
-              f"(greedy, max_new={val_max_new}, max_time={val_max_time}) → {output_dir}/val_metrics.jsonl")
+              f"[{_names}] (greedy, max_new={val_max_new}, max_time={val_max_time}) → "
+              f"{output_dir}/val_metrics.jsonl  (top-level combined = 세트 평균)")
 
     # Train ([hyj] resume 지원: 'True'=최신 체크포인트 자동 / 경로=특정 체크포인트 / None=처음부터)
     _rc = cli.resume_from_checkpoint

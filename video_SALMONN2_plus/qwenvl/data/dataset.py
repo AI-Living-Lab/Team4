@@ -14,6 +14,8 @@
 
 # Adopted from https://github.com/QwenLM/Qwen2.5-VL. The original license is located at 'third-party-license/qwenvl.txt'.
 
+# 06.28 batch 사용을 위한 수정 (기존 trainer 작동엔 영향 x)
+
 import os
 import copy
 import json
@@ -28,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Optional, Sequence, List, Tuple
 from io import BytesIO
 import base64
+from collections import OrderedDict
 from collections.abc import Sequence
 
 import numpy as np
@@ -474,6 +477,13 @@ class LazySupervisedDataset(Dataset):
         self.tokenizer = tokenizer
         self.list_data_dict = list_data_dict
         self.data_args = data_args
+        # [GDPO Tier1] 비디오 디코드 메모이즈 캐시 (기본 OFF).
+        #   GDPO μ>1(clip-higher)에서 block-repeat 샘플러가 같은 prompt 를 μ 번 흘려보내는데,
+        #   cached 패스는 trainer 가 rollout 캐시를 쓰고 방금 디코드한 비디오를 버린다 → 헛디코딩.
+        #   같은 video_file 을 최근 N개(=video_cache_size)만큼 기억해 재디코드를 생략한다.
+        #   video_cache_size=0 이면 완전 비활성(SFT 등 기존 동작과 byte 단위 동일).
+        self._video_cache = OrderedDict()
+        self._video_cache_size = int(getattr(data_args, "video_cache_size", 0))
         self.data_args.image_processor.max_pixels = data_args.max_pixels
         self.data_args.image_processor.min_pixels = data_args.min_pixels
         self.data_args.image_processor.size["longest_edge"] = data_args.max_pixels
@@ -562,6 +572,23 @@ class LazySupervisedDataset(Dataset):
         return image_tensor, grid_thw
 
     def process_video(self, video_file):
+        # [GDPO Tier1] video_cache_size>0 이면 최근 디코드 결과를 재사용해 헛디코딩 제거.
+        #   block-repeat(μ>1)가 같은 video_file 을 수 microbatch 안에 다시 요청하므로
+        #   캐시 크기 grad_accum+1 이면 모든 재사용을 잡는다. 캐시 OFF(0)면 기존 동작 그대로.
+        #   ⚠️ 반환 텐서는 downstream(torch.cat)이 in-place 변형하지 않으므로 객체 공유 안전.
+        if self._video_cache_size > 0 and isinstance(video_file, str):
+            cached = self._video_cache.get(video_file)
+            if cached is not None:
+                self._video_cache.move_to_end(video_file)   # LRU 최신화
+                return cached
+            result = self._process_video_uncached(video_file)
+            self._video_cache[video_file] = result
+            while len(self._video_cache) > self._video_cache_size:
+                self._video_cache.popitem(last=False)        # 가장 오래된 것 evict
+            return result
+        return self._process_video_uncached(video_file)
+
+    def _process_video_uncached(self, video_file):
         torchcodec_video = None
         try:
             torchcodec_video = self.video_torchcodec(video_file)

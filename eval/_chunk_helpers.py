@@ -40,7 +40,7 @@ def cmd_split(args):
     for i in range(n_chunks):
         path = os.path.join(args.chunks_dir, f"chunk_{i:04d}.json")
         if not os.path.exists(path):
-            _atomic_write_json(path, data[i * cs : (i + 1) * cs])
+            _atomic_write_json(path, data[i * cs : (i + 1) * cs], indent=2)
     last = len(data) - (n_chunks - 1) * cs if n_chunks > 0 else 0
     print(f"{len(data)} {n_chunks} {cs} {last}")
 
@@ -54,7 +54,7 @@ def cmd_build_full(args):
     data = []
     for cf in sorted(glob.glob(os.path.join(args.chunks_dir, "chunk_*.json"))):
         data.extend(_load_json(cf, []))
-    _atomic_write_json(out, data)
+    _atomic_write_json(out, data, indent=2)
     print(f"{len(data)} built")
 
 
