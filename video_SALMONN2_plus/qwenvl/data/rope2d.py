@@ -166,26 +166,42 @@ def get_rope_index_25(
 
     mrope_position_deltas = []   # 배치별 (최대 MRoPE 인덱스 + 1 - 시퀀스 길이) 저장
 
+    # TTI(타임 마커 인터리빙) 활성 여부. 오디오 유무와 무관하게 마커 파라미터로만 판정하며
+    # (아래 CASE 1 게이트 조건에서 사용), video-only + TTI 도 마커 경로를 타게 한다.
+    # - special_token 모드: time_token_id_range=(lo,hi), time_marker_token_len=5
+    # - natural_text 모드 : time_token_id_range=None,    time_marker_token_len=9
+    # - TTI off          : 둘 다 None
+    # 둘 중 하나라도 truthy 면 활성으로 간주. time_marker_token_len 가 None 인데
+    # range 가 주어진 경우(레거시 호출자) 5 로 기본 처리해 back-compat 유지.
+    tti_active = (
+        (time_marker_token_len is not None and time_marker_token_len > 0)
+        or (time_token_id_range is not None)
+    )
+    if tti_active and (time_marker_token_len is None or time_marker_token_len <= 0):
+        time_marker_token_len = 5
+
     # ==========================================================================
-    # CASE 1) 오디오 + 비디오 가 섞여있는 입력
-    #   - audio_lengths  : 각 오디오 블록의 토큰 수 리스트
+    # CASE 1) 오디오+비디오, 또는 비디오만(+TTI) 인 입력 — 마커 인터리빙 인지 경로
+    #   - audio_lengths  : 각 오디오 블록의 토큰 수 리스트 (video-only 면 블록당 0)
     #   - video_grid_thw : 각 비디오의 (T, H, W) 격자 크기
+    #   video-only 라도 tti_active 면 이 경로로 태워 마커 위치를 올바르게 계산한다.
+    # ------------------------------------------------------------------
+    # 가드: audio_lengths=None 인데 입력에 실제 오디오 토큰이 있으면(모델 forward가
+    # audio_lengths 를 안 넘긴 오디오 입력) audio_len=0 으로 두면 안 됨(shape mismatch).
+    # 이 경우는 기존 경로(CASE 2)로 보내 back-compat 유지. video-only(오디오 토큰 0)
+    # 일 때만 tti_active 로 이 경로에 진입한다.
     # ==========================================================================
-    if input_ids is not None and (
-        audio_lengths is not None and video_grid_thw is not None
+    _no_audio_tokens = (
+        input_ids is not None
+        and audio_lengths is None
+        and not bool((input_ids == audio_token_id).any())
+    )
+    if input_ids is not None and video_grid_thw is not None and (
+        audio_lengths is not None or (tti_active and _no_audio_tokens)
     ):
-        # TTI(타임 마커 인터리빙) 활성 여부.
-        # - special_token 모드: time_token_id_range=(lo,hi), time_marker_token_len=5
-        # - natural_text 모드 : time_token_id_range=None,    time_marker_token_len=9
-        # - TTI off          : 둘 다 None
-        # 둘 중 하나라도 truthy 면 활성으로 간주. time_marker_token_len 가 None 인데
-        # range 가 주어진 경우(레거시 호출자) 6 으로 기본 처리해 back-compat 유지.
-        tti_active = (
-            (time_marker_token_len is not None and time_marker_token_len > 0)
-            or (time_token_id_range is not None)
-        )
-        if tti_active and (time_marker_token_len is None or time_marker_token_len <= 0):
-            time_marker_token_len = 5
+        # video-only + TTI: 오디오 토큰이 없으므로 비디오 블록당 audio_len=0 으로 처리.
+        if audio_lengths is None:
+            audio_lengths = [0] * len(video_grid_thw)
 
         # [TTI-DBG] ④ rope tti_active 분기 진입 + 마커 감지 검증 (첫 N회, rank0).
         #   dataset ③ 의 #markers_in_input 과 교차검증 가능.

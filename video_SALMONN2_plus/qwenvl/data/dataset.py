@@ -203,18 +203,33 @@ def generate_id_target(
                 parts = content.split("<video>")
                 new_parts = []
                 if audio_lengths is None:
-                    grid_thw_video = [
-                        merged_thw.prod() // merge_size**2
-                        for merged_thw in grid_thw_video
-                    ]
+                    # video-only 경로. 오디오가 없어도 TTI 마커는 여기서 주입한다.
+                    # tti_on 이면 audio 분기와 동일하게 프레임(timestep)별로
+                    #   [마커] + [video_pad ×(H*W/merge²)] 를 인터리빙하되 audio_pad 만 뺀다.
+                    # video_pad 총개수 = T*(H*W/merge²) == prod/merge² 로 기존과 동일(불변식).
+                    tti_on = (second_per_grid_ts is not None and tti_time_format != "off")
                     for i in range(len(parts) - 1):
                         new_parts.append(parts[i])
-                        replacement = (
-                            "<|vision_start|>"
-                            + f"<|video_pad|>"
-                            * grid_thw_video[i]
-                            + "<|vision_end|>"
-                        )
+                        replacement = "<|vision_start|>"
+                        if tti_on:
+                            sec_per_grid_t = second_per_grid_ts[i][0]
+                            for timestep in range(grid_thw_video[i][0]):
+                                t_start_sec = timestep * sec_per_grid_t
+                                # from_to 마커용 end-time = 다음 청크 시작 - 0.1초 (audio 분기와 동일식)
+                                t_end_sec = (timestep + 1) * sec_per_grid_t - 0.1
+                                replacement += make_time_marker_string(
+                                    t_start_sec, tti_time_format, sec_end=t_end_sec
+                                )
+                                replacement += (
+                                    f"<|video_pad|>"
+                                    * (grid_thw_video[i][1] * grid_thw_video[i][2] // merge_size**2)
+                                )
+                        else:
+                            replacement += (
+                                f"<|video_pad|>"
+                                * (grid_thw_video[i].prod() // merge_size**2)
+                            )
+                        replacement += "<|vision_end|>"
                         new_parts.append(replacement)
                     new_parts.append(parts[-1])
                     content = "".join(new_parts)
