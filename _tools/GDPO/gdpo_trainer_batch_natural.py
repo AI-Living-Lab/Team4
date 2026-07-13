@@ -311,26 +311,6 @@ def _tti_dbg(msg: str):
         print(f"[TTI-DBG] {msg}", flush=True)
 
 
-# 데이터셋별 리워드 로깅용 태그. wandb 키 rewards/<채널>/<태그> 로 분리 → 한 패널에 3선.
-DATASET_TAGS = ["unav", "charades", "puvalor"]
-
-
-def _dataset_tag(video_path) -> str:
-    """video 경로의 /datasets/<name>/ 로 출처 태그 판별.
-      unav_100→unav / charades_sta→charades / pu-valor_2900→puvalor / 그외→unknown."""
-    if not video_path:
-        return "unknown"
-    p = str(video_path)
-    name = p.split("/datasets/", 1)[1].split("/", 1)[0] if "/datasets/" in p else ""
-    if name.startswith("unav"):
-        return "unav"
-    if name.startswith("charades"):
-        return "charades"
-    if name.startswith("pu-valor") or name.startswith("puvalor"):
-        return "puvalor"
-    return "unknown"
-
-
 def count_time_markers(ids, id_range) -> int:
     """ids(1D tensor 또는 리스트) 중 time-token id_range [lo,hi] 안에 드는 토큰 수."""
     if id_range is None:
@@ -366,21 +346,6 @@ try:
     _ts.add_safe_globals([x for x in _safe if x is not None])
 except Exception as _e:
     print(f"[GDPO] add_safe_globals(numpy) 실패(무시): {_e}")
-
-# ── 최종 방어: add_safe_globals 로도 못 막는 numpy dtype(예: numpy.dtype[uint32]) 대비 ──
-# 신뢰된 자체 체크포인트 한정. weights_only 언피클이 실패하면 weights_only=False 로 1회 재시도.
-# (resume 시 rng_state_*.pth 로드 크래시 방지. torch 버전차로 allowlist 가 안 먹는 경우 대응.)
-_orig_torch_load = torch.load
-def _torch_load_trusted(*args, **kwargs):
-    try:
-        return _orig_torch_load(*args, **kwargs)
-    except Exception as _e:
-        _m = str(_e)
-        if "Weights only load failed" in _m or "WeightsUnpickler" in _m:
-            kwargs["weights_only"] = False
-            return _orig_torch_load(*args, **kwargs)
-        raise
-torch.load = _torch_load_trusted
 
 
 
@@ -838,13 +803,26 @@ class GDPOTrainer(Trainer):
         if (TTI_DEBUG and self.accelerator.is_main_process
                 and self.state.global_step < self._tti_dbg_step0 + TTI_DEBUG_STEPS):
             _id_range = getattr(_unwrapped.config, "time_token_id_range", None)
-            _n_mark = count_time_markers(prompt_ids[0], _id_range)
+            _marker_len = getattr(_unwrapped.config, "time_marker_token_len", None)
+            _n_mark = count_time_markers(prompt_ids[0], _id_range)   # special_token: id 로 카운트
+            # [NATURAL] natural_text 는 id_range=None 이라 id 카운트가 항상 0 → 'second{...}'
+            #   텍스트로 별도 카운트해야 마커 삽입 여부를 실제로 검증할 수 있다.
+            _n_nat = 0
+            if _id_range is None and _marker_len:
+                try:
+                    _pt = self.processing_class.decode(prompt_ids[0].tolist(), skip_special_tokens=False)
+                    _n_nat = len(re.findall(r"second\{\s*\d", _pt))
+                except Exception:
+                    _n_nat = -1
             _tti_dbg(f"⑤ step {self.state.global_step}: prompt_len={prompt_ids.size(1)}, "
-                     f"model.config.time_token_id_range={_id_range}, "
-                     f"#time_markers_in_prompt={_n_mark}")
+                     f"model.config.time_token_id_range={_id_range}, marker_len={_marker_len}, "
+                     f"#special_markers(id)={_n_mark}, #natural_markers(second{{}})={_n_nat}")
             if _id_range is not None and _n_mark == 0:
                 _tti_dbg("⚠️ WARNING: tti ON(range set) 인데 prompt 에 time-marker 0개 "
                          "(데이터 마커 미삽입 의심 — rope ON 분기와 불일치)")
+            if _id_range is None and _marker_len and _n_nat == 0:
+                _tti_dbg("⚠️ WARNING: natural_text 인데 prompt 에 'second{...}' 마커 0개 "
+                         "(데이터 마커 미삽입 의심 — rope natural 분기와 불일치)")
             try:
                 _vs_id = self.processing_class.convert_tokens_to_ids("<|vision_start|>")
                 _row = prompt_ids[0].tolist()
@@ -879,14 +857,18 @@ class GDPOTrainer(Trainer):
             gt_token_ids = raw_labels[0][raw_labels[0] != -100]
             if len(gt_token_ids) > 0:
                 gt_answer = self.processing_class.decode(gt_token_ids, skip_special_tokens=False)
+                # [NATURAL] GT(gpt) 가 chronus 'second{start}-second{end}' 이므로 그에 맞춰 파싱.
                 segments = re.findall(
-                    r"[Ff]rom\s+((?:<t\d>)+<tdot><t\d>)\s+to\s+((?:<t\d>)+<tdot><t\d>)",
+                    r"second\{\s*(\d+(?:\.\d+)?)\s*\}\s*-\s*second\{\s*(\d+(?:\.\d+)?)\s*\}",
                     gt_answer
                 )
                 for start_str, end_str in segments:
-                    s = decode_vtg_time(start_str)
-                    e = decode_vtg_time(end_str)
-                    if s is not None and e is not None and e > s:
+                    try:
+                        s = min(float(start_str), 999.9)
+                        e = min(float(end_str), 999.9)
+                    except ValueError:
+                        continue
+                    if e > s:
                         gt_intervals.append((s, e))
 
         # ── Generate completions ──
@@ -1058,15 +1040,12 @@ class GDPOTrainer(Trainer):
         R["rewards_per_func"] = rewards_per_func
         R["rewards"] = rewards
         R["advantages"] = advantages
-        # [dataset-tag] 이 rollout 의 출처 (한 step=한 prompt → 단일 태그). 데이터셋별 리워드 로깅용.
-        _vid = inputs.get("video", None)
-        _vp = _vid[0] if isinstance(_vid, (list, tuple)) and _vid else _vid
-        R["source_tag"] = _dataset_tag(_vp)
 
         # ── [hyj] 디버그: GT/예측 세그먼트 raw + 초 단위 출력 (rank 0) ──
         if self.accelerator.is_main_process:
+            # [NATURAL] chronus 'second{start}-second{end}' 디버그 파싱.
             _SEG_CAPTURE_DEBUG = re.compile(
-                r"[Ff]rom\s+((?:<t\d>){1,4}<tdot><t\d>)\s+to\s+((?:<t\d>){1,4}<tdot><t\d>)"
+                r"second\{\s*(\d+(?:\.\d+)?)\s*\}\s*-\s*second\{\s*(\d+(?:\.\d+)?)\s*\}"
             )
 
             def _answer_tuples(text):
@@ -1074,10 +1053,12 @@ class GDPOTrainer(Trainer):
                 ans = m.group(1) if m else text
                 segs = []
                 for s_str, e_str in _SEG_CAPTURE_DEBUG.findall(ans):
-                    s = decode_vtg_time(s_str)
-                    e = decode_vtg_time(e_str)
-                    if s is not None and e is not None:
-                        segs.append(f"({s:.1f}, {e:.1f})")
+                    try:
+                        s = min(float(s_str), 999.9)
+                        e = min(float(e_str), 999.9)
+                    except ValueError:
+                        continue
+                    segs.append(f"({s:.1f}, {e:.1f})")
                 return ", ".join(segs) if segs else None   # None = answer 파싱 실패
 
             gt_raw_str = "[none]"
@@ -1211,22 +1192,6 @@ class GDPOTrainer(Trainer):
             fname = getattr(reward_func, "__name__", f"func_{i}")
             self._metrics[f"rewards/{fname}"].append(reward_per_func[i].item())
 
-        # [dataset-tag] 데이터셋별 리워드 분리 로깅 → wandb 키 rewards/<채널>/<태그>.
-        #   rank 마다 이 step 의 출처는 하나(모든 rollout row 동일) → row별 태그id 텐서로 만들어
-        #   rewards 와 함께 gather 후 태그별 평균. 해당 태그 샘플이 이 step 에 없으면 skip(그래프에 gap).
-        _rpf = R["rewards_per_func"]
-        _sid = DATASET_TAGS.index(R["source_tag"]) if R.get("source_tag") in DATASET_TAGS else -1
-        _row_sid = torch.full((_rpf.shape[0],), _sid, device=_rpf.device, dtype=torch.long)
-        _g_rpf = self.accelerator.gather_for_metrics(_rpf)
-        _g_sid = self.accelerator.gather_for_metrics(_row_sid)
-        for _ti, _tname in enumerate(DATASET_TAGS):
-            _m = (_g_sid == _ti)
-            if _m.any():
-                _vals = _g_rpf[_m].mean(0)
-                for i, reward_func in enumerate(self.reward_funcs):
-                    fname = getattr(reward_func, "__name__", f"func_{i}")
-                    self._metrics[f"rewards/{fname}/{_tname}"].append(_vals[i].item())
-
         self._metrics["reward"].append(self.accelerator.gather_for_metrics(rewards).mean().item())
         std_grouped = rewards.view(-1, self.num_generations).std(dim=1)
         self._metrics["reward_std"].append(self.accelerator.gather_for_metrics(std_grouped).mean().item())
@@ -1274,7 +1239,7 @@ class GDPOTrainer(Trainer):
 # 모델 로딩 (VS2+)
 # ============================================================
 
-def load_model_and_tokenizer(model_path, model_base, tti_mode="off"):
+def load_model_and_tokenizer(model_path, model_base, tti_mode="off", tti_time_format="natural_text"):
     """VS2+ (Qwen2.5-VL 기반) 모델 로딩.
 
     tti_mode:
@@ -1311,11 +1276,20 @@ def load_model_and_tokenizer(model_path, model_base, tti_mode="off"):
             model.config.time_token_id_range = None
         if getattr(model.config, "time_marker_token_len", None):
             model.config.time_marker_token_len = None
+    elif tti_time_format == "natural_text":
+        # [NATURAL] 입력 마커가 'second{XXXX.Y}'(일반 텍스트 9토큰)이라 rope 는
+        # time_token_id_range 로 마커를 식별할 수 없다 → id_range=None + marker_len=9 로
+        # 세팅해 rope2d 가 ~(is_video|is_audio) 마스크 분기(natural_text)를 타게 한다.
+        # base config 에 id_range 가 박혀있으면 반드시 None 으로 덮어써야 함.
+        model.config.time_token_id_range = None
+        model.config.time_marker_token_len = 8   # 'second{XXX.Y}' = 8토큰 (XXX.X 자릿수)
+        print("[GDPO] tti_mode=on + tti_time_format=natural_text "
+              "→ time_token_id_range=None, time_marker_token_len=8 (mask-branch rope)")
     else:
-        # tti_mode == "on": 경로 B(머지 모델)는 config 에 time_token_id_range 가 없을 수 있음
-        # (SFT 머지 과정에서 유실). 데이터(special_token 마커)와 일치시키려면 토크나이저에서
-        # 복원해 모델 config 에 세팅 → generation 시 모델 내부 rope 도 ON(fixed-position) 분기를
-        # 타게 함. (경로 A 의 time-token base 는 이미 들어있어 이 분기 무영향.)
+        # tti_mode == "on" (special_token): 경로 B(머지 모델)는 config 에 time_token_id_range 가
+        # 없을 수 있음(SFT 머지 과정에서 유실). 데이터(special_token 마커)와 일치시키려면
+        # 토크나이저에서 복원해 모델 config 에 세팅 → generation 시 rope 도 ON(fixed-position)
+        # 분기를 타게 함. (경로 A 의 time-token base 는 이미 들어있어 이 분기 무영향.)
         if getattr(model.config, "time_token_id_range", None) is None:
             t0 = tokenizer.convert_tokens_to_ids("<t0>")
             tdot = tokenizer.convert_tokens_to_ids("<tdot>")
@@ -1479,11 +1453,19 @@ def _val_decode_tok(token_str, max_time):
     return min(int("".join(ip)) + (int(dp[0]) / 10.0 if dp else 0.0), max_time)
 
 
+# [NATURAL] 모델 출력이 chronus 'second{start}-second{end}' 이므로 val pred 도 chronus 파싱.
+_VAL_NAT_SEG = re.compile(
+    r"second\{\s*(\d+(?:\.\d+)?)\s*\}\s*-\s*second\{\s*(\d+(?:\.\d+)?)\s*\}"
+)
+
+
 def _val_parse_tokens(text, max_time):
     out = []
-    for sa, sb in _VAL_TOK_SEG.findall(text or ""):
-        s, e = _val_decode_tok(sa, max_time), _val_decode_tok(sb, max_time)
-        if s is None or e is None:
+    for sa, sb in _VAL_NAT_SEG.findall(text or ""):
+        try:
+            s = min(float(sa), max_time)
+            e = min(float(sb), max_time)
+        except ValueError:
             continue
         out.append(_val_fix(s, e, max_time))
     return out
@@ -1921,12 +1903,15 @@ def main():
     #   on  : special_token 마커를 video/audio 청크 사이에 인터리빙 (rope ON 분기와 짝)
     #   off : 마커 미삽입 (rope OFF 분기와 짝)
     # 모델 config(time_token_id_range) 와 데이터셋(tti_time_format) 양쪽이 일치해야 함.
-    tti_time_format = "special_token" if tti_mode == "on" else "off"
+    # [NATURAL] natural 실험 전용 트레이너 — tti_mode=on 이면 입력마커 = natural_text('second{XXXX.Y}').
+    #   config.model.tti_time_format 로 override 가능(기본 natural_text). off 면 마커 미삽입.
+    tti_time_format = _get(None, "model", "tti_time_format",
+                           default=("natural_text" if tti_mode == "on" else "off"))
 
     # Model
     # 모델 로드/LoRA fresh init 보다 먼저 시딩 (Trainer 내부 set_seed 는 get_peft_model 이후라 늦음).
     transformers.set_seed(seed)
-    model, tokenizer = load_model_and_tokenizer(model_path, model_base, tti_mode=tti_mode)
+    model, tokenizer = load_model_and_tokenizer(model_path, model_base, tti_mode=tti_mode, tti_time_format=tti_time_format)
 
     # ── [hyj] PEFT — RL용 fresh LoRA (경로 B) ──────────────────────────────
     # model_path 가 SFT-머지 모델(adapter_config.json 없음)일 때, SFT 어댑터를 다시

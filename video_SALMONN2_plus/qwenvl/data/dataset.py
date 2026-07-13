@@ -75,11 +75,11 @@ def sec_to_time_token_str(sec: float) -> str:
 
 
 def sec_to_natural_text_str(sec: float) -> str:
-    # 초 → 'second{XXXX.Y}' 형식. zero-pad 4자리 정수부 + '.Y' 소수부 = 9 토큰 고정
-    # (Qwen2.5 BPE: ['second','{','D','D','D','D','.','D','}']).
-    # 범위/정밀도는 special_token 모드와 동일.
-    sec = max(0.0, min(9999.9, sec))
-    return f"second{{{sec:06.1f}}}"
+    # 초 → 'second{XXX.Y}' 형식. zero-pad 3자리 정수부 + '.Y' 소수부 = 8 토큰 고정
+    # (Qwen2.5 BPE: ['second','{','D','D','D','.','D','}']).
+    # 범위 0.0~999.9, 정밀도 0.1초 — special_token(XXX.Y, 천의 자리 제거)과 자릿수 정합.
+    sec = max(0.0, min(999.9, sec))
+    return f"second{{{sec:05.1f}}}"
 
 
 def sec_to_from_to_str(sec_start: float, sec_end: float) -> str:
@@ -104,12 +104,12 @@ def make_time_marker_string(sec_start: float, tti_time_format: str,
 # 모드별 청크당 마커 토큰 수.
 #   off            : 마커 미삽입 (Qwen2.5-VL 베이스라인) — 길이 0
 #   special_token  : <t0>..<tdot>..<t*> = 5  (XXX.Y, 천의 자리 제거)
-#   natural_text   : 'second{XXXX.Y}' = 9 (zero-pad)
+#   natural_text   : 'second{XXX.Y}' = 8 (zero-pad 3자리, special_token 자릿수 정합)
 #   from_to        : 'From <t*>×5 to <t*>×5' = 14 (출력 포맷 정렬; special_token 길이 추종)
 _TIME_MARKER_TOKEN_LEN = {
     "off": 0,
     "special_token": 5,
-    "natural_text": 9,
+    "natural_text": 8,
     "from_to": 14,
 }
 
@@ -921,7 +921,11 @@ class LazySupervisedDataset(Dataset):
                 data_dict["train_type"] = "sft"
             else:
                 data_dict["train_type"] = self.data_args.train_type
-            
+
+            # [dataset-tag] 데이터셋별 리워드 로깅용 — run_test 밖에서도 원본 video 경로 보존.
+            #   (아래 run_test 블록에서도 세팅하지만 학습 땐 run_test=False 라 여기서 항상 채움)
+            data_dict["video"] = sources[0].get("video", None)
+
             if self.data_args.run_test:
                 labels = data_dict.pop("labels", None)
                 len_input = sum(labels[0] == IGNORE_INDEX)
@@ -1117,6 +1121,9 @@ class DataCollatorForSupervisedDataset(object):
         batch["video_grid_thw"] = video_grid_thw
         batch["audio_feature"] = concat_audios
         batch["audio_lengths"] = audio_lengths
+        # [dataset-tag] 데이터셋별 리워드 로깅용 — video 경로 passthrough (grpo __getitem__ 이 채움).
+        #   additive: 다른 학습/collator 소비자에 무해(미사용 키). SFT 등 video 없으면 None.
+        batch["video"] = [instance.get("video", None) for instance in instances]
         return batch
 
 

@@ -1,0 +1,98 @@
+# ============================================================
+# config_sep3_natural.yaml — config_sep3.yaml 의 natural(입력+출력 모두 자연어) 변형.
+#   목적: "natural mode" 실험 — 입력마커 = natural_text('second{XXXX.Y}'),
+#         출력/GT = chronus('second{start}-second{end}. ...').
+#
+#   ⚠️ config_sep3.yaml 과 다른 점(그 외 전부 동일):
+#       1) model.tti_time_format  → natural_text  (신규 필드; 입력마커 'second{XXX.Y}' = 8토큰)
+#       2) data.dataset_path       → unpucha_chronus.json      (출력/GT = chronus)
+#       3) reward.module           → reward_functions_rM_sep3_natural  (chronus 파서, 채널 의미 동일)
+#       4) training.output_dir     → 신규 이름(...natural)
+#       5) val.dataset_path        → *_chronus.json            (val 프롬프트도 chronus)
+#
+#   lora·clip·gdpo·steps·reward_weights·seed 등은 config_sep3.yaml 그대로 유지.
+#   ⚠️ grad_accum>1 → gdpo_trainer_batch_natural.py 사용. 런처: run_rMsep3_natural.sh
+#
+#   모델명: sft_7b_unav_v8_rl_rMsep3_unpucha_batch4_noscaling_natural
+#   실행:   _tools/GDPO/run_rMsep3_natural.sh
+# ============================================================
+
+model:
+  model_path: ${SFT_CKPT}
+  model_base: ${BASE_MODEL}
+  tti_mode: "on"
+  tti_time_format: "natural_text"        # ← 입력마커 = 'second{XXX.Y}' (8토큰, XXX.X 자릿수). rope mask-branch.
+
+data:
+  dataset_path: ${TRAIN_DIR}/unpucha_chronus.json   # ← 출력/GT = chronus 'second{s}-second{e}'
+
+lora:
+  enabled: true
+  r: 32
+  lora_alpha: 64
+  lora_dropout: 0.05
+  train_embeddings: false
+  train_lm_head: false                 # lm_head 닫음
+  target_modules:                      # MLP 포함 full-block LoRA
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+
+gdpo:
+  num_generations: 8
+  max_completion_length: 256
+  beta: 0.00
+  temperature: 1.0
+  reward_weights: [1.0, 1.0, 1.0, 1.0, 1.0]   # [format, count, global, local, precision]
+  multi_seg_weight: 1.0                 # no-scaling (multi 가중 제거)
+
+clip:
+  enabled: true
+  epsilon: 0.2
+  epsilon_high: 0.28
+  num_iterations: 2            # μ=2 (clip-higher)
+
+training:
+  output_dir: output/gdpo_rMsep3_unpucha_batch4_noscaling_natural
+  num_train_epochs: 1
+  max_steps: 5179              # full 1 epoch (= 10358 unique prompts @ eff batch 4, μ=2)
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 2       # eff batch = grad_accum(2) × num_gpu(2) = 4  (H100 2장)
+  learning_rate: 1.0e-5
+  warmup_ratio: 0.05
+  lr_scheduler_type: constant_with_warmup
+  bf16: true
+  seed: 2024
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+
+logging:
+  logging_steps: 1
+  save_steps: 200
+  save_total_limit: 30                 # full-run 전 구간 ckpt 보존 (best 사후 선택용)
+  report_to: wandb
+  run_name: null
+
+reward:
+  module: reward_functions_rM_sep3_natural   # ← chronus 파서. 채널 5개(의미는 rM_sep3 동일).
+
+ref_model:
+  enabled: true
+
+val:
+  enabled: true
+  name: unav
+  dataset_path: /home/team404/workspace/data/val/unav100_tail_val100_chronus.json   # ← chronus 프롬프트
+  extra:                                    # 추가 val 세트 — 세트별 + 평균 로깅
+    - name: charades
+      dataset_path: /home/team404/workspace/data/val/charades_tail_val100_chronus.json
+  max_new_tokens: 256
+  max_time: 999.9
+  natural: false           # pred 파싱은 트레이너가 chronus 로 처리(natural flag 무관). GT 는 gt_segments 필드.
+  # val_metrics.jsonl top-level combined/seg_miou/f1_avg = (unav + charades) 평균
+  #   → select_best_ckpt.py 가 평균 기준으로 best step 선택.

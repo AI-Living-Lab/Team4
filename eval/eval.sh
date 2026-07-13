@@ -172,7 +172,7 @@ NUM_GPUS=$(echo "$GPUS" | awk -F',' '{print NF}')
 export CUDA_VISIBLE_DEVICES=$GPUS
 export ARNOLD_WORKER_GPU=$NUM_GPUS
 FIRST_GPU=$(echo "$GPUS" | awk -F',' '{print $1}')
-MASTER_PORT=$((12900 + FIRST_GPU))
+MASTER_PORT="${MASTER_PORT:-$((12900 + FIRST_GPU))}"
 
 # ---- EVAL_TAG = fps<N>_<format> ----
 FPS_INT=$(awk -v b="${BASE_INTERVAL:-0.2}" 'BEGIN { printf "%d", (1.0/b)+0.5 }')

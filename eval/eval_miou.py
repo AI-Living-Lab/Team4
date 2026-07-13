@@ -224,6 +224,10 @@ def _mean(xs):
     return sum(xs) / len(xs) if xs else 0.0
 
 
+def _clip01(x):
+    return max(0.0, min(1.0, x))
+
+
 # ============================== method별 집계 ==============================
 def _gt_ious(gt, pred, method):
     if method == "pairwise":
@@ -286,6 +290,56 @@ def compute_method_block(samples, method):
     }
 
 
+def compute_count_metrics(samples):
+    """CountF1 및 구성요소(CR*, FMR) — 샘플별 (N_gt, N_pred) 개수만 사용(위치 무관).
+
+    서브셋(정답 개수 기준):
+      - 멀티  S  = {i : N_gt >= 2}
+      - 싱글  S1 = {i : N_gt == 1}
+      - N_gt == 0 샘플은 양 서브셋 모두에서 제외.
+
+    1) CR_multi = mean_{i∈S} min(N_gt,N_pred)/max(N_gt,N_pred)
+       chance_floor b = mean_{i∈S} 1/N_gt   ("무조건 1개 찍기"의 기대 점수)
+       CR* = (CR_multi - b)/(1 - b), [0,1] 로 클립(찍기보다 못하면 0).
+    2) FMR = mean_{i∈S1} 1[N_pred >= 2]      (단일을 쪼갠 비율; 낮을수록 좋음)
+    3) SingleAcc = 1 - FMR
+    4) CountF1 = 조화평균(CR*, SingleAcc) = 2·CR*·SingleAcc/(CR*+SingleAcc),
+       분모 0(둘 다 0)이면 CountF1 = 0.
+
+    서브셋이 비면 해당 지표는 None → CountF1 도 None(표에선 '-').
+    """
+    multi_ratios, multi_floor, single_split = [], [], []
+    for gt, pred in samples:
+        ng, npd = len(gt), len(pred)
+        if ng >= 2:
+            hi = max(ng, npd)
+            multi_ratios.append(min(ng, npd) / hi if hi > 0 else 0.0)
+            multi_floor.append(1.0 / ng)
+        elif ng == 1:
+            single_split.append(1.0 if npd >= 2 else 0.0)
+
+    out = {"n_multi": len(multi_ratios), "n_single": len(single_split),
+           "CR_multi": None, "chance_floor": None, "CR_star": None,
+           "FMR": None, "SingleAcc": None, "CountF1": None}
+
+    if multi_ratios:
+        cr = _mean(multi_ratios)
+        b = _mean(multi_floor)
+        out["CR_multi"] = round(cr, 6)
+        out["chance_floor"] = round(b, 6)
+        out["CR_star"] = round(_clip01((cr - b) / (1 - b)) if (1 - b) > 0 else 0.0, 6)
+    if single_split:
+        fmr = _mean(single_split)
+        out["FMR"] = round(fmr, 6)
+        out["SingleAcc"] = round(1.0 - fmr, 6)
+
+    cs, sa = out["CR_star"], out["SingleAcc"]
+    if cs is not None and sa is not None:
+        denom = cs + sa
+        out["CountF1"] = round(2 * cs * sa / denom, 6) if denom > 0 else 0.0
+    return out
+
+
 def compute_shared_block(samples):
     """method 무관 공통: FP/FN(best-match overlap 기준, threshold별), 세그먼트 분포, 파싱."""
     total_gt = total_pred = 0
@@ -325,6 +379,7 @@ def compute_shared_block(samples):
 
     return {
         "n_samples": n,
+        "count_metrics": compute_count_metrics(samples),
         "FP_rate_avg_%": round(_mean(list(fp_rate.values())), 4),
         "FN_rate_avg_%": round(_mean(list(fn_rate.values())), 4),
         "FP_rate_%": fp_rate,

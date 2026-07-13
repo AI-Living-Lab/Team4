@@ -7,15 +7,23 @@ maketable.py — 폴더 경로를 주면 그 하위의 모든 평가 summary 를
 결과 폴더(=pairwise_miou_summary.json 이 있는 폴더)당 1행. n_samples<500 은 제외.
 행은 sample_mIoU 내림차순 정렬.
 
-열(탭 구분, 18개):
+열(탭 구분, 21개):
   ID  ckpt  sample_mIoU
   F1@0.1  F1@0.3  F1@0.5  F1@0.7  F1@0.9        # threshold 별 F1 (각 열)
+  CR  FMR  CountF1
   SCR
   R@0.1  R@0.3  R@0.5  R@0.7  R@0.9            # threshold 별 Recall (각 열)
   gt(mean)  pred(mean)  n_samples  testset
 
   - sample_mIoU : sample_miou_summary.json 의 mIoU_% (샘플단위 All_IoU 평균)
   - F1@θ / R@θ  : pairwise_miou_summary.json 기준 (best-match 세그먼트 단위)
+  - CR      : CR* = chance 보정 후 멀티(N_gt>=2) 개수일치도. (CR_multi-b)/(1-b), [0,1] 클립.
+              0=찍기 수준, 1=완벽. 높을수록 좋음. (count_metrics.CR_star)
+  - FMR     : 싱글(N_gt==1)을 2개 이상으로 쪼갠 비율. 낮을수록 좋음. (count_metrics.FMR)
+  - CountF1 : 조화평균(CR*, 1-FMR). 두 항 중 하나라도 0이면 0 → 반복포착+단일비분할
+              둘 다 잘해야 높음. (count_metrics.CountF1)
+      ※ CR/FMR/CountF1 은 count_metrics 가 있는(=최신 eval_miou.py 로 채점한) summary 만 값,
+         구버전 summary 는 '-'. 채우려면 eval_miou.py 재실행.
   - SCR (Segment Count Ratio) : min(N_pred, N_gt) / max(N_pred, N_gt).
       N_* = 샘플당 평균 세그먼트 수(pred/gt_segments.mean_per_sample). 1.0 에 가까울수록
       예측 세그먼트 개수 규모가 GT 와 일치. (개수 비율일 뿐, 위치 정확도와 무관)
@@ -32,7 +40,7 @@ THS = ["0.1", "0.3", "0.5", "0.7", "0.9"]
 
 HEADER = (["ID", "ckpt", "sample_mIoU"]
           + [f"F1@{t}" for t in THS]
-          + ["SCR"]
+          + ["CR", "FMR", "CountF1", "SCR"]
           + [f"R@{t}" for t in THS]
           + ["gt(mean)", "pred(mean)", "n_samples", "testset"])
 
@@ -122,9 +130,14 @@ def main():
         pmean = _num(p.get("pred_segments", {}).get("mean_per_sample"))
         scr = _scr(gmean, pmean)
 
+        cm = p.get("count_metrics") or {}
+        cr = _num(cm.get("CR_star"))        # None(서브셋 없음/구버전) → '-'
+        fmr = _num(cm.get("FMR"))
+        countf1 = _num(cm.get("CountF1"))
+
         rows.append([ID, ckpt, sample]
                     + _series_cols(p.get("F1"))
-                    + [scr]
+                    + [cr, fmr, countf1, scr]
                     + _series_cols(p.get("Recall"))
                     + [gmean, pmean, str(p.get("n_samples", "-")), testset])
 
