@@ -1,0 +1,93 @@
+# ============================================================
+# config_sep3_noprecision.yaml — config_sep3.yaml 의 reward ablation(w/o precision) 변형.
+#   목적: ttifix 와 모두 동일, 유일한 차이는 **precision reward 제거**.
+#
+#   ⚠️ config_sep3.yaml 과 다른 점(그 외 전부 동일):
+#       1) reward.module      → reward_functions_rM_sep3_noprecision  (precision 채널 제거, 4채널)
+#       2) gdpo.reward_weights → [format, count, global, local] 4개 (precision 항 제거)
+#       3) training.output_dir → 신규 이름
+#   (원본 config_sep3.yaml / reward_functions_rM_sep3.py 는 무수정 — 별도 파일)
+#
+#   모델명: sft_7b_unpucha_v8_rl_rMsep3_unpucha_batch4_noscaling_ttifix_noprecision
+#   실행:   gdpo/run_rMsep3_unpucha_v8_ttifix_noprecision.sh
+# ============================================================
+
+model:
+  model_path: ${SFT_CKPT}
+  model_base: ${BASE_MODEL}
+  tti_mode: "on"
+
+data:
+  dataset_path: ${TRAIN_DIR}/unpucha_v2.json
+
+lora:
+  enabled: true
+  r: 32
+  lora_alpha: 64
+  lora_dropout: 0.05
+  train_embeddings: false
+  train_lm_head: false                 # lm_head 닫음
+  target_modules:                      # MLP 포함 full-block LoRA
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+
+gdpo:
+  num_generations: 8
+  max_completion_length: 256
+  beta: 0.00
+  temperature: 1.0
+  reward_weights: [1.0, 1.0, 1.0, 1.0]   # [format, count, global, local]  (precision 제거)
+  multi_seg_weight: 1.0                 # ← no-scaling (기존 1.5 → 1.0, multi 가중 제거)
+
+clip:
+  enabled: true
+  epsilon: 0.2
+  epsilon_high: 0.28
+  num_iterations: 2            # μ=2 (clip-higher)
+
+training:
+  output_dir: output/gdpo_rMsep3_unpucha_batch4_noscaling_ttifix_noprecision
+  num_train_epochs: 1
+  max_steps: 5179              # full 1 epoch (= 10358 unique prompts @ eff batch 4, μ=2)
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 2       # ← eff batch = grad_accum(2) × num_gpu(2) = 4  (H100 2장)
+  learning_rate: 1.0e-5
+  warmup_ratio: 0.05
+  lr_scheduler_type: constant_with_warmup
+  bf16: true
+  seed: 2024
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+
+logging:
+  logging_steps: 1
+  save_steps: 200
+  save_total_limit: 30                 # ← full-run 전 구간 ckpt 보존 (best 사후 선택용)
+  report_to: wandb
+  run_name: null
+
+reward:
+  module: reward_functions_rM_sep3_noprecision     # ← precision 채널 제거. 채널 4개 [format, count, global, local].
+
+ref_model:
+  enabled: true
+
+val:
+  enabled: true
+  name: unav
+  dataset_path: /home/team404/workspace/data/val/unav100_tail_val100.json   # 로컬 경로 + 100개 val
+  extra:                                    # 추가 val 세트 — 세트별 + 평균 로깅
+    - name: charades
+      dataset_path: /home/team404/workspace/data/val/charades_tail_val100.json
+  max_new_tokens: 256
+  max_time: 999.9
+  natural: false
+  # val_metrics.jsonl top-level combined/seg_miou/f1_avg = (unav + charades) 평균
+  #   → select_best_ckpt.py 가 평균 기준으로 best step 선택.
+  #   세트별 값은 sets.{unav,charades} + wandb val_unav/* · val_charades/* 에서 확인.

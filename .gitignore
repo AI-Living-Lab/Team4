@@ -210,9 +210,10 @@ data/stage3.json
 # 클로드 설정 파일
 .claude/
 
-# 구버전 GDPO
-_tools/GDPO(OLD)/
 
 # paths.env
 paths.env
 
+# 학습 산출물 (두 트리 공통)
+sft/video_SALMONN2_plus/wandb/
+_debug_out/
