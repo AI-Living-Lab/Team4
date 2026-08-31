@@ -43,18 +43,24 @@ PREDS = {
 
 MAX_TIME = 999.9
 
+# MODALITY_CSV 를 주면 그 라벨로 Step 3~6 을 돌리고, 산출물에 .reviewed 접미사를 붙여
+# 자동 라벨 결과를 덮어쓰지 않는다.
+_REVIEW = os.environ.get("MODALITY_CSV")
+SUF = ".reviewed" if _REVIEW else ""
+
 OUT_CATEGORIES = f"{HERE}/categories_stats.csv"
-OUT_MODALITY = f"{HERE}/unav100_modality_split.csv"
-OUT_GROUPS = f"{HERE}/group_stats.csv"
-OUT_RESULTS = f"{HERE}/results_by_modality.csv"
-OUT_LATEX = f"{HERE}/results_by_modality.tex"
+OUT_MODALITY = _REVIEW if _REVIEW else f"{HERE}/unav100_modality_split.csv"
+OUT_GROUPS = f"{HERE}/group_stats{SUF}.csv"
+OUT_RESULTS = f"{HERE}/results_by_modality{SUF}.csv"
+OUT_LATEX = f"{HERE}/results_by_modality{SUF}.tex"
 LOG = f"{HERE}/log.txt"
 
 
 def log(step, msg):
     """log.txt 에 타임스탬프와 함께 실행 순서를 남긴다."""
     import datetime
-    line = f"[{datetime.datetime.now().isoformat(timespec='seconds')}] {step:<8} {msg}"
+    tag = step + ("*" if SUF else "")
+    line = f"[{datetime.datetime.now().isoformat(timespec='seconds')}] {tag:<8} {msg}"
     with open(LOG, "a", encoding="utf-8") as f:
         f.write(line + "\n")
     print(line)

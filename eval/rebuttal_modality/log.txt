@@ -39,3 +39,22 @@
 [2026-08-31T16:19:38] STEP7      80/100  누적 4.31 MB
 [2026-08-31T16:19:48] STEP7      100/100  누적 5.40 MB
 [2026-08-31T16:19:48] STEP7    done — 100 clips, raw 5.40 MB, base64 약 7.20 MB, 실패 0
+[2026-08-31T16:54:46] STEP8    검수본 검증 통과 — 변경 38건, 분포 {'A': 64, 'AV': 34, 'V': 2}
+[2026-08-31T16:55:04] STEP3*   start — 그룹별 난이도/교란 변수 집계 (예측 파일 미참조)
+[2026-08-31T16:55:04] STEP3*   saved /home/team404/workspace/Team4/eval/rebuttal_modality/group_stats.reviewed.csv
+[2026-08-31T16:55:04] STEP3*   warnings=1
+[2026-08-31T16:55:11] STEP4*   start — 예측 파일 최초 참조 (Step 2 라벨링은 이미 확정·커밋됨)
+[2026-08-31T16:55:11] STEP4*   titok: n=3455  A=2400  AV=997  V=58  H=0
+[2026-08-31T16:55:12] STEP4*   titok_wo_audio: n=3455  A=2400  AV=997  V=58  H=0
+[2026-08-31T16:55:12] STEP4*   museg: n=3455  A=2400  AV=997  V=58  H=0
+[2026-08-31T16:55:12] STEP4*   chronusomni: n=3455  A=2400  AV=997  V=58  H=0
+[2026-08-31T16:55:12] STEP4*   saved /home/team404/workspace/Team4/eval/rebuttal_modality/results_by_modality.reviewed.csv  rows=16
+[2026-08-31T16:55:12] STEP4*   saved /home/team404/workspace/Team4/eval/rebuttal_modality/results_by_modality.reviewed.tex
+[2026-08-31T16:55:19] STEP5*   start — paired bootstrap (B=5000, seed=20260831)
+[2026-08-31T16:56:24] STEP5*   delta_A-delta_AV = +1.94 CI[+0.15,+3.73] p=0.983
+[2026-08-31T16:56:24] STEP5*   saved /home/team404/workspace/Team4/eval/rebuttal_modality/bootstrap_delta.csv
+[2026-08-31T16:56:24] STEP6*   start — N_gt 통제 후 A vs AV delta 재검정
+[2026-08-31T16:57:30] STEP6*   standardized delta_A-delta_AV = +2.05 CI[+0.27,+3.85] p=0.987
+[2026-08-31T16:57:30] STEP6*   saved /home/team404/workspace/Team4/eval/rebuttal_modality/confound_control.csv
+  [정정] 위 STEP5*/STEP6* 의 "saved ..." 줄은 접미사가 빠진 파일명을 찍었다(로그 문구 버그, 수정함).
+         실제 저장 파일은 bootstrap_delta.reviewed.csv / confound_control.reviewed.csv 다.

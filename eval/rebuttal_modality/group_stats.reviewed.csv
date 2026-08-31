@@ -1,0 +1,4 @@
+group,n_categories,n_samples,n_multiseg,mean_N_gt,multiseg_ratio,mean_seg_duration,b_countf1
+A,64,2400,918,1.72,0.3825,13.9405,0.395773
+V,2,58,24,1.8621,0.4138,13.4264,0.377083
+AV,34,997,367,1.669,0.3681,14.6231,0.401567

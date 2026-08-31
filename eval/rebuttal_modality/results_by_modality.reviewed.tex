@@ -1,0 +1,47 @@
+% results_by_modality.tex — Step 4 산출. \usepackage{booktabs} 필요.
+\begin{table}[t]
+\centering\small
+\caption{UnAV-100 test set stratified by boundary-defining modality. Categories are labelled from the class name alone, before any model output is inspected (A: sound-delimited, AV: both, V: vision-delimited, H: ambiguous). $b$ is the CountF1 chance floor, recomputed per group.}
+\label{tab:modality_breakdown}
+\begin{tabular}{llrrrrrrr}
+\toprule
+Model & Group & $n$ & mIoU & F1@0.3 & F1@0.5 & F1@0.7 & CountF1 & $b$ \\
+\midrule
+titok & A & 2400 & 62.23 & 55.42 & 40.82 & 27.86 & 0.412 & 0.40 \\
+ & AV & 997 & 62.38 & 55.19 & 39.68 & 27.48 & 0.407 & 0.40 \\
+ & V & 58 & 59.26 & 51.54 & 37.23 & 25.97 & 0.516 & 0.38 \\
+ & ALL & 3455 & 62.22 & 55.28 & 40.43 & 27.72 & 0.413 & 0.40 \\
+\midrule
+titok\_wo\_audio & A & 2400 & 39.89 & 43.28 & 22.78 & 8.95 & 0.479 & 0.40 \\
+ & AV & 997 & 41.98 & 46.21 & 26.96 & 9.80 & 0.495 & 0.40 \\
+ & V & 58 & 38.15 & 40.00 & 25.95 & 10.81 & 0.561 & 0.38 \\
+ & ALL & 3455 & 40.46 & 44.06 & 24.02 & 9.22 & 0.485 & 0.40 \\
+\midrule
+museg & A & 2400 & 49.02 & 51.11 & 36.72 & 23.25 & 0.211 & 0.40 \\
+ & AV & 997 & 49.32 & 53.17 & 37.49 & 22.72 & 0.253 & 0.40 \\
+ & V & 58 & 45.28 & 41.41 & 28.41 & 18.18 & 0.213 & 0.38 \\
+ & ALL & 3455 & 49.05 & 51.53 & 36.79 & 23.01 & 0.223 & 0.40 \\
+\midrule
+chronusomni & A & 2400 & 60.96 & 53.97 & 36.30 & 23.35 & 0.423 & 0.40 \\
+ & AV & 997 & 61.78 & 53.85 & 35.35 & 21.69 & 0.410 & 0.40 \\
+ & V & 58 & 58.03 & 44.40 & 27.64 & 15.45 & 0.433 & 0.38 \\
+ & ALL & 3455 & 61.15 & 53.77 & 35.88 & 22.74 & 0.419 & 0.40 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering\small
+\caption{Audio ablation on TiTok, stratified by boundary-defining modality. $\Delta$ = with audio $-$ without audio (same checkpoint). Group-wise absolute values are not comparable across groups because the multi-segment ratio differs (see Sec.~X); only within-model $\Delta$ is.}
+\label{tab:audio_ablation_modality}
+\begin{tabular}{lrrrrrr}
+\toprule
+Group & $n$ & $\Delta$mIoU & $\Delta$F1@0.3 & $\Delta$F1@0.5 & $\Delta$F1@0.7 & $\Delta$CountF1 \\
+\midrule
+A & 2400 & +22.34 & +12.13 & +18.04 & +18.91 & -0.066 \\
+AV & 997 & +20.40 & +8.98 & +12.72 & +17.68 & -0.087 \\
+V & 58 & +21.11 & +11.54 & +11.28 & +15.16 & -0.045 \\
+ALL & 3455 & +21.76 & +11.22 & +16.41 & +18.50 & -0.072 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -18,7 +18,7 @@ import random
 import statistics
 import sys
 
-from paths import EVAL_DIR, OUT_MODALITY, PREDS, MAX_TIME, HERE, log
+from paths import EVAL_DIR, OUT_MODALITY, PREDS, MAX_TIME, HERE, SUF, log
 
 sys.path.insert(0, EVAL_DIR)
 from eval_miou import (extract_answer_scope, parse_natural, parse_tokens,  # noqa
@@ -140,7 +140,7 @@ def main():
                "★ 0 을 포함 — 난이도 통제 후에는 그룹 간 차이를 주장할 수 없다 ★")
     print(f"  판정: {verdict}")
 
-    with open(f"{HERE}/confound_control.csv", "w", newline="", encoding="utf-8") as f:
+    with open(f"{HERE}/confound_control{SUF}.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["N_gt", "n_A", "delta_A", "ciA_lo", "ciA_hi",
                     "n_AV", "delta_AV", "ciAV_lo", "ciAV_hi", "delta_A_minus_AV"])
@@ -150,7 +150,7 @@ def main():
                     round(lo, 4), round(hi, 4), round(p_gt, 4), N_BOOT, SEED])
     log("STEP6", f"standardized delta_A-delta_AV = {point:+.2f} "
                  f"CI[{lo:+.2f},{hi:+.2f}] p={p_gt:.3f}")
-    log("STEP6", f"saved {HERE}/confound_control.csv")
+    log("STEP6", f"saved {HERE}/confound_control{SUF}.csv")
 
 
 if __name__ == "__main__":

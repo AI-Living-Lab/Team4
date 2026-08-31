@@ -18,7 +18,7 @@ import random
 import statistics
 import sys
 
-from paths import EVAL_DIR, OUT_MODALITY, PREDS, MAX_TIME, HERE, log
+from paths import EVAL_DIR, OUT_MODALITY, PREDS, MAX_TIME, HERE, SUF, log
 
 sys.path.insert(0, EVAL_DIR)
 from eval_miou import (extract_answer_scope, parse_natural, parse_tokens,   # noqa
@@ -111,7 +111,7 @@ def main():
         print(f"  판정: {verdict}")
         log("STEP5", f"delta_A-delta_AV = {point:+.2f} CI[{lo:+.2f},{hi:+.2f}] p={p_gt:.3f}")
 
-        with open(f"{HERE}/bootstrap_delta.csv", "w", newline="", encoding="utf-8") as f:
+        with open(f"{HERE}/bootstrap_delta{SUF}.csv", "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
             w.writerow(["quantity", "point_estimate", "ci95_low", "ci95_high",
                         "P(>0)", "n_boot", "seed"])
@@ -122,7 +122,7 @@ def main():
                             "", N_BOOT, SEED])
             w.writerow(["delta_A - delta_AV", round(point, 4), round(lo, 4), round(hi, 4),
                         round(p_gt, 4), N_BOOT, SEED])
-        log("STEP5", f"saved {HERE}/bootstrap_delta.csv")
+        log("STEP5", f"saved {HERE}/bootstrap_delta{SUF}.csv")
 
 
 if __name__ == "__main__":
