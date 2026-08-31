@@ -1,0 +1,16 @@
+[2026-08-31T15:43:06] STEP1    start — test split = /home/team404/workspace/data/test/unav100/museg.json  (예측 파일 미참조)
+[2026-08-31T15:43:06] STEP1    samples=3455  official categories=100
+[2026-08-31T15:43:09] STEP1    saved /home/team404/workspace/Team4/eval/rebuttal_modality/categories_stats.csv  (categories=100, total_segments=5900)
+[2026-08-31T15:46:18] STEP2    start — 카테고리 이름만 보고 3-run 라벨링 (예측 파일 미참조)
+[2026-08-31T15:46:18] STEP2    saved /home/team404/workspace/Team4/eval/rebuttal_modality/unav100_modality_split.csv
+[2026-08-31T15:46:18] STEP2    kappa=0.5677  high=66 medium=33 needs_review=1
+
+--- PATH RESOLUTION (지시문 <PATH> 해석) ---
+  annotation             : data/avicuna_unav100/annotations/unav100_annotations.json 은 0바이트(빈 파일)라 사용 불가.
+                           카테고리 정본은 data/avicuna_unav100/labels/unav100_class_labels.txt (100개) 를 썼다.
+  unav100_multiseg_test  : data/test/unav100/museg.json (3,455 샘플; id/vid/gt_label/gt_segments 보유)
+  preds/titok            : outputs/gdpo/sft_7b_unav_v8_rl_rMsep3_unpucha_batch4_noscaling/checkpoint-2000/fps5_tti/unav100_titok/
+  preds/titok_wo_audio   : 같은 run/checkpoint-2000 의 fps5_tti/unav100_noaudio/   (audio ablation 짝)
+  preds/museg            : outputs/base/MUSEG/unav100_multiseg/eval/
+  preds/chronusomni      : outputs/sft/ChronusOmni/unav100_chronus/eval/   (finetuned. base 판은 outputs/base/ChronusOmni/unav100_multiseg/)
+  video duration         : ffprobe 부재 -> datasets/unav_100/audio/<vid>.wav 헤더에서 측정(원본에서 추출한 오디오라 영상 길이와 동일). 2,167/2,167 존재.
