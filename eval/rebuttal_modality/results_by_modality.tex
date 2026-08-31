@@ -1,0 +1,52 @@
+% results_by_modality.tex — Step 4 산출. \usepackage{booktabs} 필요.
+\begin{table}[t]
+\centering\small
+\caption{UnAV-100 test set stratified by boundary-defining modality. Categories are labelled from the class name alone, before any model output is inspected (A: sound-delimited, AV: both, V: vision-delimited, H: ambiguous). $b$ is the CountF1 chance floor, recomputed per group.}
+\label{tab:modality_breakdown}
+\begin{tabular}{llrrrrrrr}
+\toprule
+Model & Group & $n$ & mIoU & F1@0.3 & F1@0.5 & F1@0.7 & CountF1 & $b$ \\
+\midrule
+titok & A & 1856 & 53.32 & 50.24 & 34.48 & 20.73 & 0.376 & 0.39 \\
+ & AV & 1517 & 71.66 & 61.47 & 47.49 & 36.15 & 0.435 & 0.41 \\
+ & V & 35 & 86.37 & 76.93 & 71.58 & 58.95 & 0.622 & 0.48 \\
+ & H & 47 & 91.16 & 80.52 & 76.03 & 67.77 & 0.480 & 0.50 \\
+ & ALL & 3455 & 62.22 & 55.28 & 40.43 & 27.72 & 0.413 & 0.40 \\
+\midrule
+titok\_wo\_audio & A & 1856 & 33.49 & 36.19 & 17.81 & 7.63 & 0.469 & 0.39 \\
+ & AV & 1517 & 47.97 & 53.05 & 31.49 & 11.06 & 0.510 & 0.41 \\
+ & V & 35 & 56.07 & 80.95 & 54.76 & 23.81 & 0.561 & 0.48 \\
+ & H & 47 & 61.97 & 72.04 & 30.30 & 9.09 & 0.429 & 0.50 \\
+ & ALL & 3455 & 40.46 & 44.06 & 24.02 & 9.22 & 0.485 & 0.40 \\
+\midrule
+museg & A & 1856 & 36.12 & 40.22 & 24.77 & 12.64 & 0.148 & 0.39 \\
+ & AV & 1517 & 64.02 & 65.24 & 51.41 & 35.96 & 0.333 & 0.41 \\
+ & V & 35 & 63.46 & 71.78 & 60.00 & 40.00 & 0.234 & 0.48 \\
+ & H & 47 & 65.38 & 75.31 & 54.55 & 27.27 & 0.000 & 0.50 \\
+ & ALL & 3455 & 49.05 & 51.53 & 36.79 & 23.01 & 0.223 & 0.40 \\
+\midrule
+chronusomni & A & 1856 & 52.08 & 49.36 & 30.93 & 17.75 & 0.304 & 0.39 \\
+ & AV & 1517 & 70.84 & 59.47 & 42.59 & 29.84 & 0.512 & 0.41 \\
+ & V & 35 & 85.61 & 72.41 & 51.79 & 32.14 & 0.549 & 0.48 \\
+ & H & 47 & 87.79 & 69.50 & 44.87 & 24.36 & 0.371 & 0.50 \\
+ & ALL & 3455 & 61.15 & 53.77 & 35.88 & 22.74 & 0.419 & 0.40 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering\small
+\caption{Audio ablation on TiTok, stratified by boundary-defining modality. $\Delta$ = with audio $-$ without audio (same checkpoint). Group-wise absolute values are not comparable across groups because the multi-segment ratio differs (see Sec.~X); only within-model $\Delta$ is.}
+\label{tab:audio_ablation_modality}
+\begin{tabular}{lrrrrrr}
+\toprule
+Group & $n$ & $\Delta$mIoU & $\Delta$F1@0.3 & $\Delta$F1@0.5 & $\Delta$F1@0.7 & $\Delta$CountF1 \\
+\midrule
+A & 1856 & +19.84 & +14.04 & +16.67 & +13.09 & -0.092 \\
+AV & 1517 & +23.68 & +8.42 & +16.00 & +25.09 & -0.075 \\
+V & 35 & +30.30 & -4.02 & +16.82 & +35.14 & +0.061 \\
+H & 47 & +29.19 & +8.48 & +45.73 & +58.68 & +0.052 \\
+ALL & 3455 & +21.76 & +11.22 & +16.41 & +18.50 & -0.072 \\
+\bottomrule
+\end{tabular}
+\end{table}

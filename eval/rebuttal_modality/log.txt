@@ -14,3 +14,19 @@
   preds/museg            : outputs/base/MUSEG/unav100_multiseg/eval/
   preds/chronusomni      : outputs/sft/ChronusOmni/unav100_chronus/eval/   (finetuned. base 판은 outputs/base/ChronusOmni/unav100_multiseg/)
   video duration         : ffprobe 부재 -> datasets/unav_100/audio/<vid>.wav 헤더에서 측정(원본에서 추출한 오디오라 영상 길이와 동일). 2,167/2,167 존재.
+[2026-08-31T15:47:16] STEP3    start — 그룹별 난이도/교란 변수 집계 (예측 파일 미참조)
+[2026-08-31T15:47:17] STEP3    saved /home/team404/workspace/Team4/eval/rebuttal_modality/group_stats.csv
+[2026-08-31T15:47:17] STEP3    warnings=3
+[2026-08-31T15:48:12] STEP4    start — 예측 파일 최초 참조 (Step 2 라벨링은 이미 확정·커밋됨)
+[2026-08-31T15:48:12] STEP4    titok: n=3455  A=1856  AV=1517  V=35  H=47
+[2026-08-31T15:48:12] STEP4    titok_wo_audio: n=3455  A=1856  AV=1517  V=35  H=47
+[2026-08-31T15:48:13] STEP4    museg: n=3455  A=1856  AV=1517  V=35  H=47
+[2026-08-31T15:48:13] STEP4    chronusomni: n=3455  A=1856  AV=1517  V=35  H=47
+[2026-08-31T15:48:13] STEP4    saved /home/team404/workspace/Team4/eval/rebuttal_modality/results_by_modality.csv  rows=20
+[2026-08-31T15:48:13] STEP4    saved /home/team404/workspace/Team4/eval/rebuttal_modality/results_by_modality.tex
+[2026-08-31T15:49:04] STEP5    start — paired bootstrap (B=5000, seed=20260831)
+[2026-08-31T15:50:35] STEP5    delta_A-delta_AV = -3.84 CI[-5.52,-2.17] p=0.000
+[2026-08-31T15:50:35] STEP5    saved /home/team404/workspace/Team4/eval/rebuttal_modality/bootstrap_delta.csv
+[2026-08-31T15:51:16] STEP6    start — N_gt 통제 후 A vs AV delta 재검정
+[2026-08-31T15:52:24] STEP6    standardized delta_A-delta_AV = -2.92 CI[-4.54,-1.32] p=0.000
+[2026-08-31T15:52:24] STEP6    saved /home/team404/workspace/Team4/eval/rebuttal_modality/confound_control.csv
