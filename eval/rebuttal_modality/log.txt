@@ -58,3 +58,26 @@
 [2026-08-31T16:57:30] STEP6*   saved /home/team404/workspace/Team4/eval/rebuttal_modality/confound_control.csv
   [정정] 위 STEP5*/STEP6* 의 "saved ..." 줄은 접미사가 빠진 파일명을 찍었다(로그 문구 버그, 수정함).
          실제 저장 파일은 bootstrap_delta.reviewed.csv / confound_control.reviewed.csv 다.
+[2026-09-01T15:51:39] STEP9    start — titok vs titok_noaudio_trained, labels=unav100_modality_split_reviewed.csv
+[2026-09-01T15:52:02] STEP9    start — titok vs titok_noaudio_trained, labels=unav100_modality_split_reviewed.csv
+[2026-09-01T15:52:02] STEP9    paired n=3455 (키 기준 정렬, 파일 순서 무시)
+[2026-09-01T15:52:28] STEP9    saved /home/team404/workspace/Team4/eval/rebuttal_modality/audio_delta_by_modality.csv  rows=5
+[2026-09-01T15:52:28] STEP9    saved /home/team404/workspace/Team4/eval/rebuttal_modality/audio_delta_by_modality.tex
+[2026-09-01T15:58:14] STEP10   start — per-category, models=['titok', 'titok_noaudio_trained']
+[2026-09-01T15:58:15] STEP10   paired n=3455  categories=100
+[2026-09-01T15:58:15] STEP10   saved /home/team404/workspace/Team4/eval/rebuttal_modality/per_category_titok.csv  rows=100
+[2026-09-01T15:58:15] STEP10   saved /home/team404/workspace/Team4/eval/rebuttal_modality/per_category_titok_noaudio_trained.csv  rows=100
+[2026-09-01T15:58:15] STEP10   saved /home/team404/workspace/Team4/eval/rebuttal_modality/per_category_compare.csv  rows=100
+[2026-09-01T16:04:20] STEP11   start — group absolute values, models=['titok', 'titok_noaudio_trained']
+[2026-09-01T16:04:21] STEP11   paired n=3455
+[2026-09-01T16:04:21] STEP11   saved /home/team404/workspace/Team4/eval/rebuttal_modality/group_abs_titok.csv  rows=5
+[2026-09-01T16:04:21] STEP11   saved /home/team404/workspace/Team4/eval/rebuttal_modality/group_abs_titok_noaudio_trained.csv  rows=5
+[2026-09-01T16:04:21] STEP11   saved /home/team404/workspace/Team4/eval/rebuttal_modality/group_abs.tex
+[2026-09-01T16:27:21] STEP9    start — titok vs titok_noaudio_trained, labels=unav100_modality_split_reviewed.csv
+[2026-09-01T16:27:21] STEP9    paired n=3455 (키 기준 정렬, 파일 순서 무시)
+[2026-09-01T16:27:42] STEP9    saved /home/team404/workspace/Team4/eval/rebuttal_modality/audio_delta_by_modality.csv  rows=5
+[2026-09-01T16:27:42] STEP9    saved /home/team404/workspace/Team4/eval/rebuttal_modality/audio_delta_by_modality.tex
+[2026-09-01T16:27:47] STEP9    start — titok vs titok_noaudio_trained, labels=unav100_modality_split_reviewed.csv
+[2026-09-01T16:27:47] STEP9    paired n=3455 (키 기준 정렬, 파일 순서 무시)
+[2026-09-01T16:28:14] STEP9    saved /home/team404/workspace/Team4/eval/rebuttal_modality/audio_delta_by_modality.csv  rows=5
+[2026-09-01T16:28:14] STEP9    saved /home/team404/workspace/Team4/eval/rebuttal_modality/audio_delta_by_modality.tex

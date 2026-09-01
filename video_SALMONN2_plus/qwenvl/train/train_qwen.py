@@ -43,7 +43,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
 from qwenvl.model.modeling_qwen2_5_vl import video_SALMONN2_plus
-from qwenvl.data.dataset import make_supervised_data_module
+from qwenvl.data.dataset import make_supervised_data_module, _TIME_MARKER_TOKEN_LEN
 from qwenvl.data.image_processing_qwen2_vl_fast import Qwen2VLImageProcessorFast
 from qwenvl.train.argument import (
     ModelArguments,
@@ -229,9 +229,12 @@ def train(attn_implementation="flash_attention_2"):
         # TTI input-side marker 모드를 모델 config에 기록 → 추론/eval 시 rope2d가 자동으로
         # 같은 길이 가정으로 동작.
         model.config.tti_time_format = data_args.tti_time_format
-        model.config.time_marker_token_len = {
-            "off": None, "special_token": 5, "natural_text": 9, "from_to": 14,
-        }[data_args.tti_time_format]
+        # 마커 길이는 dataset.py 의 _TIME_MARKER_TOKEN_LEN 단일 진실원에서 가져온다.
+        # (여기에 값을 복제하면 dataset.py 와 어긋나 rope 위치가 밀린다 — 과거 9/8 불일치 사고)
+        # off 는 0 → rope 가 '마커 없음' 으로 보도록 None 으로 변환.
+        model.config.time_marker_token_len = (
+            _TIME_MARKER_TOKEN_LEN[data_args.tti_time_format] or None
+        )
 
         if training_args.gradient_checkpointing:
             if hasattr(model, "enable_input_require_grads"):
@@ -388,9 +391,12 @@ def train(attn_implementation="flash_attention_2"):
         # TTI marker 모드를 추론 시에도 명시 — 학습 시 저장된 config 값이 비어있는
         # 옛 체크포인트로 평가할 때 backward-compat를 보장.
         model.config.tti_time_format = data_args.tti_time_format
-        model.config.time_marker_token_len = {
-            "off": None, "special_token": 5, "natural_text": 9, "from_to": 14,
-        }[data_args.tti_time_format]
+        # 마커 길이는 dataset.py 의 _TIME_MARKER_TOKEN_LEN 단일 진실원에서 가져온다.
+        # (여기에 값을 복제하면 dataset.py 와 어긋나 rope 위치가 밀린다 — 과거 9/8 불일치 사고)
+        # off 는 0 → rope 가 '마커 없음' 으로 보도록 None 으로 변환.
+        model.config.time_marker_token_len = (
+            _TIME_MARKER_TOKEN_LEN[data_args.tti_time_format] or None
+        )
 
         if torch.cuda.device_count() > 1:
             import deepspeed
@@ -456,7 +462,15 @@ def train(attn_implementation="flash_attention_2"):
                     "use_audio": inputs.pop("use_audio", False),
                     "should_use": inputs.pop("should_use", True),
                 }
+                # audio_lengths 는 파이썬 list 라 아래 텐서 필터에 걸려 사라진다. 그런데
+                # rope2d.get_rope_index_25 는 (audio_lengths is not None) 여야 TTI 마커를
+                # 인지하는 분기로 들어가므로, 빠지면 마커가 input_ids 에 있어도 위치 계산이
+                # 마커를 무시해 시간 grounding 이 끊긴다(= 학습 val 대비 mIoU 반토막).
+                # 학습측 _val_greedy_generate 는 이 값을 명시적으로 넘긴다 — 동일하게 맞춘다.
+                _audio_lengths = inputs.get("audio_lengths", None)
                 inputs = {k: v.to(f"cuda:{torch.cuda.current_device()}") for k, v in inputs.items() if isinstance(v, torch.Tensor)}
+                if _audio_lengths is not None:
+                    inputs["audio_lengths"] = _audio_lengths
                 # debug_interleave_dir 가 설정되고 debug_interleave_generate 가 False 면
                 # dataset hook 이 이미 덤프했으니 model.generate 를 스킵한다.
                 _dbg_skip = (

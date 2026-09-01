@@ -1,0 +1,114 @@
+# ============================================================
+# config_sep3_noaudio.yaml — config_sep3.yaml 의 **no-audio** 변형.
+#   목적: sep3(noscaling) baseline 과 100% 동일한 설정에서 **오디오만 제거**했을 때의
+#         효과를 본다. 오디오를 뺀 것 외에는 reward/lora/clip/gdpo 전부 그대로.
+#
+#   ⚠️ config_sep3.yaml 과 다른 점 (그 외 전부 동일):
+#       1) data.dataset_path   → unpucha_v2_noaudio.json   (audio 키 제거 + use_audio:false)
+#       2) val.dataset_path    → unav100_tail_val100_noaudio.json
+#          val.extra[charades] → charades_tail_val100_noaudio.json
+#          (train/eval 조건 일치 — 오디오 없이 학습한 모델을 오디오 없이 평가)
+#       3) training.max_steps  → 5179 → 2000  (2000 step 에서 종료)
+#       4) training.warmup_ratio → 0.05 → 0.1295
+#          ※ warmup_ratio 는 max_steps 에 곱해진다. baseline 은 0.05×5179 = 259 step
+#            warmup 이었으므로, max_steps 를 2000 으로 줄이면서 ratio 를 그대로 두면
+#            warmup 이 100 step 으로 짧아져 **LR 스케줄이 baseline 과 달라진다**.
+#            0.1295×2000 = 259 → baseline 의 0~2000 구간과 스케줄이 정확히 일치한다.
+#            (lr_scheduler=constant_with_warmup 이라 warmup 이후는 상수 → warmup 길이가
+#             유일한 차이였다.) 순수 "2000-step 런"으로 보고 싶으면 0.05 로 되돌릴 것.
+#       5) training.output_dir → 신규 이름
+#
+#   [왜 use_audio:false 만으로는 부족했나 — 중요]
+#     qwenvl/data/dataset.py _get_item 은 오디오를 두 군데서 읽는다.
+#       757:  if "use_audio" in sources[0] and sources[0]["use_audio"]:  → use_audio 게이트
+#       771:  if "audio" in sources[0]:  audio = self.process_audio(...)  → 게이트를 덮어씀
+#     unpucha_v2.json 은 10,358개 전부 "audio" 키를 갖고 있고 wav 파일도 전부 존재한다.
+#     따라서 charades 3,411개의 use_audio:false 는 **무효**였고 baseline 런은 사실상
+#     charades 오디오까지 전부 사용했다 (run_rMsep3_noscaling.sh:5 주석과 다름).
+#     이 런은 "audio" 키 자체를 제거해 audio_lengths=None 경로를 탄다.
+#     그 경로는 dataset.py:205-235 에서 1급 지원 — TTI 마커는 그대로 인터리빙되고
+#     audio_pad 만 빠진다. 즉 tti_mode=on 과 호환된다 (런처에서 TTI_DEBUG 로 검증).
+#
+#   모델명: sft_7b_unav_v8_rl_rMsep3_unpucha_batch4_noscaling_noaudio
+#   실행:   gdpo/run_rMsep3_noscaling_noaudio.sh
+# ============================================================
+
+model:
+  model_path: ${SFT_CKPT}
+  model_base: ${BASE_MODEL}
+  tti_mode: "on"
+
+data:
+  dataset_path: ${TRAIN_DIR}/unpucha_v2_noaudio.json
+
+lora:
+  enabled: true
+  r: 32
+  lora_alpha: 64
+  lora_dropout: 0.05
+  train_embeddings: false
+  train_lm_head: false                 # lm_head 닫음
+  target_modules:                      # MLP 포함 full-block LoRA
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+
+gdpo:
+  num_generations: 8
+  max_completion_length: 256
+  beta: 0.00
+  temperature: 1.0
+  reward_weights: [1.0, 1.0, 1.0, 1.0, 1.0]   # [format, count, global, local, precision]
+  multi_seg_weight: 1.0                 # ← no-scaling (기존 1.5 → 1.0, multi 가중 제거)
+
+clip:
+  enabled: true
+  epsilon: 0.2
+  epsilon_high: 0.28
+  num_iterations: 2            # μ=2 (clip-higher)
+
+training:
+  output_dir: output/gdpo_rMsep3_unpucha_batch4_noscaling_noaudio
+  num_train_epochs: 1
+  max_steps: 2000              # ← 2000 step 에서 종료 (baseline 은 5179 = full 1 epoch)
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 2       # ← eff batch = grad_accum(2) × num_gpu(2) = 4  (H100 2장)
+  learning_rate: 1.0e-5
+  warmup_ratio: 0.1295         # ← 0.1295×2000 = 259 step = baseline(0.05×5179) 과 동일 warmup
+  lr_scheduler_type: constant_with_warmup
+  bf16: true
+  seed: 2024
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+
+logging:
+  logging_steps: 1
+  save_steps: 200
+  save_total_limit: 30                 # ← full-run 전 구간 ckpt 보존 (best 사후 선택용)
+  report_to: wandb
+  run_name: null
+
+reward:
+  module: reward_functions_rM_sep3     # ← fp→precision(연속), len→count. 채널 5개.
+
+ref_model:
+  enabled: true
+
+val:
+  enabled: true
+  name: unav
+  dataset_path: /home/team404/workspace/data/val/unav100_tail_val100_noaudio.json   # 로컬 경로 + 100개 val
+  extra:                                    # 추가 val 세트 — 세트별 + 평균 로깅
+    - name: charades
+      dataset_path: /home/team404/workspace/data/val/charades_tail_val100_noaudio.json
+  max_new_tokens: 256
+  max_time: 999.9
+  natural: false
+  # val_metrics.jsonl top-level combined/seg_miou/f1_avg = (unav + charades) 평균
+  #   → select_best_ckpt.py 가 평균 기준으로 best step 선택.
+  #   세트별 값은 sets.{unav,charades} + wandb val_unav/* · val_charades/* 에서 확인.

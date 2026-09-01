@@ -54,6 +54,7 @@ import transformers
 
 # [TTI-DBG] rope 진입 검증 로그 throttle 카운터 (env TTI_DEBUG=1, 첫 N회만)
 _TTI_ROPE_DBG_COUNT = 0
+_TTI_ROPE_WARN_COUNT = 0
 
 
 def get_rope_index_25(
@@ -196,9 +197,33 @@ def get_rope_index_25(
         and audio_lengths is None
         and not bool((input_ids == audio_token_id).any())
     )
-    if input_ids is not None and video_grid_thw is not None and (
-        audio_lengths is not None or (tti_active and _no_audio_tokens)
-    ):
+    # 가드: tti_active(마커 삽입됨) 인데 이 분기에 못 들어가면 마커 위치가 무시되어
+    # 시간 grounding 이 조용히 깨진다. 원인 1순위 = 호출자가 audio_lengths 를 안 넘김
+    # (예: 텐서만 골라 넘기는 필터에 list 인 audio_lengths 가 탈락).
+    _tti_branch = (
+        input_ids is not None and video_grid_thw is not None
+        and (audio_lengths is not None or (tti_active and _no_audio_tokens))
+    )
+    # 오디오 토큰이 실제로 들어있는데 audio_lengths 가 없으면 TTI 여부와 무관하게
+    # CASE 1 을 못 타고 CASE 2(오디오 없음 가정)로 떨어져 오디오 토큰 위치가 텍스트처럼
+    # 깔린다 — 조용히 깨지므로 반드시 경고한다.
+    _has_audio_tok = (
+        input_ids is not None and audio_lengths is None
+        and bool((input_ids == audio_token_id).any())
+    )
+    if (tti_active or _has_audio_tok) and not _tti_branch:
+        global _TTI_ROPE_WARN_COUNT
+        if _TTI_ROPE_WARN_COUNT < 5:
+            _TTI_ROPE_WARN_COUNT += 1
+            _why = ("오디오 토큰이 있는데 audio_lengths 미전달"
+                    if _has_audio_tok else "마커가 삽입됐는데 분기 진입 실패")
+            print(f"[TTI-DBG] ⚠️ WARNING: rope CASE1 진입 실패 — {_why} "
+                  f"(tti_active={tti_active}, "
+                  f"audio_lengths={'None' if audio_lengths is None else 'ok'}, "
+                  f"video_grid_thw={'None' if video_grid_thw is None else 'ok'}) "
+                  "→ 오디오/마커 위치가 무시됨. 호출자가 audio_lengths 를 전달하는지 확인.",
+                  flush=True)
+    if _tti_branch:
         # video-only + TTI: 오디오 토큰이 없으므로 비디오 블록당 audio_len=0 으로 처리.
         if audio_lengths is None:
             audio_lengths = [0] * len(video_grid_thw)

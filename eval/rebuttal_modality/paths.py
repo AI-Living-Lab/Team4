@@ -33,6 +33,12 @@ PREDS = {
         f"{WS}/outputs/gdpo/sft_7b_unav_v8_rl_rMsep3_unpucha_batch4_noscaling/"
         f"checkpoint-2000/fps5_tti/unav100_noaudio/test_results_rank0.json",
         "token", "ref"),
+    # audio 없이 학습된 별도 런 (noaudio ckpt-200). titok_wo_audio 와 달리
+    # 체크포인트 자체가 다르다 — 학습량(2000 vs 200 step) 차이가 같이 섞인다.
+    "titok_noaudio_trained": (
+        f"{WS}/outputs/gdpo/sft_7b_unav_v8_rl_rMsep3_unpucha_batch4_noscaling_noaudio/"
+        f"checkpoint-200/fps5_tti/unav100_titok_noaudio/test_results_rank0.json",
+        "token", "ref"),
     "museg": (
         f"{WS}/outputs/base/MUSEG/unav100_multiseg/eval/test_results_rank0.json",
         "plain", "embedded"),

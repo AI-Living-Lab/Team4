@@ -1,0 +1,18 @@
+% audio_delta_by_modality.tex — Step 9 산출. \usepackage{booktabs} 필요.
+\begin{table}[t]
+\centering\small
+\caption{Effect of audio on UnAV-100, stratified by boundary-defining modality. $\Delta$ = audio-on model $-$ audio-off-trained model. Categories are labelled from the class name alone, before any model output is inspected. CI is a paired percentile bootstrap ($B=5000$) over per-sample IoU.}
+\label{tab:audio_delta_modality}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+Category group & \#cat & $n$ & $\Delta$mIoU & $\Delta$F1@0.5 & $\Delta$F1@0.7 & $\Delta$USA & $\Delta$OSA & $\Delta$CountF1 \\
+\midrule
+Sound-delimited & 65 & 2422 & +6.89 & +2.89 & +0.24 & +0.361 & -0.538 & +0.028 \\
+Audio-visual co-occurring & 19 & 599 & +6.44 & +2.33 & +0.05 & +0.397 & -0.583 & +0.075 \\
+Visually-dominant (control) & 15 & 387 & +2.26 & -6.09 & -8.65 & +0.353 & -0.621 & +0.033 \\
+Ambiguous & 1 & 47 & +8.85 & +0.11 & +2.95 & -0.222 & -0.318 & -0.263 \\
+\midrule
+합계 & 100 & 3455 & +6.32 & +1.67 & -0.85 & +0.365 & -0.550 & +0.039 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -734,34 +734,19 @@ class GDPOTrainer(Trainer):
     # GDPO advantage 계산
     # ============================================================
     # 기존 코드와 동일
-    def _compute_gdpo_advantages(self, rewards_per_func, rewards):
-        num_funcs = rewards_per_func.shape[1]
+    # 8.26 update
+
+    def _compute_grpo_advantages(self, rewards_per_func, rewards):
         device = rewards_per_func.device
-
-        if num_funcs <= 1:
-            mean = rewards.view(-1, self.num_generations).mean(dim=1)
-            std = rewards.view(-1, self.num_generations).std(dim=1)
-            mean = mean.repeat_interleave(self.num_generations, dim=0)
-            std = std.repeat_interleave(self.num_generations, dim=0)
-            return (rewards - mean) / (std + 1e-4)
-
         reward_weights = self.reward_weights.to(device)
         rewards_per_func = torch.nan_to_num(rewards_per_func)
 
-        all_adv = []
-        for i in range(num_funcs):
-            r_i = rewards_per_func[:, i]
-            grouped = r_i.view(-1, self.num_generations)
-            mean_g = grouped.mean(dim=1, keepdim=True)
-            std_g = grouped.std(dim=1, keepdim=True)
-            normed = ((grouped - mean_g) / (std_g + 1e-4)).view(-1)
-            all_adv.append(normed)
-
-        stacked = torch.stack(all_adv, dim=1)
-        combined = (stacked * reward_weights.unsqueeze(0)).sum(dim=1)
-        advantages = (combined - combined.mean()) / (combined.std() + 1e-4)
-        return advantages
-
+        weighted_rewards = (rewards_per_func * reward_weights.unsqueeze(0)).sum(dim=1)
+        grouped = weighted_rewards.view(-1, self.num_generations)
+        mean = grouped.mean(dim=1).repeat_interleave(self.num_generations, dim=0)
+        std = grouped.std(dim=1).repeat_interleave(self.num_generations, dim=0)
+        return (weighted_rewards - mean) / (std + 1e-4)
+    #
 
 
     # ============================================================
@@ -897,24 +882,58 @@ class GDPOTrainer(Trainer):
             if hasattr(_m, "gradient_checkpointing"):
                 _m.gradient_checkpointing = False
 
-        gen_kwargs = {
-            "input_ids": prompt_ids,
-            "attention_mask": prompt_mask,
-            "max_new_tokens": self.max_completion_length,
-            "do_sample": True,
-            "temperature": self.temperature,
-            "top_p": 1.0,
-            "top_k": 50,
-            "repetition_penalty": 1.0,
-        }
-        if pixel_values_videos is not None:
-            gen_kwargs["pixel_values_videos"] = pixel_values_videos
-        if video_grid_thw is not None:
-            gen_kwargs["video_grid_thw"] = video_grid_thw
-        if audio_feature is not None:
-            gen_kwargs["audio_feature"] = audio_feature
-        if audio_lengths is not None:
-            gen_kwargs["audio_lengths"] = audio_lengths
+        # [fastgen] 한 번에 생성할 rollout 수. 기본 = num_generations → generate() 1회 호출.
+        #   OOM 시 GDPO_GEN_BATCH=4 / 2 로 낮추면 청크로 나눠 호출한다(결과 동일).
+        _gen_bs = int(os.environ.get("GDPO_GEN_BATCH", self.num_generations))
+        _gen_bs = max(1, min(_gen_bs, self.num_generations))
+
+        def _tile(x, n):
+            """배치 차원이 없는 멀티모달 입력을 샘플 단위로 n배 복제(tile).
+
+            모델의 _expand_inputs_for_generation._repeat_interleave_samples 와 같은 의미:
+              [s0, s1] -> [s0, s1, s0, s1]      (repeat_interleave 의 [s0,s0,s1,s1] 이 아님)
+
+            rope2d.get_rope_index_25 는 video_index 를 배치 루프 '바깥'에서 초기화하는
+            러닝 카운터로 쓰므로(rope2d.py:237), video_grid_thw / audio_lengths 는
+            반드시 batch-major tile 이어야 인덱싱이 맞는다.
+
+            ⚠️ num_return_sequences=n 을 쓰지 않는 이유:
+               모델의 _expand_inputs_for_generation 은 visual_keys 에 audio_feature 가
+               빠져 있어 오디오를 repeat_interleave 로 잘못 확장하고, list 인
+               audio_lengths 는 아예 확장하지 않는다. 여기서 직접 tile 하고
+               num_return_sequences 는 기본값(1)로 두어 그 경로를 타지 않게 한다.
+            """
+            if x is None:
+                return None
+            if isinstance(x, list):
+                return x * n
+            reps = [1] * x.dim()
+            reps[0] = n
+            return x.repeat(*reps)
+
+        def _build_gen_kwargs(b):
+            gk = {
+                "input_ids": prompt_ids.repeat(b, 1),
+                "attention_mask": prompt_mask.repeat(b, 1),
+                "max_new_tokens": self.max_completion_length,
+                "do_sample": True,
+                "temperature": self.temperature,
+                "top_p": 1.0,
+                "top_k": 50,
+                "repetition_penalty": 1.0,
+            }
+            # 원본과 동일한 키만 전달 (second_per_grid_ts 는 원래 generate 에 안 넘김).
+            if pixel_values_videos is not None:
+                gk["pixel_values_videos"] = _tile(pixel_values_videos, b)
+            if video_grid_thw is not None:
+                gk["video_grid_thw"] = _tile(video_grid_thw, b)
+            if audio_feature is not None:
+                gk["audio_feature"] = _tile(audio_feature, b)
+            if audio_lengths is not None:
+                gk["audio_lengths"] = _tile(audio_lengths, b)
+            return gk
+
+        gen_kwargs = _build_gen_kwargs(1)   # 디버그 출력용(첫 step 로깅 호환)
 
         with unwrap_model_for_generation(model, self.accelerator) as unwrapped_model:
             raw_model = (
@@ -933,10 +952,15 @@ class GDPOTrainer(Trainer):
                       f"temperature={getattr(gc, 'temperature', None)}, "
                       f"top_p={getattr(gc, 'top_p', None)}, top_k={getattr(gc, 'top_k', None)}, "
                       f"repetition_penalty={getattr(gc, 'repetition_penalty', None)}")
-            for _ in range(self.num_generations):
-                gen_ids = raw_model.generate(**gen_kwargs)
+            # [fastgen] num_generations 개를 순차 호출(구: G회) 대신 배치로 묶어 호출.
+            #   프롬프트가 G개 모두 동일 길이라 패딩이 필요 없고, 디코딩이 배치 병렬로 돈다.
+            _remaining = self.num_generations
+            while _remaining > 0:
+                _b = min(_gen_bs, _remaining)
+                gen_ids = raw_model.generate(**_build_gen_kwargs(_b))
                 gen_ids = gen_ids[:, prompt_length:]
                 all_completion_ids.append(gen_ids)
+                _remaining -= _b
 
         # generate 끝 → gradient checkpointing 재활성화 (use_reentrant=False)
         import functools as _functools
@@ -1044,7 +1068,7 @@ class GDPOTrainer(Trainer):
             output = reward_func(completions=completions, gt_intervals=gt_intervals_repeated)
             rewards_per_func[:, i] = torch.tensor(output, dtype=torch.float32, device=device)
         rewards = rewards_per_func.sum(dim=1)
-        advantages = self._compute_gdpo_advantages(rewards_per_func, rewards)
+        advantages = self._compute_grpo_advantages(rewards_per_func, rewards)
         # [sep2] multi-segment(GT>=2) prompt 면 advantage 를 w 배 → single prior 상쇄.
         #   한 step 의 모든 rollout 은 같은 GT(=같은 multi/single) 라 그룹 전체에 동일 스케일.
         #   (정규화 이후 곱이므로 within-group 상대 신호는 유지, gradient 크기만 w 배)
@@ -1814,17 +1838,6 @@ def main():
                         help="smoke-test 등에서 step 수 제한. >0이면 num_train_epochs 무시.")
     parser.add_argument("--run_name", type=str, default=None,
                         help="wandb/tracker run name 재정의. 없으면 config.logging.run_name 사용.")
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=None,
-                        help="grad accum step 수. 없으면 config.training.gradient_accumulation_steps. "
-                             "GPU 수가 달라졌을 때 effective batch 를 맞추는 용도 — "
-                             "eff batch = grad_accum × num_gpu 이고 train sampler 의 "
-                             "block_size 도 같은 곱이라, 2GPU×accum2 와 1GPU×accum4 는 "
-                             "둘 다 eff batch 4 / block_size 4 가 된다.")
-    parser.add_argument("--seed", type=int, default=None,
-                        help="학습 시드(LoRA fresh init + 데이터 순서 + 샘플링). 멀티시드 복제용. "
-                             "없으면 config.training.seed(기본 2024). "
-                             "학습 데이터 파일 자체는 바뀌지 않는다 — 데이터 draw 는 "
-                             "data/train/build_unpucha_v2.py 의 SEED 소관.")
     parser.add_argument("--tti_mode", type=str, default=None, choices=[None, "off", "on"],
                         help="TTI 모드. off=time_token_id_range 무시 / on=base config 그대로. "
                              "기본값은 config.model.tti_mode 또는 'off'.")
@@ -1915,12 +1928,11 @@ def main():
     # 학습 파라미터
     num_epochs = _get(None, "training", "num_train_epochs", default=1)
     batch_size = _get(None, "training", "per_device_train_batch_size", default=1)
-    grad_accum = _get(cli.gradient_accumulation_steps,
-                      "training", "gradient_accumulation_steps", default=4)
+    grad_accum = _get(None, "training", "gradient_accumulation_steps", default=4)
     lr = float(_get(None, "training", "learning_rate", default=5e-6))
     warmup = _get(None, "training", "warmup_ratio", default=0.1)
     scheduler = _get(None, "training", "lr_scheduler_type", default="cosine")
-    seed = _get(cli.seed, "training", "seed", default=2024)
+    seed = _get(None, "training", "seed", default=2024)
     logging_steps = _get(None, "logging", "logging_steps", default=1)
     save_steps = _get(None, "logging", "save_steps", default=500)
     save_total_limit = _get(None, "logging", "save_total_limit", default=3)
@@ -1937,12 +1949,6 @@ def main():
 
     # Model
     # 모델 로드/LoRA fresh init 보다 먼저 시딩 (Trainer 내부 set_seed 는 get_peft_model 이후라 늦음).
-    # [SEED] 멀티시드 복제 시 사후 대조용 — 시드와 그 출처를 로그에 남긴다.
-    #   시드는 RL 단계만 바꾼다: LoRA fresh init + 데이터 순서 + 샘플링.
-    #   SFT(model_path/model_base)와 학습 데이터 파일은 시드와 무관하게 동일하다.
-    print(f"[SEED] training seed = {seed} "
-          f"(source={'cli --seed' if cli.seed is not None else 'config.training.seed'})",
-          flush=True)
     transformers.set_seed(seed)
     model, tokenizer = load_model_and_tokenizer(model_path, model_base, tti_mode=tti_mode)
 

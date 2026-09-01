@@ -868,10 +868,24 @@ class LazySupervisedDataset(Dataset):
                         _v = _decode_run(_run)
                         if _v is not None:
                             _secs.append(_v)
+                # natural_text 는 time_token_id_range=None 이라 위 id 기반 _secs 가 항상 비어
+                # 있다. 그대로 두면 마커가 정상 삽입돼도 아래 WARNING 이 매번 오탐으로 뜬다
+                # (GDPO 트레이너 ⑤ 는 이미 텍스트 기반으로 세고 있음). 동일하게 맞춘다.
+                _n_nat = None
+                if self.tti_time_format == "natural_text":
+                    try:
+                        _pt = self.tokenizer.decode(_ids_list, skip_special_tokens=False)
+                        _nat_secs = re.findall(r"second\{\s*(\d+\.\d)\s*\}", _pt)
+                        _n_nat = len(_nat_secs)
+                        _secs = [float(x) for x in _nat_secs]
+                    except Exception as _e:
+                        _n_nat = -1
+                        print(f"[TTI-DBG] natural 마커 카운트 실패: {_e}", flush=True)
                 _n_chunks = int(video_grid_thw[0][0]) if video_grid_thw else 0
                 print(f"[TTI-DBG] ③ sample idx={i} fmt={self.tti_time_format} "
-                      f"chunks={_n_chunks} marker_len={self.time_marker_token_len}", flush=True)
-                print(f"[TTI-DBG] time markers ({len(_secs)}): {_secs}", flush=True)
+                      f"chunks={_n_chunks} marker_len={self.time_marker_token_len}"
+                      + (f" #natural_markers={_n_nat}" if _n_nat is not None else ""), flush=True)
+                print(f"[TTI-DBG] time markers ({len(_secs)}): {_secs[:30]}", flush=True)
                 if self.tti_time_format != "off" and not _secs:
                     print("[TTI-DBG] ⚠️ WARNING: tti ON 인데 input_ids 에 time-marker 0개 "
                           "(데이터 마커 미삽입 의심)", flush=True)
@@ -948,7 +962,12 @@ class LazySupervisedDataset(Dataset):
                 data_dict.pop("reject_position_ids", None)
                 data_dict.pop("chosen_labels", None)
                 data_dict.pop("reject_labels", None)
-                data_dict.pop("audio_lengths", None)
+                # ⚠️ audio_lengths 는 pop 하지 않는다.
+                #   rope2d.get_rope_index_25 는 (audio_lengths is not None) 여야 TTI 마커
+                #   인지 분기로 들어간다. 여기서 버리면 generate 시점 rope 가 마커를 무시해
+                #   시간 grounding 이 조용히 깨진다(학습 val 대비 mIoU 반토막).
+                #   input_ids 는 prompt 로 잘리지만 오디오 토큰은 prompt 안에 있으므로
+                #   audio_lengths 는 그대로 유효하다.
 
                 # ---- TTI debug dump ----
                 dbg_dir = getattr(self.data_args, "debug_interleave_dir", "") or ""
